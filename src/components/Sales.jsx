@@ -1,368 +1,148 @@
-import React, { useState, useRef, useEffect } from 'react';
-// eslint-disable-next-line no-unused-vars
+import React, { useState, useEffect } from 'react';
 import { translations } from '../translations';
 
-const Sales = ({ supabase, lang = 'sw', t }) => {
+const fmt = (val) => { if (val == null || val === '') return '0'; const n = Number(val); return isNaN(n) ? '0' : n.toLocaleString(); };
+
+const Sales = ({ supabase, lang, userId }) => {
+  const t = translations[lang].sales;
+  const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [barcodeInput, setBarcodeInput] = useState('');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastSale, setLastSale] = useState(null);
-  const inputRef = useRef(null);
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [error, setError] = useState('');
 
-  useEffect(() => { 
-    if (inputRef.current) inputRef.current.focus(); 
-  }, [cart.length, showReceipt]);
-
-  const handleScan = async (e) => {
-    e.preventDefault();
-    if (!barcodeInput.trim()) return;
-    
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('barcode', barcodeInput.trim())
-      .single();
-
-    if (error || !data) {
-      alert(lang === 'sw' ? '❌ Bidhaa haipatikani!' : '❌ Product not found!');
-      setBarcodeInput('');
-      setLoading(false);
-      return;
-    }
-
-    if (data.stock_quantity <= 0) {
-      alert(lang === 'sw' ? '⚠️ Stock imeisha!' : '⚠️ Out of stock!');
-      setBarcodeInput('');
-      setLoading(false);
-      return;
-    }
-
-    setCart(prev => {
-      const existing = prev.find(item => item.barcode === data.barcode);
-      if (existing) {
-        return prev.map(item => 
-          item.barcode === data.barcode 
-            ? { ...item, quantity: item.quantity + 1 } 
-            : item
-        );
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    let active = true;
+    const fetchProducts = async () => {
+      try {
+        const { data, error } = await supabase.from('products').select('*').eq('user_id', userId).order('name');
+        if (error) throw error;
+        if (active) setProducts(Array.isArray(data) ? data : []);
+      } catch (err) { 
+        if (active) setError(translations[lang].sales.saveError + err.message); 
       }
-      return [...prev, { ...data, quantity: 1 }];
+    };
+    fetchProducts();
+    return () => { active = false; };
+  }, [supabase, userId, lang]);
+
+  const addToCart = (product) => {
+    if (!product?.id) return;
+    // ✅ Tumia selling_price (au price kama fallback kwa data ya zamani)
+    const price = product.selling_price || product.price || 0;
+    setCart(prev => {
+      const exists = prev.find(i => i.id === product.id);
+      return exists 
+        ? prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i) 
+        : [...prev, { ...product, qty: 1, price: Number(price), selling_price: Number(price) }];
     });
-
-    setBarcodeInput('');
-    setLoading(false);
   };
 
-  const removeFromCart = (barcode) => {
-    setCart(prev => prev.filter(item => item.barcode !== barcode));
-  };
+  const updateQty = (id, delta) => setCart(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i));
+  const removeFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id));
+  const totalAmount = cart.reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.qty || 1)), 0);
 
   const handleCheckout = async () => {
-    if (cart.length === 0) return;
-
-    const totalAmount = cart.reduce((sum, item) => 
-      sum + (item.selling_price * item.quantity), 0
-    );
-
-    const confirmMsg = lang === 'sw' 
-      ? `✅ Thibitisha malipo? Jumla: TZS ${totalAmount.toLocaleString()}` 
-      : `✅ Confirm payment? Total: TZS ${totalAmount.toLocaleString()}`;
-
-    if (!window.confirm(confirmMsg)) return;
-
-    setLoading(true);
-    const totalCost = cart.reduce((sum, item) => 
-      sum + (item.cost_price * item.quantity), 0
-    );
-    const profit = totalAmount - totalCost;
-    const receiptNo = `REC-${Date.now().toString().slice(-6)}`;
-
+    if (!cart.length) return alert(t.emptyCartAlert);
+    if (!supabase || !userId) return alert(t.dbNotReady);
+    setLoading(true); setError('');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const userEmail = user?.email || 'Admin';
-
-      const { data: sale, error: saleError } = await supabase
-        .from('sales')
-        .insert([{
-          total_amount: totalAmount,
-          total_cost: totalCost,
-          payment_method: 'cash',
-          receipt_number: receiptNo
-        }])
-        .select()
-        .single();
-
-      if (saleError) throw saleError;
-
-      for (const item of cart) {
-        await supabase
-          .from('products')
-          .update({ stock_quantity: item.stock_quantity - item.quantity })
-          .eq('id', item.id);
-
-        await supabase
-          .from('sale_items')
-          .insert([{
-            sale_id: sale.id,
-            product_id: item.id,
-            quantity: item.quantity,
-            unit_price: item.selling_price,
-            cost_price: item.cost_price,
-            subtotal: item.selling_price * item.quantity
-          }]);
-      }
-
-      setLastSale({ 
-        ...sale, 
+      const recNo = `REC-${Date.now().toString().slice(-6)}`;
+      const { error: dbErr } = await supabase.from('sales').insert({ 
+        user_id: userId,
         items: cart, 
-        date: new Date().toLocaleString(lang === 'sw' ? 'sw-TZ' : 'en-US'),
-        user_email: userEmail,
-        profit: profit
+        total_amount: totalAmount, 
+        payment_method: paymentMethod, 
+        receipt_number: recNo, 
+        created_at: new Date().toISOString() 
       });
-
-      setShowReceipt(true);
-      setCart([]);
-
-    } catch (err) {
-      alert(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+      if (dbErr) throw dbErr;
+      setLastSale({ items: [...cart], total: totalAmount, receipt: recNo, date: new Date(), method: paymentMethod });
+      setShowReceipt(true); setCart([]);
+    } catch (err) { setError(t.saveError + err.message); }
+    finally { setLoading(false); }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const filtered = products.filter(p => (p.name||'').toLowerCase().includes(search.toLowerCase()) || (p.barcode && String(p.barcode).includes(search)));
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'system-ui, sans-serif', maxWidth: '900px', margin: '0 auto' }}>
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #receipt-box, #receipt-box * { visibility: visible; }
-          #receipt-box { 
-            position: absolute; 
-            left: 0; 
-            top: 0; 
-            width: 80mm; 
-            padding: 5mm; 
-            font-size: 12px; 
-            font-family: monospace;
-            background: #fff;
-          }
-          .no-print { display: none !important; }
-        }
-      `}</style>
-
-      <h2 className="no-print">🛒 POS - {t.sales || 'Sales'}</h2>
-
-      <form 
-        onSubmit={handleScan} 
-        style={{ display: 'flex', gap: '10px', marginBottom: '20px' }} 
-        className="no-print"
-      >
-        <input 
-          ref={inputRef} 
-          type="text" 
-          value={barcodeInput} 
-          onChange={(e) => setBarcodeInput(e.target.value)} 
-          placeholder={t.scanBarcode || 'Scan barcode or type here...'} 
-          style={{ 
-            flex: 1, 
-            padding: '14px', 
-            fontSize: '16px', 
-            border: '2px solid #007bff', 
-            borderRadius: '8px', 
-            fontFamily: 'monospace' 
-          }} 
-          autoFocus 
-        />
-        <button 
-          type="submit" 
-          disabled={loading} 
-          style={{ 
-            padding: '14px 24px', 
-            background: '#007bff', 
-            color: '#fff', 
-            border: 'none', 
-            borderRadius: '8px', 
-            cursor: 'pointer', 
-            fontWeight: 'bold' 
-          }}
-        >
-          {loading ? (lang === 'sw' ? 'Inatafuta...' : 'Searching...') : (t.addToCart || '➕ Add')}
-        </button>
-      </form>
-
-      <div 
-        style={{ 
-          background: '#fff', 
-          padding: '20px', 
-          borderRadius: '12px', 
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)' 
-        }} 
-        className="no-print"
-      >
-        <h3>🧾 {t.cart || 'Cart'} ({cart.length} {t.items || 'items'})</h3>
-
-        {cart.length === 0 ? (
-          <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
-            {t.emptyCart || 'Cart is empty. Scan barcode to start...'}
-          </p>
-        ) : (
-          <>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #eee', textAlign: 'left' }}>
-                  <th style={{padding:'8px 0'}}>{t.productName || 'Product'}</th>
-                  <th style={{textAlign:'right'}}>{t.sellingPrice || 'Price'}</th>
-                  <th style={{textAlign:'center'}}>Qty</th>
-                  <th style={{textAlign:'right'}}>{lang === 'sw' ? 'Jumla' : 'Subtotal'}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {cart.map(item => (
-                  <tr key={item.barcode} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                    <td style={{padding:'8px 0'}}>{item.name}</td>
-                    <td style={{textAlign:'right'}}>{item.selling_price?.toLocaleString()}</td>
-                    <td style={{textAlign:'center'}}>{item.quantity}</td>
-                    <td style={{textAlign:'right'}}>{(item.selling_price * item.quantity)?.toLocaleString()}</td>
-                    <td>
-                      <button 
-                        onClick={() => removeFromCart(item.barcode)} 
-                        style={{ 
-                          background: '#ef4444', 
-                          color: '#fff', 
-                          border: 'none', 
-                          borderRadius: '4px', 
-                          padding: '4px 8px', 
-                          cursor: 'pointer' 
-                        }}
-                      >
-                        ❌
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div style={{ textAlign: 'right', borderTop: '2px solid #eee', paddingTop: '15px' }}>
-              <h3 style={{margin:'0 0 15px'}}>
-                {t.total || 'Grand Total'}: TZS {cart.reduce((sum, item) => sum + (item.selling_price * item.quantity), 0)?.toLocaleString()}
-              </h3>
-              <button 
-                onClick={handleCheckout} 
-                disabled={loading} 
-                style={{ 
-                  padding: '14px 30px', 
-                  background: '#22c55e', 
-                  color: '#fff', 
-                  border: 'none', 
-                  borderRadius: '8px', 
-                  fontSize: '16px', 
-                  cursor: 'pointer', 
-                  fontWeight: 'bold' 
-                }}
-              >
-                {loading ? (lang === 'sw' ? 'Inachakata...' : 'Processing...') : (t.checkout || '✅ Checkout')}
-              </button>
-            </div>
-          </>
+    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', height: 'calc(100vh - 100px)', padding: '10px' }}>
+      {error && <div style={{ width: '100%', padding: '12px', background: '#fef2f2', color: '#dc2626', borderRadius: '8px', marginBottom: '10px', textAlign: 'center' }}>{error}<button onClick={()=>window.location.reload()} style={{ marginLeft:'10px', textDecoration:'underline', background:'none', border:'none', color:'#dc2626', cursor:'pointer' }}>🔄 Refresh</button></div>}
+      
+      <div style={{ flex: '2 1 400px', background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflowY: 'auto' }}>
+        <input type="text" placeholder={t.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '15px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
+        {products.length === 0 ? <p style={{ textAlign: 'center', color: '#64748b', marginTop: '40px' }}>{t.noProducts}</p> : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
+            {filtered.map(p => {
+              const displayPrice = p.selling_price || p.price || 0;
+              return (<button key={p.id} onClick={() => addToCart(p)} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{p.name}</span>
+                <span style={{ fontSize: '15px', fontWeight: 'bold', color: displayPrice > 0 ? '#22c55e' : '#ef4444' }}>{fmt(displayPrice)} TSh</span>
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>{t.stock}: {p.stock ?? '-'}</span>
+              </button>);
+            })}
+          </div>
         )}
       </div>
 
-      {showReceipt && lastSale && (
-        <div 
-          id="receipt-box" 
-          style={{ 
-            background: '#fff', 
-            padding: '15px', 
-            maxWidth: '300px', 
-            margin: '20px auto', 
-            fontFamily: 'monospace', 
-            fontSize: '13px', 
-            lineHeight: '1.5', 
-            border: '1px dashed #ccc', 
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)' 
-          }}
-        >
-          <div style={{ textAlign: 'center', borderBottom: '1px dashed #000', paddingBottom: '10px', marginBottom: '10px' }}>
-            <h3 style={{ margin: '0 0 5px', fontSize: '16px' }}>🏪 KasiTRADE Web</h3>
-            <p style={{ margin: '0', fontSize: '11px' }}>POS: 01 | Cashier: {lastSale.user_email || 'Admin'}</p>
-            <p style={{ margin: '5px 0 0', fontSize: '11px' }}>{lastSale.date}</p>
-            <p style={{ margin: '2px 0', fontWeight: 'bold', fontSize: '14px' }}>#{lastSale.receipt_number}</p>
-          </div>
+      <div style={{ flex: '1 1 300px', background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ margin: '0 0 15px', color: '#0f172a' }}>{t.cart} ({cart.length})</h3>
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '15px' }}>
+          {cart.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center', marginTop: '40px' }}>{t.emptyCart}</p> : cart.map(i => (
+            <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+              <div><p style={{ margin: '0 0 2px', fontSize: '14px', fontWeight: '500' }}>{i.name}</p><p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>{fmt(i.price)} x {i.qty || 1} = <strong>{fmt((i.price||0)*(i.qty||1))}</strong></p></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => updateQty(i.id, -1)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}>-</button>
+                <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>{i.qty}</span>
+                <button onClick={() => updateQty(i.id, 1)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}>+</button>
+                <button onClick={() => removeFromCart(i.id)} style={{ background: '#fef2f2', border: 'none', color: '#ef4444', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer' }}>🗑️</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: '2px solid #e2e8f0', paddingTop: '15px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginBottom: '12px' }}><span>{t.grandTotal}</span><span style={{ color: '#22c55e' }}>{fmt(totalAmount)} TSh</span></div>
+          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px' }}>
+            <option value="Cash">{t.cash}</option><option value="M-Pesa">{t.mpesa}</option><option value="Bank">{t.bank}</option>
+          </select>
+          <button onClick={handleCheckout} disabled={loading || !cart.length} style={{ width: '100%', padding: '14px', background: loading || !cart.length ? '#94a3b8' : '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: loading || !cart.length ? 'not-allowed' : 'pointer' }}>{loading ? t.processing : t.checkout}</button>
+        </div>
+      </div>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '12px' }}>
-            <tbody>
-              {lastSale.items.map((item, i) => (
-                <tr key={i}>
-                  <td style={{ textAlign: 'left', paddingRight: '5px', verticalAlign: 'top' }}>
-                    {item.name}
-                    <div style={{fontSize:'10px', color:'#666'}}>
-                      {item.quantity} x {item.selling_price.toLocaleString()}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-                    {(item.quantity * item.selling_price).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div style={{ borderTop: '1px dashed #000', paddingTop: '8px', textAlign: 'right' }}>
-            <p style={{ margin: '2px 0', fontSize: '14px' }}>
-              {lang === 'sw' ? 'Jumla:' : 'Total:'} 
-              <b style={{marginLeft:'5px'}}>TZS {lastSale.total_amount.toLocaleString()}</b>
-            </p>
-            <p style={{ margin: '2px 0', fontSize: '11px', color: '#22c55e' }}>
-              {lang === 'sw' ? 'Faida:' : 'Profit:'} TZS {(lastSale.profit || 0).toLocaleString()}
-            </p>
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: '15px', borderTop: '1px dashed #000', paddingTop: '10px' }}>
-            <p style={{ margin: '0', fontSize: '12px' }}>
-              🙏 {lang === 'sw' ? 'Asante kwa kununua!' : 'Thank you for shopping!'}
-            </p>
-            <p style={{ margin: '5px 0 0', fontSize: '10px', color: '#666' }}>--- KasiTRADE POS ---</p>
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: '15px', display: 'flex', gap: '8px', justifyContent: 'center' }} className="no-print">
-            <button 
-              onClick={handlePrint} 
-              style={{ 
-                padding: '10px 16px', 
-                background: '#3b82f6', 
-                color: '#fff', 
-                border: 'none', 
-                borderRadius: '6px', 
-                cursor: 'pointer', 
-                fontWeight: 'bold', 
-                flex: 1 
-              }}
-            >
-              🖨️ Print / PDF
-            </button>
-            <button 
-              onClick={() => { setShowReceipt(false); setLastSale(null); }} 
-              style={{ 
-                padding: '10px 16px', 
-                background: '#6b7280', 
-                color: '#fff', 
-                border: 'none', 
-                borderRadius: '6px', 
-                cursor: 'pointer', 
-                fontWeight: 'bold', 
-                flex: 1 
-              }}
-            >
-              ✕ Funga
-            </button>
+      {showReceipt && lastSale && Array.isArray(lastSale.items) && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowReceipt(false)}>
+          <div style={{ background: '#fff', padding: '25px', borderRadius: '12px', width: '320px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: '15px', paddingBottom: '15px', borderBottom: '2px solid #3b82f6' }}>
+              <h2 style={{ margin: '0 0 5px', color: '#0f172a', fontSize: '20px' }}>{t.receipt.company}</h2>
+              <p style={{ margin: '0', fontSize: '12px', color: '#64748b' }}>{t.receipt.subtitle}<br />📞 +255 622 995 734</p>
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: '0 0 5px', color: '#0f172a', fontSize: '16px' }}>{t.receipt.title}</h3>
+              <p style={{ margin: '0', fontSize: '11px', color: '#94a3b8' }}>{t.receipt.date}: {lastSale.date.toLocaleString()}<br/>{t.receipt.number}: #{lastSale.receipt}</p>
+            </div>
+            <hr style={{ border: '1px dashed #cbd5e1', margin: '15px 0' }} />
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '10px' }}>
+              <thead><tr style={{ borderBottom: '2px solid #0f172a' }}><th style={{ textAlign: 'left', padding: '5px 0' }}>{t.receipt.item}</th><th style={{ textAlign: 'center', padding: '5px 0' }}>{t.receipt.quantity}</th><th style={{ textAlign: 'right', padding: '5px 0' }}>{t.receipt.subtotal}</th></tr></thead>
+              <tbody>{lastSale.items.map((i, idx) => (<tr key={idx}><td style={{ padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>{i.name || '-'}</td><td style={{ textAlign: 'center', padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>{i.qty || 1}</td><td style={{ textAlign: 'right', padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>{fmt((i.price||0)*(i.qty||1))}</td></tr>))}</tbody>
+            </table>
+            <hr style={{ border: '1px dashed #cbd5e1', margin: '15px 0' }} />
+            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px' }}><span>{t.receipt.grandTotal}</span><span style={{ color: '#22c55e', fontSize: '18px' }}>{fmt(lastSale.total)} TSh</span></div>
+            </div>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 15px', textAlign: 'center' }}>{t.receipt.payment}: <strong>{lastSale.method}</strong></p>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+              <button onClick={() => { window.print(); setShowReceipt(false); }} style={{ flex: 1, padding: '12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>{t.receipt.print}</button>
+              <button onClick={() => setShowReceipt(false)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#0f172a', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>{t.receipt.close}</button>
+            </div>
+            <div style={{ textAlign: 'center', fontSize: '11px', color: '#94a3b8', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+              <p style={{ margin: '0 0 5px' }}>{t.receipt.thankYou}</p>
+              <p style={{ margin: '0' }}>{t.receipt.support}: +255 622 995 734 | +255 613 808 727</p>
+              <p style={{ margin: '5px 0 0', fontSize: '10px' }}>{t.receipt.copyright}</p>
+            </div>
           </div>
         </div>
       )}
