@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { translations } from '../translations';
+import { THEME, getThemeColors } from '../theme';
 import ReceiptTemplates from './ReceiptTemplates';
+import Toast from './Toast';
 
 const LOW_STOCK_THRESHOLD = 5;
 const fmt = (val) => { if (val == null || val === '') return '0'; const n = Number(val); return isNaN(n) ? '0' : n.toLocaleString(); };
 
 const Sales = ({ supabase, lang, userId, theme }) => {
   const isDark = theme === 'dark';
+  const colors = getThemeColors(isDark);
   const t = translations[lang].sales;
   const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -17,20 +19,12 @@ const Sales = ({ supabase, lang, userId, theme }) => {
   const [lastSale, setLastSale] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [error, setError] = useState('');
-  const [notification, setNotification] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [optimisticCart, setOptimisticCart] = useState([]);
 
-  const bg = isDark ? '#1e293b' : '#ffffff';
-  const cardBg = isDark ? '#0f172a' : '#f8fafc';
-  const textMain = isDark ? '#f1f5f9' : '#0f172a';
-  const textSec = isDark ? '#94a3b8' : '#64748b';
-  const border = isDark ? '#334155' : '#e2e8f0';
-  const inputBg = isDark ? '#0f172a' : '#ffffff';
-  const btnBg = isDark ? '#334155' : '#f1f5f9';
-
-  const showNotification = (message, type = 'info') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
-  };
+  const showToast = useCallback((message, type = 'info') => {
+    setToast({ message, type, id: Date.now() });
+  }, []);
 
   useEffect(() => {
     if (!supabase || !userId) return;
@@ -46,81 +40,112 @@ const Sales = ({ supabase, lang, userId, theme }) => {
     return () => { active = false; };
   }, [supabase, userId, lang]);
 
-  const addToCart = (product) => {
+  const addToCart = useCallback((product) => {
     if (!product?.id) return;
     const stock = product.stock_quantity || 0;
-    if (stock <= 0) { showNotification(`❌ ${product.name} imeisha stock!`, 'error'); return; }
-    if (stock < LOW_STOCK_THRESHOLD) showNotification(`⚠️ ${product.name} ina stock chache (${stock})!`, 'warning');
-    const price = product.selling_price || product.price || 0;
-    setCart(prev => {
+    if (stock <= 0) { showToast(`${product.name} imeisha stock!`, 'error'); return; }
+    if (stock < LOW_STOCK_THRESHOLD) showToast(`${product.name} ina stock chache (${stock})!`, 'warning');
+    
+    // ✅ Optimistic Update: Onyesha mara moja
+    setOptimisticCart(prev => {
       const exists = prev.find(i => i.id === product.id);
+      const price = product.selling_price || product.price || 0;
       if (exists) {
-        if (exists.qty + 1 > stock) { showNotification(`⚠️ Stock haiitoshi! Inapatikana: ${stock}`, 'warning'); return prev.map(i => i.id === product.id ? { ...i, qty: stock } : i); }
+        if (exists.qty + 1 > stock) { showToast(`Stock haiitoshi! Inapatikana: ${stock}`, 'warning'); return prev.map(i => i.id === product.id ? { ...i, qty: stock } : i); }
         return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
       }
       return [...prev, { ...product, qty: 1, price: Number(price), stock_limit: stock }];
     });
-  };
 
-  const updateQty = (id, delta) => {
-    setCart(prev => prev.map(i => {
+    // ✅ Background sync to server (optional future enhancement)
+    // (async () => { try { /* sync logic */ } catch (e) { console.warn('Optimistic sync failed:', e); } })();
+  }, [showToast]);
+
+  const updateQty = useCallback((id, delta) => {
+    setOptimisticCart(prev => prev.map(i => {
       if (i.id === id) {
         const newQty = Math.max(1, i.qty + delta);
-        if (newQty > i.stock_limit) { showNotification(`⚠️ Stock haiitoshi!`, 'warning'); return { ...i, qty: i.stock_limit }; }
+        if (newQty > i.stock_limit) { showToast(`Stock haiitoshi!`, 'warning'); return { ...i, qty: i.stock_limit }; }
         return { ...i, qty: newQty };
       }
       return i;
     }));
-  };
+  }, [showToast]);
 
-  const removeFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id));
-  const totalAmount = cart.reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.qty || 1)), 0);
+  const removeFromCart = useCallback((id) => {
+    setOptimisticCart(prev => prev.filter(i => i.id !== id));
+  }, []);
+
+  const totalAmount = optimisticCart.reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.qty || 1)), 0);
 
   const handleCheckout = async () => {
-    if (!cart.length) return showNotification('Kikapu kipo tupu!', 'warning');
-    if (!supabase || !userId) return showNotification('Database haiko tayari.', 'error');
-    const stockIssues = cart.filter(item => item.qty > item.stock_limit);
-    if (stockIssues.length > 0) { showNotification(`❌ Bidhaa ${stockIssues.length} zina stock isiyotosha.`, 'error'); return; }
+    if (!optimisticCart.length) return showToast('Kikapu kipo tupu!', 'warning');
+    if (!supabase || !userId) return showToast('Database haiko tayari.', 'error');
+    
+    const stockIssues = optimisticCart.filter(item => item.qty > item.stock_limit);
+    if (stockIssues.length > 0) { showToast(`Bidhaa ${stockIssues.length} zina stock isiyotosha.`, 'error'); return; }
+    
     setLoading(true); setError('');
     try {
       const recNo = `REC-${Date.now().toString().slice(-6)}`;
-      const { error: dbErr } = await supabase.from('sales').insert({ user_id: userId, items: cart.map(({ stock_limit, ...rest }) => rest), total_amount: totalAmount, payment_method: paymentMethod, receipt_number: recNo, created_at: new Date().toISOString() });
+      const { error: dbErr } = await supabase.from('sales').insert({ 
+        user_id: userId, 
+        items: optimisticCart.map(({ stock_limit, ...rest }) => rest), 
+        total_amount: totalAmount, 
+        payment_method: paymentMethod, 
+        receipt_number: recNo, 
+        created_at: new Date().toISOString() 
+      });
       if (dbErr) throw dbErr;
-      for (const item of cart) await supabase.from('products').update({ stock_quantity: item.stock_limit - item.qty }).eq('id', item.id).eq('user_id', userId);
-      setLastSale({ items: [...cart], total: totalAmount, receipt: recNo, date: new Date(), method: paymentMethod });
-      setShowReceipt(true); setCart([]);
-      showNotification('✅ Mauzo yamehifadhiwa!', 'success');
-    } catch (err) { setError(t.saveError + err.message); showNotification(`❌ ${err.message}`, 'error'); }
-    finally { setLoading(false); }
+      
+      // ✅ Update stock quantity baada ya mauzo
+      for (const item of optimisticCart) {
+        await supabase.from('products').update({ stock_quantity: item.stock_limit - item.qty }).eq('id', item.id).eq('user_id', userId);
+      }
+      
+      setLastSale({ items: [...optimisticCart], total: totalAmount, receipt: recNo, date: new Date(), method: paymentMethod });
+      setShowReceipt(true); 
+      setOptimisticCart([]);
+      showToast('✅ Mauzo yamehifadhiwa!', 'success');
+    } catch (err) { 
+      setError(t.saveError + err.message); 
+      showToast(`❌ ${err.message}`, 'error'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  const filtered = products.filter(p => (p.name||'').toLowerCase().includes(search.toLowerCase()) || (p.barcode && String(p.barcode).includes(search)));
+  const filtered = products.filter(p => 
+    (p.name||'').toLowerCase().includes(search.toLowerCase()) || 
+    (p.barcode && String(p.barcode).includes(search))
+  );
 
   return (
-    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', height: 'calc(100vh - 100px)', padding: '10px' }}>
-      {notification && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1100, padding: '12px 20px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', background: notification.type === 'error' ? (isDark ? '#451a1a' : '#fef2f2') : notification.type === 'warning' ? (isDark ? '#451a03' : '#fff7ed') : (isDark ? '#14532d' : '#f0fdf4'), color: notification.type === 'error' ? '#f87171' : notification.type === 'warning' ? '#fb923c' : '#4ade80', border: `1px solid ${notification.type === 'error' ? (isDark ? '#7f1d1d' : '#fecaca') : notification.type === 'warning' ? (isDark ? '#7c2d12' : '#fed7aa') : (isDark ? '#166534' : '#bbf7d0')}`, fontWeight: '500', fontSize: '14px', maxWidth: '90vw' }}>
-          {notification.message}
-        </div>
-      )}
-      {error && <div style={{ width: '100%', padding: '12px', background: isDark ? '#451a1a' : '#fef2f2', color: '#f87171', borderRadius: '8px', marginBottom: '10px', textAlign: 'center' }}>{error}<button onClick={()=>window.location.reload()} style={{ marginLeft:'10px', textDecoration:'underline', background:'none', border:'none', color:'#f87171', cursor:'pointer' }}>🔄 Refresh</button></div>}
+    <div style={{ display: 'flex', gap: THEME.space.xl, flexWrap: 'wrap', height: 'calc(100vh - 100px)', padding: THEME.space.l }}>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       
-      <div style={{ flex: '2 1 400px', background: bg, borderRadius: '12px', padding: '20px', boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.05)', overflowY: 'auto', border: `1px solid ${border}` }}>
-        <input type="text" placeholder={t.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '15px', background: inputBg, color: textMain, border: `1px solid ${border}`, borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }} />
-        {products.length === 0 ? <p style={{ textAlign: 'center', color: textSec, marginTop: '40px' }}>{t.noProducts}</p> : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
+      {error && <div style={{ width: '100%', padding: THEME.space.m, background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, borderRadius: THEME.radius.md, marginBottom: THEME.space.m, textAlign: 'center' }}>{error}<button onClick={()=>window.location.reload()} style={{ marginLeft:THEME.space.m, textDecoration:'underline', background:'none', border:'none', color:THEME.colors.error, cursor:'pointer' }}>🔄 Refresh</button></div>}
+      
+      <div style={{ flex: '2 1 400px', background: colors.surface, borderRadius: THEME.radius.lg, padding: THEME.space.xl, boxShadow: THEME.shadow.sm, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
+        <input type="text" placeholder={t.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: THEME.space.m, marginBottom: THEME.space.l, background: colors.surface, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: THEME.radius.md, fontSize: '14px', boxSizing: 'border-box' }} />
+        {products.length === 0 ? <p style={{ textAlign: 'center', color: colors.textSec, marginTop: THEME.space.xxl }}>{t.noProducts}</p> : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: THEME.space.m }}>
             {filtered.map(p => {
               const displayPrice = p.selling_price || p.price || 0;
               const stock = p.stock_quantity || 0;
               const isOut = stock <= 0;
               const isLow = stock > 0 && stock < LOW_STOCK_THRESHOLD;
-              const stockColor = isOut ? '#ef4444' : isLow ? '#f59e0b' : '#22c55e';
+              const stockColor = isOut ? THEME.colors.error : isLow ? THEME.colors.warning : THEME.colors.success;
               const stockLabel = isOut ? 'IMEISHA' : isLow ? `CHACHE (${stock})` : `${stock} PO`;
               return (
-                <button key={p.id} onClick={() => !isOut && addToCart(p)} disabled={isOut} style={{ background: cardBg, border: `1px solid ${isOut ? '#7f1d1d' : border}`, borderRadius: '8px', padding: '12px', cursor: isOut ? 'not-allowed' : 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', opacity: isOut ? 0.6 : 1, transition: '0.2s' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '600', color: textMain }}>{p.name}</span>
-                  <span style={{ fontSize: '15px', fontWeight: 'bold', color: displayPrice > 0 ? '#4ade80' : '#f87171' }}>{fmt(displayPrice)} TSh</span>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: stockColor, background: `${stockColor}20`, padding: '2px 8px', borderRadius: '12px' }}>{stockLabel}</span>
+                <button key={p.id} onClick={() => !isOut && addToCart(p)} disabled={isOut} className="btn-micro" style={{ 
+                  background: colors.surface, border: `1px solid ${isOut ? '#7f1d1d' : colors.border}`, borderRadius: THEME.radius.md, padding: THEME.space.m, 
+                  cursor: isOut ? 'not-allowed' : 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: THEME.space.xs, 
+                  opacity: isOut ? 0.6 : 1, transition: 'transform 0.1s ease' 
+                }}>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: colors.text }}>{p.name}</span>
+                  <span style={{ fontSize: '15px', fontWeight: 'bold', color: displayPrice > 0 ? THEME.colors.success : THEME.colors.error }}>{fmt(displayPrice)} TSh</span>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: stockColor, background: `${stockColor}20`, padding: '2px 8px', borderRadius: THEME.radius.xl }}>{stockLabel}</span>
                 </button>
               );
             })}
@@ -128,73 +153,73 @@ const Sales = ({ supabase, lang, userId, theme }) => {
         )}
       </div>
 
-      <div style={{ flex: '1 1 300px', background: bg, borderRadius: '12px', padding: '20px', boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', border: `1px solid ${border}` }}>
-        <h3 style={{ margin: '0 0 15px', color: textMain }}>{t.cart} ({cart.length})</h3>
-        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '15px' }}>
-          {cart.length === 0 ? <p style={{ color: textSec, textAlign: 'center', marginTop: '40px' }}>{t.emptyCart}</p> : cart.map(i => {
+      <div style={{ flex: '1 1 300px', background: colors.surface, borderRadius: THEME.radius.lg, padding: THEME.space.xl, boxShadow: THEME.shadow.sm, display: 'flex', flexDirection: 'column', border: `1px solid ${colors.border}` }}>
+        <h3 style={{ margin: `0 0 ${THEME.space.l}`, color: colors.text }}>{t.cart} ({optimisticCart.length})</h3>
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: THEME.space.l }}>
+          {optimisticCart.length === 0 ? <p style={{ color: colors.textSec, textAlign: 'center', marginTop: THEME.space.xxl }}>{t.emptyCart}</p> : optimisticCart.map(i => {
             const isMaxed = i.qty >= i.stock_limit;
             return (
-              <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${border}`, background: isMaxed ? (isDark ? '#451a03' : '#fff7ed') : 'transparent', borderRadius: '6px', padding: '8px', marginBottom: '4px' }}>
+              <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${colors.border}`, background: isMaxed ? (isDark ? '#451a03' : '#fff7ed') : 'transparent', borderRadius: THEME.radius.sm, padding: THEME.space.s, marginBottom: THEME.space.xs }}>
                 <div>
-                  <p style={{ margin: '0 0 2px', fontSize: '14px', fontWeight: '500', color: textMain }}>{i.name}</p>
-                  <p style={{ margin: 0, fontSize: '12px', color: isMaxed ? '#fb923c' : textSec }}>
+                  <p style={{ margin: `0 0 ${THEME.space.xs}`, fontSize: '14px', fontWeight: '500', color: colors.text }}>{i.name}</p>
+                  <p style={{ margin: 0, fontSize: '12px', color: isMaxed ? THEME.colors.warning : colors.textSec }}>
                     {fmt(i.price)} x {i.qty} / {i.stock_limit} = <strong>{fmt((i.price||0)*(i.qty||1))}</strong>
                     {isMaxed && ' ⚠️ STOCK IMEISHA'}
                   </p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button onClick={() => updateQty(i.id, -1)} style={{ background: btnBg, color: textMain, border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}>-</button>
-                  <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center', color: textMain }}>{i.qty}</span>
-                  <button onClick={() => updateQty(i.id, 1)} disabled={isMaxed} style={{ background: btnBg, color: textMain, border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: isMaxed ? 'not-allowed' : 'pointer', opacity: isMaxed ? 0.5 : 1 }}>+</button>
-                  <button onClick={() => removeFromCart(i.id)} style={{ background: isDark ? '#451a1a' : '#fef2f2', color: '#f87171', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer' }}>🗑️</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: THEME.space.s }}>
+                  <button onClick={() => updateQty(i.id, -1)} className="btn-micro" style={{ background: colors.surface, color: colors.text, border: 'none', borderRadius: THEME.radius.sm, padding: '4px 8px', cursor: 'pointer' }}>-</button>
+                  <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center', color: colors.text }}>{i.qty}</span>
+                  <button onClick={() => updateQty(i.id, 1)} disabled={isMaxed} className="btn-micro" style={{ background: colors.surface, color: colors.text, border: 'none', borderRadius: THEME.radius.sm, padding: '4px 8px', cursor: isMaxed ? 'not-allowed' : 'pointer', opacity: isMaxed ? 0.5 : 1 }}>+</button>
+                  <button onClick={() => removeFromCart(i.id)} className="btn-micro" style={{ background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, border: 'none', borderRadius: THEME.radius.sm, padding: '4px 6px', cursor: 'pointer' }}>🗑️</button>
                 </div>
               </div>
             );
           })}
         </div>
-        <div style={{ borderTop: `2px solid ${border}`, paddingTop: '15px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginBottom: '12px' }}><span style={{ color: textMain }}>{t.grandTotal}</span><span style={{ color: '#4ade80' }}>{fmt(totalAmount)} TSh</span></div>
-          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', background: inputBg, color: textMain, border: `1px solid ${border}`, borderRadius: '6px', fontSize: '14px' }}>
+        <div style={{ borderTop: `2px solid ${colors.border}`, paddingTop: THEME.space.l }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginBottom: THEME.space.m }}><span style={{ color: colors.text }}>{t.grandTotal}</span><span style={{ color: THEME.colors.success }}>{fmt(totalAmount)} TSh</span></div>
+          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ width: '100%', padding: THEME.space.m, marginBottom: THEME.space.m, background: colors.surface, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: THEME.radius.sm, fontSize: '14px' }}>
             <option value="Cash">{t.cash}</option><option value="M-Pesa">{t.mpesa}</option><option value="Bank">{t.bank}</option>
           </select>
-          <button onClick={handleCheckout} disabled={loading || !cart.length} style={{ width: '100%', padding: '14px', background: loading || !cart.length ? '#475569' : '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: loading || !cart.length ? 'not-allowed' : 'pointer' }}>{loading ? t.processing : t.checkout}</button>
+          <button onClick={handleCheckout} disabled={loading || !optimisticCart.length} className="btn-micro" style={{ width: '100%', padding: THEME.space.l, background: loading || !optimisticCart.length ? '#475569' : THEME.colors.primary, color: '#fff', border: 'none', borderRadius: THEME.radius.md, fontWeight: 'bold', fontSize: '16px', cursor: loading || !optimisticCart.length ? 'not-allowed' : 'pointer' }}>{loading ? t.processing : t.checkout}</button>
         </div>
       </div>
 
       {showReceipt && lastSale && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowReceipt(false)}>
-          <div style={{ background: isDark ? '#1e293b' : '#fff', padding: '25px', borderRadius: '12px', width: '320px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ textAlign: 'center', marginBottom: '15px', paddingBottom: '15px', borderBottom: `2px solid ${isDark ? '#334155' : '#3b82f6'}` }}>
-              <h2 style={{ margin: '0 0 5px', color: textMain, fontSize: '20px' }}>{t.receipt.company}</h2>
-              <p style={{ margin: '0', fontSize: '12px', color: textSec }}>{t.receipt.subtitle}<br />📞 +255 622 995 734</p>
+          <div style={{ background: isDark ? THEME.colors.surfaceDark : '#fff', padding: THEME.space.xl, borderRadius: THEME.radius.lg, width: '320px', boxShadow: THEME.shadow.lg }} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: THEME.space.l, paddingBottom: THEME.space.l, borderBottom: `2px solid ${isDark ? THEME.colors.borderDark : THEME.colors.primary}` }}>
+              <h2 style={{ margin: `0 0 ${THEME.space.xs}`, color: colors.text, fontSize: '20px' }}>{t.receipt.company}</h2>
+              <p style={{ margin: '0', fontSize: '12px', color: colors.textSec }}>{t.receipt.subtitle}<br />📞 +255 622 995 734</p>
             </div>
-            <div style={{ textAlign: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: '0 0 5px', color: textMain, fontSize: '16px' }}>{t.receipt.title}</h3>
-              <p style={{ margin: '0', fontSize: '11px', color: textSec }}>{t.receipt.date}: {lastSale.date.toLocaleString()}<br/>{t.receipt.number}: #{lastSale.receipt}</p>
+            <div style={{ textAlign: 'center', marginBottom: THEME.space.l }}>
+              <h3 style={{ margin: `0 0 ${THEME.space.xs}`, color: colors.text, fontSize: '16px' }}>{t.receipt.title}</h3>
+              <p style={{ margin: '0', fontSize: '11px', color: colors.textSec }}>{t.receipt.date}: {lastSale.date.toLocaleString()}<br/>{t.receipt.number}: #{lastSale.receipt}</p>
             </div>
-            <hr style={{ border: `1px dashed ${border}`, margin: '15px 0' }} />
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '10px' }}>
-              <thead><tr style={{ borderBottom: `2px solid ${textMain}` }}><th style={{ textAlign: 'left', padding: '5px 0', color: textMain }}>{t.receipt.item}</th><th style={{ textAlign: 'center', padding: '5px 0', color: textMain }}>{t.receipt.quantity}</th><th style={{ textAlign: 'right', padding: '5px 0', color: textMain }}>{t.receipt.subtotal}</th></tr></thead>
-              <tbody>{lastSale.items.map((i, idx) => (<tr key={idx}><td style={{ padding: '6px 0', borderBottom: `1px solid ${border}`, color: textSec }}>{i.name || '-'}</td><td style={{ textAlign: 'center', padding: '6px 0', borderBottom: `1px solid ${border}`, color: textSec }}>{i.qty || 1}</td><td style={{ textAlign: 'right', padding: '6px 0', borderBottom: `1px solid ${border}`, color: textMain }}>{fmt((i.price||0)*(i.qty||1))}</td></tr>))}</tbody>
+            <hr style={{ border: `1px dashed ${colors.border}`, margin: `${THEME.space.l} 0` }} />
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: THEME.space.m }}>
+              <thead><tr style={{ borderBottom: `2px solid ${colors.text}` }}><th style={{ textAlign: 'left', padding: '5px 0', color: colors.text }}>{t.receipt.item}</th><th style={{ textAlign: 'center', padding: '5px 0', color: colors.text }}>{t.receipt.quantity}</th><th style={{ textAlign: 'right', padding: '5px 0', color: colors.text }}>{t.receipt.subtotal}</th></tr></thead>
+              <tbody>{lastSale.items.map((i, idx) => (<tr key={idx}><td style={{ padding: '6px 0', borderBottom: `1px solid ${colors.border}`, color: colors.textSec }}>{i.name || '-'}</td><td style={{ textAlign: 'center', padding: '6px 0', borderBottom: `1px solid ${colors.border}`, color: colors.textSec }}>{i.qty || 1}</td><td style={{ textAlign: 'right', padding: '6px 0', borderBottom: `1px solid ${colors.border}`, color: colors.text }}>{fmt((i.price||0)*(i.qty||1))}</td></tr>))}</tbody>
             </table>
-            <hr style={{ border: `1px dashed ${border}`, margin: '15px 0' }} />
-            <div style={{ background: isDark ? '#0f172a' : '#f8fafc', padding: '12px', borderRadius: '8px', marginBottom: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px' }}><span style={{ color: textMain }}>{t.receipt.grandTotal}</span><span style={{ color: '#4ade80', fontSize: '18px' }}>{fmt(lastSale.total)} TSh</span></div>
+            <hr style={{ border: `1px dashed ${colors.border}`, margin: `${THEME.space.l} 0` }} />
+            <div style={{ background: isDark ? THEME.colors.bgDark : '#f8fafc', padding: THEME.space.m, borderRadius: THEME.radius.md, marginBottom: THEME.space.m }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px' }}><span style={{ color: colors.text }}>{t.receipt.grandTotal}</span><span style={{ color: THEME.colors.success, fontSize: '18px' }}>{fmt(lastSale.total)} TSh</span></div>
             </div>
-            <p style={{ fontSize: '12px', color: textSec, margin: '0 0 15px', textAlign: 'center' }}>{t.receipt.payment}: <strong>{lastSale.method}</strong></p>
+            <p style={{ fontSize: '12px', color: colors.textSec, margin: `0 0 ${THEME.space.l}`, textAlign: 'center' }}>{t.receipt.payment}: <strong>{lastSale.method}</strong></p>
             
-            <button onClick={() => { setShowReceipt(false); setShowReceiptSettings(true); }} className="btn-micro" style={{ width: '100%', padding: '12px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <button onClick={() => { setShowReceipt(false); setShowReceiptSettings(true); }} className="btn-micro" style={{ width: '100%', padding: THEME.space.m, background: THEME.colors.warning, color: '#fff', border: 'none', borderRadius: THEME.radius.md, cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', marginBottom: THEME.space.m, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: THEME.space.s }}>
               🎨 {lang === 'sw' ? 'Badilisha Muundo wa Risiti' : 'Customize Receipt'}
             </button>
 
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-              <button onClick={() => { window.print(); setShowReceipt(false); }} style={{ flex: 1, padding: '12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>{t.receipt.print}</button>
-              <button onClick={() => setShowReceipt(false)} style={{ flex: 1, padding: '12px', background: btnBg, color: textMain, border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>{t.receipt.close}</button>
+            <div style={{ display: 'flex', gap: THEME.space.m, marginBottom: THEME.space.l }}>
+              <button onClick={() => { window.print(); setShowReceipt(false); }} className="btn-micro" style={{ flex: 1, padding: THEME.space.m, background: THEME.colors.primary, color: '#fff', border: 'none', borderRadius: THEME.radius.md, cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>{t.receipt.print}</button>
+              <button onClick={() => setShowReceipt(false)} className="btn-micro" style={{ flex: 1, padding: THEME.space.m, background: colors.surface, color: colors.text, border: 'none', borderRadius: THEME.radius.md, cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>{t.receipt.close}</button>
             </div>
-            <div style={{ textAlign: 'center', fontSize: '11px', color: textSec, borderTop: `1px solid ${border}`, paddingTop: '15px' }}>
-              <p style={{ margin: '0 0 5px' }}>{t.receipt.thankYou}</p>
+            <div style={{ textAlign: 'center', fontSize: '11px', color: colors.textSec, borderTop: `1px solid ${colors.border}`, paddingTop: THEME.space.l }}>
+              <p style={{ margin: `0 0 ${THEME.space.xs}` }}>{t.receipt.thankYou}</p>
               <p style={{ margin: '0' }}>{t.receipt.support}: +255 622 995 734 | +255 613 808 727</p>
-              <p style={{ margin: '5px 0 0', fontSize: '10px' }}>{t.receipt.copyright}</p>
+              <p style={{ margin: `${THEME.space.xs} 0 0`, fontSize: '10px' }}>{t.receipt.copyright}</p>
             </div>
           </div>
         </div>
