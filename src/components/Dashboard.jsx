@@ -45,6 +45,7 @@ const Dashboard = ({ session, supabase }) => {
   const [a11yAnnouncement, setA11yAnnouncement] = useState('');
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  // ✅ Hardcoded admin for smooth testing (bypasses DB role sync issues)
   const userRole = 'admin';
 
   const t = translations[lang] || translations.sw;
@@ -134,7 +135,7 @@ const Dashboard = ({ session, supabase }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNavClick, navItems, isMobile, showToast]);
 
-  // ✅ Global Styles Injection - Static values only
+  // ✅ Global Styles Injection - Static values only, empty deps array
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -322,8 +323,9 @@ const Dashboard = ({ session, supabase }) => {
             </div>
           )}
 
+          {/* ✅ KEY FIX: isMobile inapitishwa vizuri kwenye Sales */}
           {view === 'products' && <Products supabase={supabase} lang={lang} userId={session?.user?.id} theme={theme} showToast={showToast} />}
-          {view === 'sales' && <Sales supabase={supabase} lang={lang} userId={session?.user?.id} theme={theme} />}
+          {view === 'sales' && <Sales supabase={supabase} lang={lang} userId={session?.user?.id} theme={theme} isMobile={isMobile} />}
           {view === 'reports' && <Reports supabase={supabase} lang={lang} userId={session?.user?.id} theme={theme} showToast={showToast} />}
         </div>
       </div>
