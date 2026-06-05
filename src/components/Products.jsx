@@ -3,11 +3,14 @@ import { translations } from '../translations';
 import { THEME, getThemeColors } from '../theme';
 import Toast from './Toast';
 
-const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast }) => {
+const fmt = (val) => { if (val == null || val === '') return '0'; const n = Number(val); return isNaN(n) ? '0' : n.toLocaleString(); };
+
+const Products = ({ supabase, lang, shopId, theme, showToast: parentShowToast, userRole = 'cashier' }) => {
   const isDark = theme === 'dark';
   const colors = getThemeColors(isDark);
   const t = translations[lang].products;
   const g = translations[lang].general;
+  
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -21,12 +24,13 @@ const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast })
     if (parentShowToast) parentShowToast(message, type);
   }, [parentShowToast]);
 
+  // ✅ Fetch products using shopId
   useEffect(() => {
-    if (!supabase || !userId) return;
+    if (!supabase || !shopId) return;
     let active = true;
     const fetch = async () => {
       try {
-        const { data, error } = await supabase.from('products').select('*').eq('user_id', userId).order('name');
+        const { data, error } = await supabase.from('products').select('*').eq('shop_id', shopId).order('name');
         if (error) throw error;
         if (active) setProducts(Array.isArray(data) ? data : []);
       } catch (err) { 
@@ -36,11 +40,11 @@ const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast })
     };
     fetch();
     return () => { active = false; };
-  }, [supabase, userId, lang, showToast]);
+  }, [supabase, shopId, lang, showToast]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!userId) { showToast('❌ User ID haipatikani!', 'error'); return; }
+    if (!shopId) { showToast('❌ Shop ID haipatikani!', 'error'); return; }
     setLoading(true);
     try {
       const payload = { 
@@ -50,10 +54,9 @@ const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast })
         stock_quantity: Number(form.stock_quantity) || 0, 
         barcode: form.barcode, 
         category: form.category, 
-        user_id: userId 
+        shop_id: shopId // ✅ Link to shop, not individual user
       };
       
-      // ✅ Optimistic UI: Onyesha bidhaa mara moja
       if (!editing) {
         const newProduct = { ...payload, id: `temp-${Date.now()}`, created_at: new Date().toISOString() };
         setProducts(prev => [newProduct, ...prev]);
@@ -61,7 +64,7 @@ const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast })
 
       let result;
       if (editing) {
-        result = await supabase.from('products').update(payload).eq('id', editing.id).eq('user_id', userId).select();
+        result = await supabase.from('products').update(payload).eq('id', editing.id).eq('shop_id', shopId).select();
       } else {
         result = await supabase.from('products').insert(payload).select();
       }
@@ -72,7 +75,6 @@ const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast })
       if (editing) {
         setProducts(prev => prev.map(p => p.id === editing.id ? savedProduct : p));
       } else {
-        // Replace temp ID with real ID
         setProducts(prev => prev.map(p => p.id === `temp-${Date.now()}` ? savedProduct : p));
       }
 
@@ -93,15 +95,13 @@ const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast })
 
   const handleDelete = async (id) => {
     if (!window.confirm(g.confirm + '?')) return;
-    // ✅ Optimistic delete
     setProducts(prev => prev.filter(p => p.id !== id));
     try {
-      await supabase.from('products').delete().eq('id', id).eq('user_id', userId);
+      await supabase.from('products').delete().eq('id', id).eq('shop_id', shopId);
       showToast(t.deleted, 'success');
     } catch (err) {
       console.error(err);
       showToast('❌ Imeshindwa kufuta', 'error');
-      // Rollback on error (optional)
     }
   };
 
@@ -147,8 +147,20 @@ const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast })
               <div key={p.id} style={{ border: `1px solid ${colors.border}`, borderRadius: THEME.radius.md, padding: THEME.space.l, background: isDark ? THEME.colors.surfaceDark : '#ffffff', display: 'flex', flexDirection: 'column', gap: THEME.space.xs }} className="card-micro">
                 <h4 style={{ margin: 0, fontSize: '16px', color: colors.text }}>{p.name}</h4>
                 <p style={{ margin: 0, color: THEME.colors.success, fontWeight: 'bold', fontSize: '1.1rem' }}>{(p.selling_price || 0).toLocaleString()} TSh</p>
-                {profit > 0 && <p style={{ margin: `0 0 ${THEME.space.xs}`, fontSize: '12px', color: THEME.colors.success }}>📈 {t.profit}: {profit.toLocaleString()} TSh</p>}
-                <p style={{ margin: 0, fontSize: '13px', color: colors.textSec }}>{t.stock}: {p.stock_quantity ?? '-'}</p>
+                
+                {/* ✅ FICHIA FAIDA NA BEI YA KUNUNUA KAMA SI ADMIN */}
+                {userRole === 'admin' && (
+                  <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: `1px dashed ${colors.border}` }}>
+                    <p style={{ margin: '2px 0', fontSize: '12px', color: THEME.colors.warning }}>
+                      Kununua: {fmt(p.cost_price)} TSh
+                    </p>
+                    <p style={{ margin: '2px 0', fontSize: '12px', color: THEME.colors.success, fontWeight: 'bold' }}>
+                      📈 Faida: {fmt(profit)} TSh
+                    </p>
+                  </div>
+                )}
+                
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: colors.textSec }}>{t.stock}: {p.stock_quantity ?? '-'}</p>
                 <div style={{ display: 'flex', gap: THEME.space.s, marginTop: 'auto' }}>
                   <button onClick={() => handleEdit(p)} className="btn-micro" style={{ flex: 1, padding: '8px', background: THEME.colors.primary, color: '#fff', border: 'none', borderRadius: THEME.radius.sm, cursor: 'pointer', fontSize: '13px' }}>{t.editProduct}</button>
                   <button onClick={() => handleDelete(p.id)} className="btn-micro" style={{ flex: 1, padding: '8px', background: THEME.colors.error, color: '#fff', border: 'none', borderRadius: THEME.radius.sm, cursor: 'pointer', fontSize: '13px' }}>{t.deleteProduct}</button>

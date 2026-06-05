@@ -6,22 +6,14 @@ import { translations } from '../translations';
 import { THEME, getThemeColors } from '../theme';
 import Toast from './Toast';
 
-// 🔄 ENHANCED SKELETON LOADER
 const Skeleton = ({ width = '100%', height = '20px', count = 1, style = {} }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: THEME.space.m, ...style }}>
     {Array.from({ length: count }).map((_, i) => (
-      <div key={i} style={{ 
-        width, height, 
-        background: 'linear-gradient(90deg, rgba(226,232,240,0.2) 25%, rgba(203,213,225,0.4) 50%, rgba(226,232,240,0.2) 75%)', 
-        backgroundSize: '200% 100%', 
-        animation: 'skeletonPulse 1.2s ease-in-out infinite', 
-        borderRadius: THEME.radius.sm 
-      }} />
+      <div key={i} style={{ width, height, background: 'linear-gradient(90deg, rgba(226,232,240,0.2) 25%, rgba(203,213,225,0.4) 50%, rgba(226,232,240,0.2) 75%)', backgroundSize: '200% 100%', animation: 'skeletonPulse 1.2s ease-in-out infinite', borderRadius: THEME.radius.sm }} />
     ))}
   </div>
 );
 
-// 📭 ENHANCED EMPTY STATE
 const EmptyState = ({ icon = '📦', title, description, action, isDark }) => (
   <div style={{ textAlign: 'center', padding: THEME.space.xxl, background: isDark ? THEME.colors.surfaceDark : THEME.colors.surfaceLight, borderRadius: THEME.radius.lg, border: `1px solid ${isDark ? THEME.colors.borderDark : THEME.colors.borderLight}` }}>
     <div style={{ fontSize: '48px', marginBottom: THEME.space.m, opacity: 0.8, animation: 'float 3s ease-in-out infinite' }}>{icon}</div>
@@ -45,8 +37,10 @@ const Dashboard = ({ session, supabase }) => {
   const [a11yAnnouncement, setA11yAnnouncement] = useState('');
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
-  // ✅ Hardcoded admin for smooth testing (bypasses DB role sync issues)
-  const userRole = 'admin';
+  
+  // ✅ DYNAMIC ROLE & SHOP ID FETCHING
+  const [userRole, setUserRole] = useState('cashier');
+  const [shopId, setShopId] = useState(null);
 
   const t = translations[lang] || translations.sw;
   const mainRef = useRef(null);
@@ -55,6 +49,40 @@ const Dashboard = ({ session, supabase }) => {
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type, id: Date.now() });
   }, []);
+
+  // ✅ Fetch User Role and Shop ID from Supabase
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!session?.user?.id) return;
+      try {
+        const { data, error: profileError } = await supabase
+          .from('profiles')
+          .select('role, shop_id')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (profileError) {
+          console.warn('Profile fetch error:', profileError.message);
+          setUserRole('cashier');
+          setShopId(session.user.id);
+          return;
+        }
+        
+        if (data) {
+          setUserRole(data.role || 'cashier');
+          setShopId(data.shop_id || session.user.id);
+        } else {
+          setUserRole('cashier');
+          setShopId(session.user.id);
+        }
+      } catch (err) {
+        console.warn('Profile fetch failed', err);
+        setUserRole('cashier');
+        setShopId(session?.user?.id);
+      }
+    };
+    fetchProfile();
+  }, [session, supabase]);
 
   useEffect(() => {
     const checkMobile = () => { const m = window.innerWidth < 768; setIsMobile(m); setSidebarOpen(!m); };
@@ -68,20 +96,24 @@ const Dashboard = ({ session, supabase }) => {
 
   const toggleTheme = () => setTheme(p => p === 'light' ? 'dark' : 'light');
 
+  // ✅ Fetch Dashboard Data using shopId
   useEffect(() => {
     const fetchData = async () => {
-      const userId = session?.user?.id;
-      if (!userId || view !== 'dashboard') return;
+      if (!shopId || view !== 'dashboard') return;
       try {
         setLoading(true);
         const today = new Date().toISOString().split('T')[0];
-        const { data: salesData } = await supabase.from('sales').select('total_amount').eq('user_id', userId).gte('created_at', `${today}T00:00:00`).lt('created_at', `${today}T23:59:59`);
+        
+        const { data: salesData } = await supabase.from('sales').select('total_amount').eq('shop_id', shopId).gte('created_at', `${today}T00:00:00`).lt('created_at', `${today}T23:59:59`);
         const totalSales = salesData?.reduce((s, i) => s + (i.total_amount || 0), 0) || 0;
-        const { data: productsData } = await supabase.from('products').select('id').eq('user_id', userId);
+        
+        const { data: productsData } = await supabase.from('products').select('id').eq('shop_id', shopId);
         setStats({ totalSales, totalProducts: productsData?.length || 0 });
-        const { data: recent } = await supabase.from('sales').select('created_at, total_amount, receipt_number, items').eq('user_id', userId).order('created_at', { ascending: false }).limit(5);
+        
+        const { data: recent } = await supabase.from('sales').select('created_at, total_amount, receipt_number, items').eq('shop_id', shopId).order('created_at', { ascending: false }).limit(5);
         setRecentSales(recent || []);
-        const { data: low } = await supabase.from('products').select('name, stock_quantity').eq('user_id', userId).lt('stock_quantity', 5).order('stock_quantity', { ascending: true }).limit(5);
+        
+        const { data: low } = await supabase.from('products').select('name, stock_quantity').eq('shop_id', shopId).lt('stock_quantity', 5).order('stock_quantity', { ascending: true }).limit(5);
         setLowStockProducts(low || []);
       } catch (e) { 
         console.warn('Dashboard fetch error:', e); 
@@ -89,25 +121,20 @@ const Dashboard = ({ session, supabase }) => {
       } finally { setLoading(false); }
     };
     fetchData();
-  }, [view, supabase, session?.user?.id, showToast]);
+  }, [view, supabase, shopId, showToast]);
 
   const handleLogout = async () => { 
-    try { 
-      await supabase.auth.signOut(); 
-      showToast('✅ Umetoka kikamilifu', 'success');
-    } catch(e) { 
-      console.error(e); 
-      showToast('❌ Hitilafu ya kutoka', 'error');
-    }
+    try { await supabase.auth.signOut(); showToast('✅ Umetoka kikamilifu', 'success'); } 
+    catch(e) { console.error(e); showToast('❌ Hitilafu ya kutoka', 'error'); }
   };
   
   const allNavItems = [
-    { id: 'dashboard', label: t.nav.dashboard, shortcut: 'Alt+D', roles: ['admin'] },
-    { id: 'products', label: t.nav.products, shortcut: 'Alt+P', roles: ['admin'] },
-    { id: 'sales', label: t.nav.sales, shortcut: 'Alt+S', roles: ['admin'] },
+    { id: 'dashboard', label: t.nav.dashboard, shortcut: 'Alt+D', roles: ['admin', 'cashier'] },
+    { id: 'products', label: t.nav.products, shortcut: 'Alt+P', roles: ['admin', 'cashier'] },
+    { id: 'sales', label: t.nav.sales, shortcut: 'Alt+S', roles: ['admin', 'cashier'] },
     { id: 'reports', label: t.nav.reports, shortcut: 'Alt+R', roles: ['admin'] },
-    { id: 'help', label: t.nav.help, shortcut: 'Alt+H', roles: ['admin'] },
-    { id: 'account', label: t.nav.account, shortcut: 'Alt+A', roles: ['admin'] },
+    { id: 'help', label: t.nav.help, shortcut: 'Alt+H', roles: ['admin', 'cashier'] },
+    { id: 'account', label: t.nav.account, shortcut: 'Alt+A', roles: ['admin', 'cashier'] },
   ];
   const navItems = allNavItems.filter(item => item.roles.includes(userRole));
 
@@ -125,8 +152,7 @@ const Dashboard = ({ session, supabase }) => {
         const map = { d: 'dashboard', p: 'products', s: 'sales', r: 'reports', h: 'help', a: 'account' };
         const target = map[e.key.toLowerCase()];
         if (target && navItems.some(n => n.id === target) && !e.ctrlKey && !e.metaKey) { 
-          e.preventDefault(); 
-          handleNavClick(target);
+          e.preventDefault(); handleNavClick(target);
           showToast(`🔹 ${navItems.find(n => n.id === target)?.label}`, 'info');
         }
       }
@@ -135,16 +161,13 @@ const Dashboard = ({ session, supabase }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNavClick, navItems, isMobile, showToast]);
 
-  // ✅ Global Styles Injection - Static values only, empty deps array
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
       @keyframes skeletonPulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
       @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes slideDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
       .anim-page { animation: fadeInUp 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
-      .anim-toast { animation: slideDown 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
       .btn-micro { transition: all 0.15s ease; cursor: pointer; will-change: transform; }
       .btn-micro:hover { transform: translateY(-2px); box-shadow: ${THEME.shadow.md}; }
       .btn-micro:active { transform: translateY(0) scale(0.98); box-shadow: ${THEME.shadow.sm}; }
@@ -207,7 +230,9 @@ const Dashboard = ({ session, supabase }) => {
             </h2>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? THEME.space.s : THEME.space.m }}>
-            <span style={{ padding: `${THEME.space.xs} ${THEME.space.m}`, background: THEME.colors.primary, color: '#fff', borderRadius: THEME.radius.xl, fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>👑 Admin</span>
+            <span style={{ padding: `${THEME.space.xs} ${THEME.space.m}`, background: userRole === 'admin' ? THEME.colors.primary : THEME.colors.success, color: '#fff', borderRadius: THEME.radius.xl, fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>
+              {userRole === 'admin' ? '👑 Admin' : '🛒 Cashier'}
+            </span>
             <button onClick={toggleTheme} className="btn-micro" aria-label={theme === 'dark' ? 'Light Mode' : 'Dark Mode'} style={{ padding: isMobile ? '6px 10px' : '6px 12px', background: colors.surface, border: 'none', borderRadius: THEME.radius.sm, color: colors.text, fontWeight: '600', fontSize: isMobile ? '12px' : '14px' }}>
               {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
             </button>
@@ -234,7 +259,9 @@ const Dashboard = ({ session, supabase }) => {
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: THEME.space.l }}>
                     <button onClick={() => handleNavClick('sales')} className="btn-micro" style={{ background: THEME.colors.primary, color: '#fff', border: 'none', padding: THEME.space.l, borderRadius: THEME.radius.lg, fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>{t.nav.sales.split(' ')[1] || t.nav.sales}</button>
                     <button onClick={() => handleNavClick('products')} className="btn-micro" style={{ background: THEME.colors.success, color: '#fff', border: 'none', padding: THEME.space.l, borderRadius: THEME.radius.lg, fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>📦 {t.nav.products.split(' ')[1] || t.nav.products}</button>
-                    <button onClick={() => handleNavClick('reports')} className="btn-micro" style={{ background: THEME.colors.warning, color: '#fff', border: 'none', padding: THEME.space.l, borderRadius: THEME.radius.lg, fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>📈 {t.nav.reports.split(' ')[1] || t.nav.reports}</button>
+                    {userRole === 'admin' && (
+                      <button onClick={() => handleNavClick('reports')} className="btn-micro" style={{ background: THEME.colors.warning, color: '#fff', border: 'none', padding: THEME.space.l, borderRadius: THEME.radius.lg, fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>📈 {t.nav.reports.split(' ')[1] || t.nav.reports}</button>
+                    )}
                   </div>
                 )}
               </div>
@@ -273,7 +300,9 @@ const Dashboard = ({ session, supabase }) => {
               <div style={{ background: colors.surface, padding: '20px', borderRadius: THEME.radius.lg, boxShadow: THEME.shadow.sm, border: `1px solid ${colors.border}` }} className="card-micro">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: THEME.space.l }}>
                   <h3 style={{ margin: 0, color: colors.text, fontSize: '16px' }}>🕒 {lang === 'sw' ? 'Mauzo ya Hivi Punde' : 'Recent Sales'}</h3>
-                  <button onClick={() => handleNavClick('reports')} className="btn-micro" aria-label={lang === 'sw' ? 'Tazama Ripoti Zote' : 'View All Reports'} style={{ background: 'none', border: 'none', color: THEME.colors.primary, fontSize: '13px', fontWeight: '600' }}>{lang === 'sw' ? 'Tazama Zote →' : 'View All →'}</button>
+                  {userRole === 'admin' && (
+                    <button onClick={() => handleNavClick('reports')} className="btn-micro" aria-label={lang === 'sw' ? 'Tazama Ripoti Zote' : 'View All Reports'} style={{ background: 'none', border: 'none', color: THEME.colors.primary, fontSize: '13px', fontWeight: '600' }}>{lang === 'sw' ? 'Tazama Zote →' : 'View All →'}</button>
+                  )}
                 </div>
                 {loading ? (
                   <Skeleton count={4} height="30px" />
@@ -315,7 +344,7 @@ const Dashboard = ({ session, supabase }) => {
               <div style={{ marginBottom: isMobile ? THEME.space.xl : THEME.space.xxl }}>
                 <div style={{ padding: isMobile ? THEME.space.m : THEME.space.l, background: theme === 'dark' ? THEME.colors.surfaceDark : '#f8fafc', borderRadius: THEME.radius.md, marginBottom: THEME.space.m }} className="card-micro"><p style={{ margin: `0 0 ${THEME.space.xs}`, fontWeight: '600', color: colors.textSec, fontSize: '13px' }}>{t.account.email}</p><p style={{ margin: 0, fontSize: '15px', color: colors.text }}>{session?.user?.email || 'Haipatikani'}</p></div>
                 <div style={{ padding: isMobile ? THEME.space.m : THEME.space.l, background: theme === 'dark' ? THEME.colors.surfaceDark : '#f8fafc', borderRadius: THEME.radius.md, marginBottom: THEME.space.m }} className="card-micro"><p style={{ margin: `0 0 ${THEME.space.xs}`, fontWeight: '600', color: colors.textSec, fontSize: '13px' }}>{t.account.userId}</p><p style={{ margin: 0, fontSize: '13px', color: colors.textSec, fontFamily: 'monospace', wordBreak: 'break-all' }}>{session?.user?.id || 'N/A'}</p></div>
-                <div style={{ padding: isMobile ? THEME.space.m : THEME.space.l, background: theme === 'dark' ? THEME.colors.surfaceDark : '#f8fafc', borderRadius: THEME.radius.md }} className="card-micro"><p style={{ margin: `0 0 ${THEME.space.xs}`, fontWeight: '600', color: colors.textSec, fontSize: '13px' }}>{lang === 'sw' ? 'Wadhifa' : 'Role'}</p><p style={{ margin: 0, fontSize: '15px', color: THEME.colors.primary, fontWeight: 'bold' }}>👑 Admin</p></div>
+                <div style={{ padding: isMobile ? THEME.space.m : THEME.space.l, background: theme === 'dark' ? THEME.colors.surfaceDark : '#f8fafc', borderRadius: THEME.radius.md }} className="card-micro"><p style={{ margin: `0 0 ${THEME.space.xs}`, fontWeight: '600', color: colors.textSec, fontSize: '13px' }}>{lang === 'sw' ? 'Wadhifa' : 'Role'}</p><p style={{ margin: 0, fontSize: '15px', color: userRole === 'admin' ? THEME.colors.primary : THEME.colors.success, fontWeight: 'bold' }}>{userRole === 'admin' ? '👑 Admin' : '🛒 Cashier'}</p></div>
               </div>
               <hr style={{ margin: `${THEME.space.xl} 0`, border: 'none', borderTop: `1px solid ${colors.border}` }} />
               <h3 style={{ marginBottom: THEME.space.l, color: colors.text }}>{t.account.changePassword}</h3>
@@ -323,10 +352,17 @@ const Dashboard = ({ session, supabase }) => {
             </div>
           )}
 
-          {/* ✅ KEY FIX: isMobile inapitishwa vizuri kwenye Sales */}
-          {view === 'products' && <Products supabase={supabase} lang={lang} userId={session?.user?.id} theme={theme} showToast={showToast} />}
-          {view === 'sales' && <Sales supabase={supabase} lang={lang} userId={session?.user?.id} theme={theme} isMobile={isMobile} />}
-          {view === 'reports' && <Reports supabase={supabase} lang={lang} userId={session?.user?.id} theme={theme} showToast={showToast} />}
+          {/* ✅ PASS shopId AND userRole TO CHILD COMPONENTS */}
+          {view === 'products' && <Products supabase={supabase} lang={lang} shopId={shopId} theme={theme} showToast={showToast} userRole={userRole} />}
+          {view === 'sales' && <Sales supabase={supabase} lang={lang} shopId={shopId} theme={theme} />}
+          {view === 'reports' && userRole === 'admin' && <Reports supabase={supabase} lang={lang} shopId={shopId} theme={theme} showToast={showToast} />}
+          
+          {view === 'reports' && userRole !== 'admin' && (
+            <div style={{ textAlign: 'center', padding: '60px', background: colors.surface, borderRadius: THEME.radius.lg, border: `1px solid ${colors.border}` }}>
+              <h3 style={{ color: THEME.colors.warning }}>🚫 {lang === 'sw' ? 'Huna ruhusa ya kutazama ripoti.' : 'Access Denied: Reports are admin-only.'}</h3>
+              <button onClick={() => handleNavClick('dashboard')} style={{ marginTop: '15px', padding: '10px 20px', background: THEME.colors.primary, color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{lang === 'sw' ? 'Rudi Dashboard' : 'Back to Dashboard'}</button>
+            </div>
+          )}
         </div>
       </div>
 

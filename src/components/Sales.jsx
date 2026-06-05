@@ -1,17 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { translations } from '../translations';
 import { THEME, getThemeColors } from '../theme';
 import ReceiptTemplates from './ReceiptTemplates';
 import Toast from './Toast';
-import BarcodeScanner from './BarcodeScanner';
 
 const LOW_STOCK_THRESHOLD = 5;
 const fmt = (val) => { if (val == null || val === '') return '0'; const n = Number(val); return isNaN(n) ? '0' : n.toLocaleString(); };
 
-const Sales = ({ supabase, lang, userId, theme }) => {
-  console.log('🔍 [SALES] Component rendered');
-  
+const Sales = ({ supabase, lang, shopId, theme }) => {
   const isDark = theme === 'dark';
   const colors = getThemeColors(isDark);
   const t = translations[lang].sales;
@@ -21,39 +17,30 @@ const Sales = ({ supabase, lang, userId, theme }) => {
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showReceiptSettings, setShowReceiptSettings] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
   const [lastSale, setLastSale] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [error, setError] = useState('');
   const [toast, setToast] = useState(null);
   const [optimisticCart, setOptimisticCart] = useState([]);
-  const [portalReady, setPortalReady] = useState(false);
-
-  // ✅ Check if document.body is ready
-  useEffect(() => {
-    if (typeof document !== 'undefined' && document.body) {
-      console.log('✅ [SALES] document.body is ready');
-      setPortalReady(true);
-    }
-  }, []);
 
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type, id: Date.now() });
   }, []);
 
+  // ✅ Fetch products using shopId
   useEffect(() => {
-    if (!supabase || !userId) return;
+    if (!supabase || !shopId) return;
     let active = true;
     const fetchProducts = async () => {
       try {
-        const { data, error } = await supabase.from('products').select('*').eq('user_id', userId).order('name');
+        const { data, error } = await supabase.from('products').select('*').eq('shop_id', shopId).order('name');
         if (error) throw error;
         if (active) setProducts(Array.isArray(data) ? data : []);
       } catch (err) { if (active) setError(translations[lang].sales.saveError + err.message); }
     };
     fetchProducts();
     return () => { active = false; };
-  }, [supabase, userId, lang]);
+  }, [supabase, shopId, lang]);
 
   const addToCart = useCallback((product) => {
     if (!product?.id) return;
@@ -65,7 +52,7 @@ const Sales = ({ supabase, lang, userId, theme }) => {
       const exists = prev.find(i => i.id === product.id);
       const price = product.selling_price || product.price || 0;
       if (exists) {
-        if (exists.qty + 1 > stock) { showToast(`Stock haiitoshi!`, 'warning'); return prev.map(i => i.id === product.id ? { ...i, qty: stock } : i); }
+        if (exists.qty + 1 > stock) { showToast(`Stock haiitoshi! Inapatikana: ${stock}`, 'warning'); return prev.map(i => i.id === product.id ? { ...i, qty: stock } : i); }
         return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
       }
       return [...prev, { ...product, qty: 1, price: Number(price), stock_limit: stock }];
@@ -91,13 +78,18 @@ const Sales = ({ supabase, lang, userId, theme }) => {
 
   const handleCheckout = async () => {
     if (!optimisticCart.length) return showToast('Kikapu kipo tupu!', 'warning');
-    if (!supabase || !userId) return showToast('Database haiko tayari.', 'error');
+    if (!supabase || !shopId) return showToast('Database haiko tayari.', 'error');
+    
+    const stockIssues = optimisticCart.filter(item => item.qty > item.stock_limit);
+    if (stockIssues.length > 0) { showToast(`Bidhaa ${stockIssues.length} zina stock isiyotosha.`, 'error'); return; }
     
     setLoading(true); setError('');
     try {
       const recNo = `REC-${Date.now().toString().slice(-6)}`;
+      
+      // ✅ Insert sale with shopId
       const { error: dbErr } = await supabase.from('sales').insert({ 
-        user_id: userId, 
+        shop_id: shopId, 
         items: optimisticCart.map(({ stock_limit, ...rest }) => rest), 
         total_amount: totalAmount, 
         payment_method: paymentMethod, 
@@ -106,8 +98,9 @@ const Sales = ({ supabase, lang, userId, theme }) => {
       });
       if (dbErr) throw dbErr;
       
+      // ✅ Update stock for this shop
       for (const item of optimisticCart) {
-        await supabase.from('products').update({ stock_quantity: item.stock_limit - item.qty }).eq('id', item.id).eq('user_id', userId);
+        await supabase.from('products').update({ stock_quantity: item.stock_limit - item.qty }).eq('id', item.id).eq('shop_id', shopId);
       }
       
       setLastSale({ items: [...optimisticCart], total: totalAmount, receipt: recNo, date: new Date(), method: paymentMethod });
@@ -127,188 +120,75 @@ const Sales = ({ supabase, lang, userId, theme }) => {
     (p.barcode && String(p.barcode).includes(search))
   );
 
-  // ✅ PORTAL BUTTON 1: TOP (Full width red)
-  const ScannerPortalTop = () => {
-    if (!portalReady) {
-      console.log('⏳ [PORTAL-TOP] Waiting for document.body...');
-      return null;
-    }
-    
-    console.log('✅ [PORTAL-TOP] Rendering portal button at top');
-    
-    return createPortal(
-      <button 
-        onClick={() => {
-          console.log('📷 [PORTAL-TOP] Button clicked!');
-          setShowScanner(true);
-        }}
-        style={{
-          position: 'fixed',
-          top: '0',
-          left: '0',
-          width: '100vw',
-          padding: '18px',
-          background: '#ff0000',
-          color: '#ffffff',
-          border: 'none',
-          fontSize: '18px',
-          fontWeight: '900',
-          zIndex: '999999999',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '10px',
-          cursor: 'pointer',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation'
-        }}
-      >
-        📷 {lang === 'sw' ? 'BONYEZA HAPA KUSCAN (JUU)' : 'TAP HERE TO SCAN (TOP)'}
-      </button>,
-      document.body
-    );
-  };
-
-  // ✅ PORTAL BUTTON 2: BOTTOM RIGHT (Floating orange)
-  const ScannerPortalBottom = () => {
-    if (!portalReady) return null;
-    
-    console.log('✅ [PORTAL-BOTTOM] Rendering portal button at bottom');
-    
-    return createPortal(
-      <button 
-        onClick={() => {
-          console.log('📷 [PORTAL-BOTTOM] Button clicked!');
-          setShowScanner(true);
-        }}
-        style={{
-          position: 'fixed',
-          bottom: '20px',
-          right: '20px',
-          width: '70px',
-          height: '70px',
-          borderRadius: '50%',
-          background: '#ff6600',
-          color: '#ffffff',
-          border: '3px solid #ffffff',
-          fontSize: '30px',
-          fontWeight: '900',
-          zIndex: '999999998',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          boxShadow: '0 6px 25px rgba(0,0,0,0.6)',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation',
-          animation: 'pulse 2s infinite'
-        }}
-      >
-        📷
-      </button>,
-      document.body
-    );
-  };
-
   return (
-    <>
-      {/* ✅ RENDER BOTH PORTAL BUTTONS */}
-      <ScannerPortalTop />
-      <ScannerPortalBottom />
-
-      {/* ✅ MAIN LAYOUT */}
-      <div style={{ 
-        minHeight: '100vh', 
-        background: colors.bg,
-        maxWidth: '100vw',
-        overflowX: 'hidden',
-        paddingTop: '70px' // Space for top button
-      }}>
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: THEME.space.l, padding: THEME.space.m, height: '100%', overflow: 'auto' }}>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      
+      {error && <div style={{ width: '100%', padding: THEME.space.m, background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, borderRadius: THEME.radius.md, marginBottom: THEME.space.m, textAlign: 'center' }}>{error}<button onClick={()=>window.location.reload()} style={{ marginLeft:THEME.space.m, textDecoration:'underline', background:'none', border:'none', color:THEME.colors.error, cursor:'pointer' }}>🔄 Refresh</button></div>}
+      
+      {/* ✅ SEARCH & PRODUCTS */}
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: THEME.space.m }}>
+        <input type="text" placeholder={t.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '14px', background: colors.surface, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '10px', fontSize: '14px', boxSizing: 'border-box' }} />
         
-        {error && <div style={{ width: '100%', padding: THEME.space.m, background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, borderRadius: THEME.radius.md, marginBottom: THEME.space.m, textAlign: 'center' }}>{error}</div>}
-        
-        {/* ✅ SEARCH & PRODUCTS */}
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: THEME.space.m, padding: THEME.space.m }}>
-          <input type="text" placeholder={t.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '14px', background: colors.surface, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '10px', fontSize: '14px', boxSizing: 'border-box' }} />
-          
-          <div style={{ flex: 1, overflowY: 'auto', background: colors.surface, borderRadius: '12px', padding: THEME.space.m, boxShadow: THEME.shadow.sm, border: `1px solid ${colors.border}`, minHeight: '300px' }}>
-            {products.length === 0 ? <p style={{ textAlign: 'center', color: colors.textSec, marginTop: '40px' }}>{t.noProducts}</p> : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
-                {filtered.map(p => {
-                  const displayPrice = p.selling_price || p.price || 0;
-                  const stock = p.stock_quantity || 0;
-                  const isOut = stock <= 0;
-                  const isLow = stock > 0 && stock < LOW_STOCK_THRESHOLD;
-                  const stockColor = isOut ? THEME.colors.error : isLow ? THEME.colors.warning : THEME.colors.success;
-                  const stockLabel = isOut ? 'IMEISHA' : isLow ? `CHACHE (${stock})` : `${stock} PO`;
-                  return (
-                    <button key={p.id} onClick={() => !isOut && addToCart(p)} disabled={isOut} className="btn-micro" style={{ 
-                      background: colors.surface, border: `1px solid ${isOut ? '#7f1d1d' : colors.border}`, borderRadius: '10px', padding: '12px', 
-                      cursor: isOut ? 'not-allowed' : 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', 
-                      opacity: isOut ? 0.6 : 1 
-                    }}>
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: colors.text }}>{p.name}</span>
-                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: displayPrice > 0 ? THEME.colors.success : THEME.colors.error }}>{fmt(displayPrice)} TSh</span>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', color: stockColor, background: `${stockColor}20`, padding: '2px 8px', borderRadius: '12px' }}>{stockLabel}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ✅ CART SECTION */}
-        <div style={{ width: '100%', background: colors.surface, borderRadius: '12px', padding: '16px', boxShadow: THEME.shadow.sm, border: `1px solid ${colors.border}`, margin: THEME.space.m }}>
-          <h3 style={{ margin: '0 0 12px', color: colors.text }}>{t.cart} ({optimisticCart.length})</h3>
-          <div style={{ flex: 1, overflowY: 'auto', marginBottom: '12px', maxHeight: '300px' }}>
-            {optimisticCart.length === 0 ? <p style={{ color: colors.textSec, textAlign: 'center', marginTop: '30px' }}>{t.emptyCart}</p> : optimisticCart.map(i => {
-              const isMaxed = i.qty >= i.stock_limit;
-              return (
-                <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${colors.border}`, background: isMaxed ? (isDark ? '#451a03' : '#fff7ed') : 'transparent', borderRadius: '8px', padding: '8px', marginBottom: '6px' }}>
-                  <div>
-                    <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: '500', color: colors.text }}>{i.name}</p>
-                    <p style={{ margin: 0, fontSize: '12px', color: isMaxed ? THEME.colors.warning : colors.textSec }}>
-                      {fmt(i.price)} x {i.qty} = <strong>{fmt((i.price||0)*(i.qty||1))}</strong>
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <button onClick={() => updateQty(i.id, -1)} className="btn-micro" style={{ background: colors.surface, color: colors.text, border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>-</button>
-                    <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center', color: colors.text }}>{i.qty}</span>
-                    <button onClick={() => updateQty(i.id, 1)} disabled={isMaxed} className="btn-micro" style={{ background: colors.surface, color: colors.text, border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: isMaxed ? 'not-allowed' : 'pointer', opacity: isMaxed ? 0.5 : 1 }}>+</button>
-                    <button onClick={() => removeFromCart(i.id)} className="btn-micro" style={{ background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer' }}>🗑️</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ borderTop: `2px solid ${colors.border}`, paddingTop: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginBottom: '12px' }}><span style={{ color: colors.text }}>{t.grandTotal}</span><span style={{ color: THEME.colors.success }}>{fmt(totalAmount)} TSh</span></div>
-            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', background: colors.surface, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '8px', fontSize: '14px' }}>
-              <option value="Cash">{t.cash}</option><option value="M-Pesa">{t.mpesa}</option><option value="Bank">{t.bank}</option>
-            </select>
-            <button onClick={handleCheckout} disabled={loading || !optimisticCart.length} className="btn-micro" style={{ width: '100%', padding: '14px', background: loading || !optimisticCart.length ? '#475569' : THEME.colors.primary, color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '16px', cursor: loading || !optimisticCart.length ? 'not-allowed' : 'pointer' }}>{loading ? t.processing : t.checkout}</button>
-          </div>
+        <div style={{ flex: 1, overflowY: 'auto', background: colors.surface, borderRadius: '12px', padding: THEME.space.m, boxShadow: THEME.shadow.sm, border: `1px solid ${colors.border}`, minHeight: '300px' }}>
+          {products.length === 0 ? <p style={{ textAlign: 'center', color: colors.textSec, marginTop: '40px' }}>{t.noProducts}</p> : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
+              {filtered.map(p => {
+                const displayPrice = p.selling_price || p.price || 0;
+                const stock = p.stock_quantity || 0;
+                const isOut = stock <= 0;
+                const isLow = stock > 0 && stock < LOW_STOCK_THRESHOLD;
+                const stockColor = isOut ? THEME.colors.error : isLow ? THEME.colors.warning : THEME.colors.success;
+                const stockLabel = isOut ? 'IMEISHA' : isLow ? `CHACHE (${stock})` : `${stock} PO`;
+                return (
+                  <button key={p.id} onClick={() => !isOut && addToCart(p)} disabled={isOut} className="btn-micro" style={{ 
+                    background: colors.surface, border: `1px solid ${isOut ? '#7f1d1d' : colors.border}`, borderRadius: '10px', padding: '12px', 
+                    cursor: isOut ? 'not-allowed' : 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', 
+                    opacity: isOut ? 0.6 : 1 
+                  }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: colors.text }}>{p.name}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: displayPrice > 0 ? THEME.colors.success : THEME.colors.error }}>{fmt(displayPrice)} TSh</span>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: stockColor, background: `${stockColor}20`, padding: '2px 8px', borderRadius: '12px' }}>{stockLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ✅ SCANNER MODAL */}
-      {showScanner && (
-        <BarcodeScanner 
-          onScan={(product) => {
-            addToCart(product);
-            setShowScanner(false);
-            showToast(`✅ ${product.name} imeongezwa!`, 'success');
-          }}
-          onClose={() => setShowScanner(false)}
-          products={products}
-          lang={lang}
-        />
-      )}
+      {/* ✅ CART SECTION */}
+      <div style={{ width: '100%', background: colors.surface, borderRadius: '12px', padding: '16px', boxShadow: THEME.shadow.sm, border: `1px solid ${colors.border}` }}>
+        <h3 style={{ margin: '0 0 12px', color: colors.text }}>{t.cart} ({optimisticCart.length})</h3>
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '12px', maxHeight: '300px' }}>
+          {optimisticCart.length === 0 ? <p style={{ color: colors.textSec, textAlign: 'center', marginTop: '30px' }}>{t.emptyCart}</p> : optimisticCart.map(i => {
+            const isMaxed = i.qty >= i.stock_limit;
+            return (
+              <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${colors.border}`, background: isMaxed ? (isDark ? '#451a03' : '#fff7ed') : 'transparent', borderRadius: '8px', padding: '8px', marginBottom: '6px' }}>
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: '500', color: colors.text }}>{i.name}</p>
+                  <p style={{ margin: 0, fontSize: '12px', color: isMaxed ? THEME.colors.warning : colors.textSec }}>
+                    {fmt(i.price)} x {i.qty} = <strong>{fmt((i.price||0)*(i.qty||1))}</strong>
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button onClick={() => updateQty(i.id, -1)} className="btn-micro" style={{ background: colors.surface, color: colors.text, border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>-</button>
+                  <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center', color: colors.text }}>{i.qty}</span>
+                  <button onClick={() => updateQty(i.id, 1)} disabled={isMaxed} className="btn-micro" style={{ background: colors.surface, color: colors.text, border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: isMaxed ? 'not-allowed' : 'pointer', opacity: isMaxed ? 0.5 : 1 }}>+</button>
+                  <button onClick={() => removeFromCart(i.id)} className="btn-micro" style={{ background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer' }}>🗑️</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ borderTop: `2px solid ${colors.border}`, paddingTop: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginBottom: '12px' }}><span style={{ color: colors.text }}>{t.grandTotal}</span><span style={{ color: THEME.colors.success }}>{fmt(totalAmount)} TSh</span></div>
+          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', background: colors.surface, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '8px', fontSize: '14px' }}>
+            <option value="Cash">{t.cash}</option><option value="M-Pesa">{t.mpesa}</option><option value="Bank">{t.bank}</option>
+          </select>
+          <button onClick={handleCheckout} disabled={loading || !optimisticCart.length} className="btn-micro" style={{ width: '100%', padding: '14px', background: loading || !optimisticCart.length ? '#475569' : THEME.colors.primary, color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '16px', cursor: loading || !optimisticCart.length ? 'not-allowed' : 'pointer' }}>{loading ? t.processing : t.checkout}</button>
+        </div>
+      </div>
 
       {/* ✅ RECEIPT MODAL */}
       {showReceipt && lastSale && (
@@ -342,15 +222,7 @@ const Sales = ({ supabase, lang, userId, theme }) => {
       )}
 
       <ReceiptTemplates isOpen={showReceiptSettings} onClose={() => setShowReceiptSettings(false)} receiptData={lastSale} lang={lang} />
-
-      {/* ✅ Pulse animation for bottom button */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 6px 25px rgba(255,102,0,0.6); }
-          50% { transform: scale(1.05); box-shadow: 0 8px 30px rgba(255,102,0,0.9); }
-        }
-      `}</style>
-    </>
+    </div>
   );
 };
 
