@@ -15,6 +15,9 @@ const Login = ({ supabase, onLoginSuccess }) => {
   const t = translations[lang] || translations.sw;
   const colors = getThemeColors(theme === 'dark');
 
+  // Safe fallback kama key haipo
+  const currentText = isLogin ? (t.login || {}) : (t.register || {});
+
   useEffect(() => {
     localStorage.setItem('lang', lang);
   }, [lang]);
@@ -35,19 +38,17 @@ const Login = ({ supabase, onLoginSuccess }) => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        showToast(t.login.success, 'success');
+        showToast(currentText.success || 'Success', 'success');
         if (onLoginSuccess) onLoginSuccess();
       } else {
         const { error } = await supabase.auth.signUp({ 
           email, 
           password,
-          options: {
-            data: { role: 'cashier' } // Default role for new signups
-          }
+          options: { data: { role: 'cashier' } }
         });
         if (error) throw error;
-        showToast(t.register.success, 'success');
-        // Optionally switch to login view or show confirmation
+        showToast(currentText.success || 'Success', 'success');
+        setIsLogin(true);
       }
     } catch (error) {
       showToast(error.message, 'error');
@@ -58,85 +59,70 @@ const Login = ({ supabase, onLoginSuccess }) => {
 
   return (
     <div style={{ 
-      minHeight: '100vh', 
+      minHeight: '100dvh', /* ✅ Salama kwa mobile browsers */
+      minWidth: '100vw',
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'center', 
       background: colors.bg,
       padding: '20px',
-      position: 'relative'
+      position: 'relative',
+      boxSizing: 'border-box',
+      overflow: 'auto' /* ✅ Inaruhusu scroll kama screen ni ndogo */
     }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ✅ LANGUAGE TOGGLE BUTTON (Top Right) */}
+      {/* ✅ LANGUAGE TOGGLE */}
       <button 
         onClick={() => setLang(l => l === 'sw' ? 'en' : 'sw')} 
         style={{ 
-          position: 'absolute', 
-          top: '20px', 
-          right: '20px', 
-          background: colors.surface, 
-          border: `1px solid ${colors.border}`, 
-          borderRadius: '50%', 
-          cursor: 'pointer', 
-          fontSize: '28px', 
-          padding: '8px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          boxShadow: THEME.shadow.sm,
-          transition: 'transform 0.2s'
+          position: 'absolute', top: '20px', right: '20px', 
+          background: colors.surface, border: `1px solid ${colors.border}`, 
+          borderRadius: '50%', cursor: 'pointer', fontSize: '24px', 
+          width: '48px', height: '48px', display: 'flex', 
+          alignItems: 'center', justifyContent: 'center',
+          boxShadow: THEME.shadow.sm, zIndex: 10
         }}
-        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-        title={lang === 'sw' ? 'Switch to English' : 'Badilisha kuwa Kiswahili'}
       >
         {lang === 'sw' ? '🇹🇿' : '🇺🇸'}
       </button>
 
-      {/* THEME TOGGLE (Optional, top left) */}
+      {/* ✅ THEME TOGGLE */}
       <button 
         onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} 
         style={{ 
-          position: 'absolute', 
-          top: '20px', 
-          left: '20px', 
-          background: colors.surface, 
-          border: `1px solid ${colors.border}`, 
-          borderRadius: '50%', 
-          cursor: 'pointer', 
-          fontSize: '20px', 
-          padding: '8px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          boxShadow: THEME.shadow.sm
+          position: 'absolute', top: '20px', left: '20px', 
+          background: colors.surface, border: `1px solid ${colors.border}`, 
+          borderRadius: '50%', cursor: 'pointer', fontSize: '20px', 
+          width: '48px', height: '48px', display: 'flex', 
+          alignItems: 'center', justifyContent: 'center',
+          boxShadow: THEME.shadow.sm, zIndex: 10
         }}
-        title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
       >
         {theme === 'dark' ? '☀️' : '🌙'}
       </button>
 
       <div style={{ 
         background: colors.surface, 
-        padding: '40px', 
+        padding: '32px 24px', 
         borderRadius: THEME.radius.lg, 
         boxShadow: THEME.shadow.lg, 
         width: '100%', 
         maxWidth: '400px',
-        border: `1px solid ${colors.border}`
+        border: `1px solid ${colors.border}`,
+        boxSizing: 'border-box'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h1 style={{ margin: '0 0 8px', color: colors.text, fontSize: '28px', fontWeight: '700' }}>{t.appName}</h1>
+          <h1 style={{ margin: '0 0 8px', color: colors.text, fontSize: '26px', fontWeight: '700' }}>{t.appName}</h1>
           <p style={{ margin: 0, color: colors.textSec, fontSize: '14px' }}>
-            {isLogin ? t.login.subtitle : t.register.subtitle}
+            {currentText.subtitle || 'Welcome'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '8px', color: colors.text, fontSize: '14px', fontWeight: '600' }}>
-              {isLogin ? t.login.email : t.register.email}
+              {currentText.email || 'Email'}
             </label>
             <input 
               type="email" 
@@ -144,14 +130,9 @@ const Login = ({ supabase, onLoginSuccess }) => {
               onChange={(e) => setEmail(e.target.value)} 
               required
               style={{ 
-                width: '100%', 
-                padding: '12px', 
-                background: colors.bg, 
-                color: colors.text, 
-                border: `1px solid ${colors.border}`, 
-                borderRadius: THEME.radius.md, 
-                fontSize: '15px',
-                boxSizing: 'border-box'
+                width: '100%', padding: '14px', background: colors.bg, 
+                color: colors.text, border: `1px solid ${colors.border}`, 
+                borderRadius: THEME.radius.md, fontSize: '15px', boxSizing: 'border-box'
               }} 
               placeholder="user@duka.com"
             />
@@ -159,7 +140,7 @@ const Login = ({ supabase, onLoginSuccess }) => {
 
           <div>
             <label style={{ display: 'block', marginBottom: '8px', color: colors.text, fontSize: '14px', fontWeight: '600' }}>
-              {isLogin ? t.login.password : t.register.password}
+              {currentText.password || 'Password'}
             </label>
             <input 
               type="password" 
@@ -168,14 +149,9 @@ const Login = ({ supabase, onLoginSuccess }) => {
               required
               minLength={6}
               style={{ 
-                width: '100%', 
-                padding: '12px', 
-                background: colors.bg, 
-                color: colors.text, 
-                border: `1px solid ${colors.border}`, 
-                borderRadius: THEME.radius.md, 
-                fontSize: '15px',
-                boxSizing: 'border-box'
+                width: '100%', padding: '14px', background: colors.bg, 
+                color: colors.text, border: `1px solid ${colors.border}`, 
+                borderRadius: THEME.radius.md, fontSize: '15px', boxSizing: 'border-box'
               }} 
               placeholder="••••••••"
             />
@@ -185,36 +161,24 @@ const Login = ({ supabase, onLoginSuccess }) => {
             type="submit" 
             disabled={loading}
             style={{ 
-              width: '100%', 
-              padding: '14px', 
+              width: '100%', padding: '16px', 
               background: loading ? '#64748b' : THEME.colors.primary, 
-              color: '#fff', 
-              border: 'none', 
-              borderRadius: THEME.radius.md, 
-              fontSize: '16px', 
-              fontWeight: '700', 
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'background 0.2s'
+              color: '#fff', border: 'none', borderRadius: THEME.radius.md, 
+              fontSize: '16px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer',
+              boxSizing: 'border-box'
             }}
           >
-            {loading ? (isLogin ? t.login.loading : t.register.loading) : (isLogin ? t.login.submit : t.register.submit)}
+            {loading ? (currentText.loading || 'Loading...') : (currentText.submit || 'Submit')}
           </button>
         </form>
 
         <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px', color: colors.textSec }}>
-          {isLogin ? t.login.noAccount : t.register.hasAccount}{' '}
+          {isLogin ? (currentText.noAccount || 'No account?') : (currentText.hasAccount || 'Have account?')}{' '}
           <button 
             onClick={() => setIsLogin(!isLogin)} 
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: THEME.colors.primary, 
-              fontWeight: '600', 
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
+            style={{ background: 'none', border: 'none', color: THEME.colors.primary, fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}
           >
-            {isLogin ? t.login.registerLink : t.register.loginLink}
+            {isLogin ? (currentText.registerLink || 'Register') : (currentText.loginLink || 'Login')}
           </button>
         </div>
       </div>
