@@ -1,52 +1,118 @@
 export const translations = {
   sw: {
     appName: "KasiTrade POS",
-    // ... (weka hizi chini ndani ya sw)
+    dashboard: {
+      title: "Dashboard",
+      subtitle: "Karibu kwenye mfumo wako wa mauzo",
+      salesToday: "Mauzo ya Leo",
+      totalProducts: "Bidhaa Zote"
+    },
+    products: {
+      title: "Bidhaa",
+      // ...
+    },
+    sales: {
+      title: "Mauzo",
+      // ...
+    },
+    reports: {
+      title: "Ripoti",
+      // ...
+    },
+    help: {
+      title: "Msaada",
+      // ...
+    },
+    nav: {
+      dashboard: "🏠 Dashboard",
+      products: "📦 Bidhaa",
+      sales: "🛒 Mauzo",
+      reports: "📈 Ripoti",
+      help: "❓ Msaada",
+      logout: "🚪 Toka"
+    },
+    general: {
+      welcome: "Karibu",
+      loading: "Inapakia...",
+      confirm: "Una uhakika?"
+    },
     login: {
-      subtitle: "Ingia kwenye akaunti yako ya duka",
+      subtitle: "Ingia kwenye akaunti yako",
       email: "Barua Pepe",
       password: "Nenosiri",
       submit: "Ingia",
       loading: "Inaingia...",
-      success: "Umeingia kikamilifu!",
+      success: "Umeingia!",
       noAccount: "Huna akaunti?",
-      registerLink: "Jisajili hapa"
+      registerLink: "Jisajili"
     },
     register: {
-      subtitle: "Fungua akaunti mpya ya kufanyia kazi",
+      subtitle: "Fungua akaunti mpya",
       email: "Barua Pepe",
-      password: "Nenosiri (angalau herufi 6)",
+      password: "Nenosiri",
       submit: "Jisajili",
       loading: "Inasajili...",
-      success: "Umesajiliwa! Tafadhali ingia sasa.",
-      hasAccount: "Tayari una akaunti?",
-      loginLink: "Ingia hapa"
-    },
-    // ... endelea na nav, dashboard, n.k.
+      success: "Umesajiliwa!",
+      hasAccount: "Una akaunti?",
+      loginLink: "Ingia"
+    }
   },
   en: {
     appName: "KasiTrade POS",
-    // ... (weka hizi chini ndani ya en)
+    dashboard: {
+      title: "Dashboard",
+      subtitle: "Welcome to your sales system",
+      salesToday: "Sales Today",
+      totalProducts: "Total Products"
+    },
+    products: {
+      title: "Products",
+      // ...
+    },
+    sales: {
+      title: "Sales",
+      // ...
+    },
+    reports: {
+      title: "Reports",
+      // ...
+    },
+    help: {
+      title: "Help",
+      // ...
+    },
+    nav: {
+      dashboard: "🏠 Dashboard",
+      products: "📦 Products",
+      sales: "🛒 Sales",
+      reports: "📈 Reports",
+      help: "❓ Help",
+      logout: "🚪 Logout"
+    },
+    general: {
+      welcome: "Welcome",
+      loading: "Loading...",
+      confirm: "Are you sure?"
+    },
     login: {
-      subtitle: "Sign in to your shop account",
-      email: "Email Address",
+      subtitle: "Sign in to your account",
+      email: "Email",
       password: "Password",
       submit: "Sign In",
       loading: "Signing in...",
-      success: "Signed in successfully!",
-      noAccount: "Don't have an account?",
-      registerLink: "Register here"
+      success: "Signed in!",
+      noAccount: "No account?",
+      registerLink: "Register"
     },
     register: {
-      subtitle: "Create a new worker account",
-      email: "Email Address",
-      password: "Password (min 6 characters)",
+      subtitle: "Create new account",
+      email: "Email",
+      password: "Password",
       submit: "Register",
       loading: "Registering...",
-      success: "Registered! Please sign in now.",
-      hasAccount: "Already have an account?",
-      loginLink: "Sign in here"
-    },
-    // ... endelea na nav, dashboard, n.k.
+      success: "Registered!",
+      hasAccount: "Have account?",
+      loginLink: "Sign In"
+    }
   }
 };
