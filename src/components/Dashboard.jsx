@@ -26,7 +26,7 @@ const EmptyState = ({ icon = '📦', title, description, action, isDark }) => (
 const Dashboard = ({ session, supabase }) => {
   const [view, setView] = useState('dashboard');
   const [lang, setLang] = useState(() => localStorage.getItem('lang') || 'sw');
-  const [sidebarOpen, setSidebarOpen] = useState(false); // ✅ Default closed kwenye simu
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [stats, setStats] = useState({ totalSales: 0, totalProducts: 0 });
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -82,7 +82,7 @@ const Dashboard = ({ session, supabase }) => {
     const checkMobile = () => { 
       const m = window.innerWidth < 768; 
       setIsMobile(m); 
-      setSidebarOpen(!m); // ✅ Kwenye simu, sidebar inafungwa default
+      setSidebarOpen(!m); 
     };
     checkMobile(); 
     window.addEventListener('resize', checkMobile); 
@@ -142,10 +142,7 @@ const Dashboard = ({ session, supabase }) => {
         await supabase.from('products').delete().eq('shop_id', shopId);
         
         showToast('✅ Mfumo umefutwa na kuwekwa upya kikamilifu!', 'success');
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        setTimeout(() => { window.location.reload(); }, 1500);
       } catch (err) {
         console.error(err);
         showToast('❌ Imeshindwa kufuta data: ' + err.message, 'error');
@@ -166,7 +163,7 @@ const Dashboard = ({ session, supabase }) => {
 
   const handleNavClick = useCallback((id) => { 
     setView(id); setAnimKey(p => p + 1); 
-    if (isMobile) setSidebarOpen(false); // ✅ Funga sidebar baada ya kubonyeza kwenye simu
+    if (isMobile) setSidebarOpen(false);
     if (mainRef.current) mainRef.current.focus();
   }, [isMobile]);
 
@@ -191,29 +188,14 @@ const Dashboard = ({ session, supabase }) => {
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', background: colors.bg }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ✅ OVERLAY KWA SIMU (Bonyeza nje ya sidebar kufunga) */}
       {isMobile && sidebarOpen && (
-        <div 
-          onClick={() => setSidebarOpen(false)} 
-          style={{ 
-            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', 
-            background: 'rgba(0,0,0,0.5)', zIndex: 998, backdropFilter: 'blur(2px)' 
-          }} 
-        />
+        <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 998, backdropFilter: 'blur(2px)' }} />
       )}
 
-      {/* SIDEBAR */}
       <aside style={{ 
-        position: 'fixed', top: 0, left: 0, 
-        width: sidebarOpen ? '260px' : '0px', 
-        height: '100vh', 
-        background: THEME.colors?.bgDark || '#0f172a', 
-        color: '#fff', 
-        padding: sidebarOpen ? '20px 0' : '0', 
-        overflow: 'hidden', 
-        transition: 'all 0.35s', 
-        zIndex: 999, 
-        boxShadow: sidebarOpen ? THEME.shadow?.lg || '0 10px 15px rgba(0,0,0,0.1)' : 'none' 
+        position: 'fixed', top: 0, left: 0, width: sidebarOpen ? '260px' : '0px', height: '100vh', 
+        background: THEME.colors?.bgDark || '#0f172a', color: '#fff', padding: sidebarOpen ? '20px 0' : '0', 
+        overflow: 'hidden', transition: 'all 0.35s', zIndex: 999, boxShadow: sidebarOpen ? THEME.shadow?.lg || '0 10px 15px rgba(0,0,0,0.1)' : 'none' 
       }}>
         <div style={{ padding: sidebarOpen ? `0 24px 24px` : '0', borderBottom: sidebarOpen ? `1px solid ${THEME.colors?.borderDark || '#334155'}` : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: '700' }}>{t.appName || 'KasiTrade POS'}</h2>
@@ -239,11 +221,9 @@ const Dashboard = ({ session, supabase }) => {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <div style={{ marginLeft: sidebarOpen && !isMobile ? '260px' : '0', flex: 1, padding: isMobile ? '16px' : '32px', transition: 'margin-left 0.35s', minHeight: '100vh' }}>
         <header style={{ background: colors.surface, padding: isMobile ? '16px' : '32px', borderRadius: THEME.radius?.lg || '12px', marginBottom: isMobile ? '16px' : '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: THEME.shadow?.sm || '0 1px 3px rgba(0,0,0,0.1)', position: 'sticky', top: isMobile ? '10px' : '0', zIndex: 100, border: `1px solid ${colors.border}`, flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '24px' }}>
-            {/* ✅ HAMBURGER BUTTON (Inaonekana kwenye simu na desktop wakati sidebar imefungwa) */}
             {!sidebarOpen && (
               <button onClick={() => setSidebarOpen(true)} className="btn-micro" style={{ background: colors.surface, border: 'none', fontSize: '1.5rem', color: colors.text, padding: '8px 12px', borderRadius: THEME.radius?.md || '8px' }}>☰</button>
             )}
@@ -286,10 +266,17 @@ const Dashboard = ({ session, supabase }) => {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '16px' }}>
-                    <button onClick={() => handleNavClick('sales')} className="btn-micro" style={{ background: THEME.colors?.primary || '#3b82f6', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>🛒 {t.nav?.sales || 'Sales'}</button>
-                    <button onClick={() => handleNavClick('products')} className="btn-micro" style={{ background: THEME.colors?.success || '#22c55e', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>📦 {t.nav?.products || 'Products'}</button>
+                    {/* ✅ HAPA NIMEONDOA ICON ZA MKONO, SASA ZINATOKA KWA TRANSLATION TU */}
+                    <button onClick={() => handleNavClick('sales')} className="btn-micro" style={{ background: THEME.colors?.primary || '#3b82f6', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>
+                      {t.nav?.sales || '🛒 Sales'}
+                    </button>
+                    <button onClick={() => handleNavClick('products')} className="btn-micro" style={{ background: THEME.colors?.success || '#22c55e', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>
+                      {t.nav?.products || '📦 Products'}
+                    </button>
                     {effectiveRole === 'admin' && (
-                      <button onClick={() => handleNavClick('reports')} className="btn-micro" style={{ background: THEME.colors?.warning || '#f59e0b', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>📈 {t.nav?.reports || 'Reports'}</button>
+                      <button onClick={() => handleNavClick('reports')} className="btn-micro" style={{ background: THEME.colors?.warning || '#f59e0b', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>
+                        {t.nav?.reports || '📈 Reports'}
+                      </button>
                     )}
                   </div>
                 )}
@@ -428,7 +415,6 @@ const Dashboard = ({ session, supabase }) => {
                   </button>
                 </div>
               )}
-
             </div>
           )}
 
