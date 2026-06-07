@@ -26,7 +26,7 @@ const EmptyState = ({ icon = '📦', title, description, action, isDark }) => (
 const Dashboard = ({ session, supabase }) => {
   const [view, setView] = useState('dashboard');
   const [lang, setLang] = useState(() => localStorage.getItem('lang') || 'sw');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // ✅ Default closed kwenye simu
   const [isMobile, setIsMobile] = useState(false);
   const [stats, setStats] = useState({ totalSales: 0, totalProducts: 0 });
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -40,7 +40,6 @@ const Dashboard = ({ session, supabase }) => {
   const [shopId, setShopId] = useState(null);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('viewMode') || 'admin');
 
-  // ✅ SAFE TRANSLATIONS - Inazuia undefined errors
   const t = (translations[lang] && translations[lang].dashboard) 
     ? translations[lang] 
     : (translations.sw || { 
@@ -80,8 +79,14 @@ const Dashboard = ({ session, supabase }) => {
   }, [session, supabase]);
 
   useEffect(() => {
-    const checkMobile = () => { const m = window.innerWidth < 768; setIsMobile(m); setSidebarOpen(!m); };
-    checkMobile(); window.addEventListener('resize', checkMobile); return () => window.removeEventListener('resize', checkMobile);
+    const checkMobile = () => { 
+      const m = window.innerWidth < 768; 
+      setIsMobile(m); 
+      setSidebarOpen(!m); // ✅ Kwenye simu, sidebar inafungwa default
+    };
+    checkMobile(); 
+    window.addEventListener('resize', checkMobile); 
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   useEffect(() => {
@@ -161,7 +166,7 @@ const Dashboard = ({ session, supabase }) => {
 
   const handleNavClick = useCallback((id) => { 
     setView(id); setAnimKey(p => p + 1); 
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) setSidebarOpen(false); // ✅ Funga sidebar baada ya kubonyeza kwenye simu
     if (mainRef.current) mainRef.current.focus();
   }, [isMobile]);
 
@@ -183,10 +188,33 @@ const Dashboard = ({ session, supabase }) => {
   }, []);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', background: colors.bg, paddingBottom: isMobile ? '70px' : '0' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', background: colors.bg }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <aside style={{ position: 'fixed', top: 0, left: 0, width: sidebarOpen ? '260px' : '0px', height: '100vh', background: THEME.colors?.bgDark || '#0f172a', color: '#fff', padding: sidebarOpen ? '20px 0' : '0', overflow: 'hidden', transition: 'all 0.35s', zIndex: 999, boxShadow: sidebarOpen ? THEME.shadow?.lg || '0 10px 15px rgba(0,0,0,0.1)' : 'none' }}>
+      {/* ✅ OVERLAY KWA SIMU (Bonyeza nje ya sidebar kufunga) */}
+      {isMobile && sidebarOpen && (
+        <div 
+          onClick={() => setSidebarOpen(false)} 
+          style={{ 
+            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', 
+            background: 'rgba(0,0,0,0.5)', zIndex: 998, backdropFilter: 'blur(2px)' 
+          }} 
+        />
+      )}
+
+      {/* SIDEBAR */}
+      <aside style={{ 
+        position: 'fixed', top: 0, left: 0, 
+        width: sidebarOpen ? '260px' : '0px', 
+        height: '100vh', 
+        background: THEME.colors?.bgDark || '#0f172a', 
+        color: '#fff', 
+        padding: sidebarOpen ? '20px 0' : '0', 
+        overflow: 'hidden', 
+        transition: 'all 0.35s', 
+        zIndex: 999, 
+        boxShadow: sidebarOpen ? THEME.shadow?.lg || '0 10px 15px rgba(0,0,0,0.1)' : 'none' 
+      }}>
         <div style={{ padding: sidebarOpen ? `0 24px 24px` : '0', borderBottom: sidebarOpen ? `1px solid ${THEME.colors?.borderDark || '#334155'}` : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: '700' }}>{t.appName || 'KasiTrade POS'}</h2>
           <button onClick={() => setSidebarOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
@@ -202,7 +230,6 @@ const Dashboard = ({ session, supabase }) => {
                 borderRadius: isActive ? '0 24px 24px 0' : '0'
               }}>
                 {item.label}
-                {sidebarOpen && <span style={{ marginLeft: 'auto', fontSize: '11px', opacity: 0.7, background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: THEME.radius?.sm || '4px' }}>{item.shortcut}</span>}
               </button>
             );
           })}
@@ -212,10 +239,14 @@ const Dashboard = ({ session, supabase }) => {
         </div>
       </aside>
 
+      {/* MAIN CONTENT */}
       <div style={{ marginLeft: sidebarOpen && !isMobile ? '260px' : '0', flex: 1, padding: isMobile ? '16px' : '32px', transition: 'margin-left 0.35s', minHeight: '100vh' }}>
         <header style={{ background: colors.surface, padding: isMobile ? '16px' : '32px', borderRadius: THEME.radius?.lg || '12px', marginBottom: isMobile ? '16px' : '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: THEME.shadow?.sm || '0 1px 3px rgba(0,0,0,0.1)', position: 'sticky', top: isMobile ? '10px' : '0', zIndex: 100, border: `1px solid ${colors.border}`, flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '24px' }}>
-            {(!sidebarOpen || isMobile) && <button onClick={() => setSidebarOpen(true)} className="btn-micro" style={{ background: colors.surface, border: 'none', fontSize: '1.3rem', color: colors.text, padding: '8px 12px', borderRadius: THEME.radius?.md || '8px' }}>☰</button>}
+            {/* ✅ HAMBURGER BUTTON (Inaonekana kwenye simu na desktop wakati sidebar imefungwa) */}
+            {!sidebarOpen && (
+              <button onClick={() => setSidebarOpen(true)} className="btn-micro" style={{ background: colors.surface, border: 'none', fontSize: '1.5rem', color: colors.text, padding: '8px 12px', borderRadius: THEME.radius?.md || '8px' }}>☰</button>
+            )}
             <h2 style={{ margin: 0, color: colors.text, fontSize: isMobile ? '1rem' : '1.3rem', fontWeight: '600' }}>
               {view === 'dashboard' && (t.dashboard?.title || 'Dashboard')}
               {view === 'products' && (t.products?.title || 'Products')}
@@ -416,23 +447,6 @@ const Dashboard = ({ session, supabase }) => {
           )}
         </div>
       </div>
-
-      {isMobile && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: THEME.colors?.bgDark || '#0f172a', display: 'flex', justifyContent: 'space-around', padding: '8px 0', borderTop: `1px solid ${THEME.colors?.borderDark || '#334155'}`, zIndex: 1000, boxShadow: THEME.shadow?.lg || '0 10px 15px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
-          {navItems.map(item => {
-            const isActive = view === item.id;
-            const parts = item.label.split(' ');
-            const icon = parts[0];
-            const text = parts.slice(1).join(' ') || parts[0];
-            return (
-              <button key={item.id} onClick={() => handleNavClick(item.id)} className="btn-micro" style={{ background: 'none', border: 'none', color: isActive ? '#60a5fa' : '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '4px 2px', flex: 1, fontSize: '10px', cursor: 'pointer' }}>
-                <span style={{ fontSize: '18px' }}>{icon}</span>
-                <span style={{ fontWeight: isActive ? '600' : '400', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{text}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };
