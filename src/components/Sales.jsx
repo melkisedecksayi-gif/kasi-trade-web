@@ -27,7 +27,6 @@ const Sales = ({ supabase, lang, shopId, theme }) => {
     setToast({ message, type, id: Date.now() });
   }, []);
 
-  // ✅ SOMA BIDHAA KWA KUTUMIA shopId
   useEffect(() => {
     if (!supabase || !shopId) return;
     let active = true;
@@ -87,7 +86,6 @@ const Sales = ({ supabase, lang, shopId, theme }) => {
     try {
       const recNo = `REC-${Date.now().toString().slice(-6)}`;
       
-      // ✅ HIFADHI MAUZO CHINI YA shopId
       const { error: dbErr } = await supabase.from('sales').insert({ 
         shop_id: shopId, 
         items: optimisticCart.map(({ stock_limit, ...rest }) => rest), 
@@ -98,7 +96,6 @@ const Sales = ({ supabase, lang, shopId, theme }) => {
       });
       if (dbErr) throw dbErr;
       
-      // ✅ PUNGUZA STOCK CHINI YA shopId
       for (const item of optimisticCart) {
         await supabase.from('products').update({ stock_quantity: item.stock_limit - item.qty }).eq('id', item.id).eq('shop_id', shopId);
       }
@@ -125,14 +122,16 @@ const Sales = ({ supabase, lang, shopId, theme }) => {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {error && <div style={{ padding: '16px', background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, borderRadius: '8px', textAlign: 'center' }}>{error}</div>}
       
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+      {/* ✅ RESPONSIVE GRID: Inajirekebisha kiotomatiki (stacked kwenye simu, side-by-side kwenye desktop) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+        
         {/* SEARCH & PRODUCTS */}
         <div style={{ background: colors.surface, borderRadius: '12px', padding: '20px', border: `1px solid ${colors.border}` }}>
           <input type="text" placeholder={t.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '14px', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '16px' }} />
           
           <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
             {products.length === 0 ? <p style={{ textAlign: 'center', color: colors.textSec, marginTop: '40px' }}>{t.noProducts}</p> : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
                 {filtered.map(p => {
                   const displayPrice = p.selling_price || p.price || 0;
                   const stock = p.stock_quantity || 0;
