@@ -101,6 +101,42 @@ const Dashboard = ({ session, supabase }) => {
     try { await supabase.auth.signOut(); showToast('✅ Umetoka kikamilifu', 'success'); } 
     catch(e) { showToast('❌ Hitilafu ya kutoka', 'error'); }
   };
+
+  // ✅ RESET MFUMO FUNCTION (ADMIN TU)
+  const handleResetSystem = async () => {
+    if (userRole !== 'admin') {
+      showToast('❌ Ni Admin tu anaweza kufanya hivi!', 'error');
+      return;
+    }
+    
+    const confirmation = window.prompt(
+      "⚠️ TAHADHARI KUBWA:\n\n" +
+      "Hii itafuta BIDHAA na MAUZO YOTE ya duka hili.\n" +
+      "Akaunti za watumiaji hazitafutwa.\n" +
+      "Hatua hii HAIWEZI kurudishwa nyuma!\n\n" +
+      "Andika RESET (kwa herufi kubwa) kuthibitisha:"
+    );
+
+    if (confirmation === 'RESET') {
+      setLoading(true);
+      try {
+        await supabase.from('sales').delete().eq('shop_id', shopId);
+        await supabase.from('products').delete().eq('shop_id', shopId);
+        
+        showToast('✅ Mfumo umefutwa na kuwekwa upya kikamilifu!', 'success');
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } catch (err) {
+        console.error(err);
+        showToast('❌ Imeshindwa kufuta data: ' + err.message, 'error');
+        setLoading(false);
+      }
+    } else if (confirmation !== null) {
+      showToast('❌ Umeandika vibaya. Mfumo haujafutwa.', 'warning');
+    }
+  };
   
   const allNavItems = [
     { id: 'dashboard', label: t.nav.dashboard, shortcut: 'Alt+D', roles: ['admin', 'cashier'] },
@@ -317,6 +353,41 @@ const Dashboard = ({ session, supabase }) => {
                   </div>
                 </div>
               </div>
+
+              {/* ✅ RESET MFUMO SECTION (ADMIN TU) */}
+              {userRole === 'admin' && (
+                <div style={{ background: theme === 'dark' ? '#451a1a' : '#fef2f2', padding: THEME.space.l, borderRadius: THEME.radius.lg, border: `2px solid ${THEME.colors.error}` }}>
+                  <h3 style={{ margin: `0 0 ${THEME.space.m}`, color: THEME.colors.error, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    🗑️ {lang === 'sw' ? 'Reset Mfumo' : 'Reset System'}
+                  </h3>
+                  <p style={{ margin: `0 0 ${THEME.space.l}`, color: theme === 'dark' ? '#fca5a5' : '#991b1b', fontSize: '14px', lineHeight: '1.5' }}>
+                    {lang === 'sw' 
+                      ? 'Hii itafuta BIDHAA na MAUZO YOTE ya duka hili. Akaunti za watumiaji hazitafutwa. Hatua hii haiwezi kurudishwa nyuma!'
+                      : 'This will delete ALL PRODUCTS and SALES for this shop. User accounts will not be deleted. This action cannot be undone!'}
+                  </p>
+                  <button 
+                    onClick={handleResetSystem}
+                    disabled={loading}
+                    className="btn-micro"
+                    style={{ 
+                      padding: '12px 24px', 
+                      background: loading ? '#94a3b8' : THEME.colors.error, 
+                      color: '#fff', 
+                      border: 'none', 
+                      borderRadius: THEME.radius.md, 
+                      cursor: loading ? 'not-allowed' : 'pointer', 
+                      fontWeight: '700', 
+                      fontSize: '15px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    {loading ? '⏳ Inafuta...' : '🗑️ Futa Data Zote (Reset)'}
+                  </button>
+                </div>
+              )}
+
             </div>
           )}
 
@@ -336,7 +407,6 @@ const Dashboard = ({ session, supabase }) => {
         </div>
       </div>
 
-      {/* ✅ MOBILE BOTTOM NAV - IMEBORESHWA KUTOSHELEZA VITU VYOTE */}
       {isMobile && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: THEME.colors.bgDark, display: 'flex', justifyContent: 'space-around', padding: `${THEME.space.s} 0`, borderTop: `1px solid ${THEME.colors.borderDark}`, zIndex: 1000, boxShadow: THEME.shadow.lg, overflowX: 'auto' }}>
           {navItems.map(item => {
