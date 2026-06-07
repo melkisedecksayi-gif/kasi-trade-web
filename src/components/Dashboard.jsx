@@ -102,22 +102,22 @@ const Dashboard = ({ session, supabase }) => {
     catch(e) { showToast('❌ Hitilafu ya kutoka', 'error'); }
   };
 
-  // ✅ RESET MFUMO FUNCTION (ADMIN TU)
+  // ✅ RESET MFUMO FUNCTION (ADMIN TU) - IMEBORESHWA NA CONFIRM DIALOG
   const handleResetSystem = async () => {
     if (userRole !== 'admin') {
       showToast('❌ Ni Admin tu anaweza kufanya hivi!', 'error');
       return;
     }
     
-    const confirmation = window.prompt(
+    const isConfirmed = window.confirm(
       "⚠️ TAHADHARI KUBWA:\n\n" +
       "Hii itafuta BIDHAA na MAUZO YOTE ya duka hili.\n" +
       "Akaunti za watumiaji hazitafutwa.\n" +
       "Hatua hii HAIWEZI kurudishwa nyuma!\n\n" +
-      "Andika RESET (kwa herufi kubwa) kuthibitisha:"
+      "Je, una uhakika unataka kuendelea?"
     );
 
-    if (confirmation === 'RESET') {
+    if (isConfirmed) {
       setLoading(true);
       try {
         await supabase.from('sales').delete().eq('shop_id', shopId);
@@ -133,8 +133,6 @@ const Dashboard = ({ session, supabase }) => {
         showToast('❌ Imeshindwa kufuta data: ' + err.message, 'error');
         setLoading(false);
       }
-    } else if (confirmation !== null) {
-      showToast('❌ Umeandika vibaya. Mfumo haujafutwa.', 'warning');
     }
   };
   
@@ -354,7 +352,7 @@ const Dashboard = ({ session, supabase }) => {
                 </div>
               </div>
 
-              {/* ✅ RESET MFUMO SECTION (ADMIN TU) */}
+              {/* ✅ RESET MFUMO SECTION (ADMIN TU) - IMEBORESHWA */}
               {userRole === 'admin' && (
                 <div style={{ background: theme === 'dark' ? '#451a1a' : '#fef2f2', padding: THEME.space.l, borderRadius: THEME.radius.lg, border: `2px solid ${THEME.colors.error}` }}>
                   <h3 style={{ margin: `0 0 ${THEME.space.m}`, color: THEME.colors.error, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
