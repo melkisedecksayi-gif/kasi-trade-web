@@ -197,10 +197,19 @@ const Dashboard = ({ session, supabase }) => {
         background: THEME.colors?.bgDark || '#0f172a', color: '#fff', padding: sidebarOpen ? '20px 0' : '0', 
         overflow: 'hidden', transition: 'all 0.35s', zIndex: 999, boxShadow: sidebarOpen ? THEME.shadow?.lg || '0 10px 15px rgba(0,0,0,0.1)' : 'none' 
       }}>
-        <div style={{ padding: sidebarOpen ? `0 24px 24px` : '0', borderBottom: sidebarOpen ? `1px solid ${THEME.colors?.borderDark || '#334155'}` : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: '700' }}>{t.appName || 'KasiTrade POS'}</h2>
-          <button onClick={() => setSidebarOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
+        {/* ✅ LOGO IMEWEKWA HAPA */}
+        <div style={{ padding: sidebarOpen ? `0 24px 24px` : '0', borderBottom: sidebarOpen ? `1px solid ${THEME.colors?.borderDark || '#334155'}` : 'none', display: 'flex', justifyContent: sidebarOpen ? 'flex-start' : 'center', alignItems: 'center' }}>
+          <img 
+            src="/logo.png" 
+            alt="KasiTrade Logo" 
+            style={{ 
+              height: '40px', 
+              width: 'auto', 
+              objectFit: 'contain'
+            }} 
+          />
         </div>
+        
         <nav style={{ padding: sidebarOpen ? '10px 0' : '0' }}>
           {navItems.map(item => {
             const isActive = view === item.id;
@@ -266,7 +275,6 @@ const Dashboard = ({ session, supabase }) => {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '16px' }}>
-                    {/* ✅ HAPA NIMEONDOA ICON ZA MKONO, SASA ZINATOKA KWA TRANSLATION TU */}
                     <button onClick={() => handleNavClick('sales')} className="btn-micro" style={{ background: THEME.colors?.primary || '#3b82f6', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>
                       {t.nav?.sales || '🛒 Sales'}
                     </button>
@@ -361,13 +369,45 @@ const Dashboard = ({ session, supabase }) => {
                 </div>
               </div>
               {userRole === 'admin' && (
-                <div style={{ background: colors.surface, padding: '24px', borderRadius: THEME.radius?.lg || '12px', border: `1px solid ${colors.border}` }} className="card-micro">
-                  <h3 style={{ margin: '0 0 24px', color: colors.text, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>👁️ {lang === 'sw' ? 'Mtazamo' : 'View Mode'}</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                    <button onClick={() => setViewMode('admin')} className="btn-micro" style={{ padding: '20px', background: viewMode === 'admin' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : colors.bg, color: viewMode === 'admin' ? '#fff' : colors.text, border: `2px solid ${viewMode === 'admin' ? '#667eea' : colors.border}`, borderRadius: THEME.radius?.md || '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }}>👑 {lang === 'sw' ? 'Mtazamo wa Admin' : 'Admin View'}</button>
-                    <button onClick={() => setViewMode('cashier')} className="btn-micro" style={{ padding: '20px', background: viewMode === 'cashier' ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : colors.bg, color: viewMode === 'cashier' ? '#fff' : colors.text, border: `2px solid ${viewMode === 'cashier' ? '#f5576c' : colors.border}`, borderRadius: THEME.radius?.md || '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }}>🛒 {lang === 'sw' ? 'Mtazamo wa Cashier' : 'Cashier View'}</button>
+                <>
+                  <div style={{ background: colors.surface, padding: '24px', borderRadius: THEME.radius?.lg || '12px', border: `1px solid ${colors.border}` }} className="card-micro">
+                    <h3 style={{ margin: '0 0 24px', color: colors.text, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>👁️ {lang === 'sw' ? 'Mtazamo' : 'View Mode'}</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+                      <button onClick={() => setViewMode('admin')} className="btn-micro" style={{ padding: '20px', background: viewMode === 'admin' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : colors.bg, color: viewMode === 'admin' ? '#fff' : colors.text, border: `2px solid ${viewMode === 'admin' ? '#667eea' : colors.border}`, borderRadius: THEME.radius?.md || '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }}>👑 {lang === 'sw' ? 'Mtazamo wa Admin' : 'Admin View'}</button>
+                      <button onClick={() => setViewMode('cashier')} className="btn-micro" style={{ padding: '20px', background: viewMode === 'cashier' ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : colors.bg, color: viewMode === 'cashier' ? '#fff' : colors.text, border: `2px solid ${viewMode === 'cashier' ? '#f5576c' : colors.border}`, borderRadius: THEME.radius?.md || '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }}>🛒 {lang === 'sw' ? 'Mtazamo wa Cashier' : 'Cashier View'}</button>
+                    </div>
                   </div>
-                </div>
+                  <div style={{ background: theme === 'dark' ? '#451a1a' : '#fef2f2', padding: '24px', borderRadius: THEME.radius?.lg || '12px', border: `2px solid ${THEME.colors?.error || '#ef4444'}` }}>
+                    <h3 style={{ margin: '0 0 16px', color: THEME.colors?.error || '#ef4444', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      🗑️ {lang === 'sw' ? 'Reset Mfumo' : 'Reset System'}
+                    </h3>
+                    <p style={{ margin: '0 0 24px', color: theme === 'dark' ? '#fca5a5' : '#991b1b', fontSize: '14px', lineHeight: '1.5' }}>
+                      {lang === 'sw' 
+                        ? 'Hii itafuta BIDHAA na MAUZO YOTE ya duka hili. Akaunti za watumiaji hazitafutwa. Hatua hii haiwezi kurudishwa nyuma!'
+                        : 'This will delete ALL PRODUCTS and SALES for this shop. User accounts will not be deleted. This action cannot be undone!'}
+                    </p>
+                    <button 
+                      onClick={handleResetSystem}
+                      disabled={loading}
+                      className="btn-micro"
+                      style={{ 
+                        padding: '12px 24px', 
+                        background: loading ? '#94a3b8' : THEME.colors?.error || '#ef4444', 
+                        color: '#fff', 
+                        border: 'none', 
+                        borderRadius: THEME.radius?.md || '8px', 
+                        cursor: loading ? 'not-allowed' : 'pointer', 
+                        fontWeight: '700', 
+                        fontSize: '15px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      {loading ? '⏳ Inafuta...' : '🗑️ Futa Data Zote (Reset)'}
+                    </button>
+                  </div>
+                </>
               )}
               <div style={{ background: colors.surface, padding: '24px', borderRadius: THEME.radius?.lg || '12px', border: `1px solid ${colors.border}` }} className="card-micro">
                 <h3 style={{ margin: '0 0 24px', color: colors.text, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>👤 {lang === 'sw' ? 'Akaunti' : 'Account'}</h3>
@@ -382,39 +422,6 @@ const Dashboard = ({ session, supabase }) => {
                   </div>
                 </div>
               </div>
-
-              {userRole === 'admin' && (
-                <div style={{ background: theme === 'dark' ? '#451a1a' : '#fef2f2', padding: '24px', borderRadius: THEME.radius?.lg || '12px', border: `2px solid ${THEME.colors?.error || '#ef4444'}` }}>
-                  <h3 style={{ margin: '0 0 16px', color: THEME.colors?.error || '#ef4444', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    🗑️ {lang === 'sw' ? 'Reset Mfumo' : 'Reset System'}
-                  </h3>
-                  <p style={{ margin: '0 0 24px', color: theme === 'dark' ? '#fca5a5' : '#991b1b', fontSize: '14px', lineHeight: '1.5' }}>
-                    {lang === 'sw' 
-                      ? 'Hii itafuta BIDHAA na MAUZO YOTE ya duka hili. Akaunti za watumiaji hazitafutwa. Hatua hii haiwezi kurudishwa nyuma!'
-                      : 'This will delete ALL PRODUCTS and SALES for this shop. User accounts will not be deleted. This action cannot be undone!'}
-                  </p>
-                  <button 
-                    onClick={handleResetSystem}
-                    disabled={loading}
-                    className="btn-micro"
-                    style={{ 
-                      padding: '12px 24px', 
-                      background: loading ? '#94a3b8' : THEME.colors?.error || '#ef4444', 
-                      color: '#fff', 
-                      border: 'none', 
-                      borderRadius: THEME.radius?.md || '8px', 
-                      cursor: loading ? 'not-allowed' : 'pointer', 
-                      fontWeight: '700', 
-                      fontSize: '15px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    {loading ? '⏳ Inafuta...' : '🗑️ Futa Data Zote (Reset)'}
-                  </button>
-                </div>
-              )}
             </div>
           )}
 

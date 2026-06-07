@@ -32,7 +32,6 @@ const Login = ({ supabase, onLoginSuccess }) => {
     setToast({ message, type, id: Date.now() });
   };
 
-  // ✅ LOGIN / REGISTER
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -59,7 +58,6 @@ const Login = ({ supabase, onLoginSuccess }) => {
     }
   };
 
-  // ✅ FORGOT PASSWORD - Tuma email ya reset
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     if (!resetEmail) {
@@ -68,28 +66,19 @@ const Login = ({ supabase, onLoginSuccess }) => {
     }
     setLoading(true);
     try {
-      // URL ya page ya update password (badilisha na domain yako ya Vercel)
       const redirectTo = `${window.location.origin}/update-password`;
-      
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: redirectTo
-      });
-      
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, { redirectTo });
       if (error) throw error;
-      
       showToast(
         lang === 'sw' 
           ? '✅ Email ya kurekebisha password imetumwa! Angalia inbox yako.' 
           : '✅ Password reset email sent! Check your inbox.',
         'success'
       );
-      
-      // Subiri sekunde 3 kisha rudi kwenye login
       setTimeout(() => {
         setShowForgotPassword(false);
         setResetEmail('');
       }, 3000);
-      
     } catch (error) {
       showToast(error.message, 'error');
     } finally {
@@ -112,7 +101,6 @@ const Login = ({ supabase, onLoginSuccess }) => {
     }}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* LANGUAGE TOGGLE */}
       <button 
         onClick={() => setLang(l => l === 'sw' ? 'en' : 'sw')} 
         style={{ 
@@ -127,7 +115,6 @@ const Login = ({ supabase, onLoginSuccess }) => {
         {lang === 'sw' ? '🇹🇿' : '🇺🇸'}
       </button>
 
-      {/* THEME TOGGLE */}
       <button 
         onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} 
         style={{ 
@@ -142,7 +129,6 @@ const Login = ({ supabase, onLoginSuccess }) => {
         {theme === 'dark' ? '☀️' : '🌙'}
       </button>
 
-      {/* ✅ MAIN LOGIN/REGISTER CARD */}
       {!showForgotPassword && (
         <div style={{ 
           background: colors.surface, 
@@ -155,7 +141,17 @@ const Login = ({ supabase, onLoginSuccess }) => {
           boxSizing: 'border-box'
         }}>
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            <h1 style={{ margin: '0 0 8px', color: colors.text, fontSize: '26px', fontWeight: '700' }}>{t.appName}</h1>
+            {/* ✅ LOGO IMEWEKWA HAPA */}
+            <img 
+              src="/logo.png" 
+              alt="KasiTrade Logo" 
+              style={{ 
+                height: '70px', 
+                width: 'auto', 
+                objectFit: 'contain',
+                marginBottom: '12px'
+              }} 
+            />
             <p style={{ margin: 0, color: colors.textSec, fontSize: '14px' }}>
               {currentText.subtitle || 'Welcome'}
             </p>
@@ -199,7 +195,6 @@ const Login = ({ supabase, onLoginSuccess }) => {
               />
             </div>
 
-            {/* ✅ FORGOT PASSWORD LINK (Inaonekana kwenye Login tu) */}
             {isLogin && (
               <div style={{ textAlign: 'right', marginTop: '-10px' }}>
                 <button 
@@ -247,7 +242,6 @@ const Login = ({ supabase, onLoginSuccess }) => {
         </div>
       )}
 
-      {/* ✅ FORGOT PASSWORD MODAL */}
       {showForgotPassword && (
         <div style={{ 
           background: colors.surface, 
