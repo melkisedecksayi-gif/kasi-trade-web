@@ -75,7 +75,7 @@ const Login = ({ supabase, onLoginSuccess }) => {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <button onClick={() => setLang(l => l === 'sw' ? 'en' : 'sw')} style={{ position: 'absolute', top: '20px', right: '20px', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: '50%', cursor: 'pointer', fontSize: '24px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: THEME.shadow.sm, zIndex: 10 }}>
-        {lang === 'sw' ? '🇹🇿' : '🇺🇸'}
+        {lang === 'sw' ? '🇹🇿' : '🇸'}
       </button>
 
       <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} style={{ position: 'absolute', top: '20px', left: '20px', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: '50%', cursor: 'pointer', fontSize: '20px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: THEME.shadow.sm, zIndex: 10 }}>
@@ -85,7 +85,8 @@ const Login = ({ supabase, onLoginSuccess }) => {
       {!showForgotPassword && (
         <div style={{ background: colors.surface, padding: '32px 24px', borderRadius: THEME.radius.lg, boxShadow: THEME.shadow.lg, width: '100%', maxWidth: '400px', border: `1px solid ${colors.border}`, boxSizing: 'border-box' }}>
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            <img src="/logo.png" alt="KasiTrade Logo" style={{ height: '80px', width: 'auto', objectFit: 'contain', marginBottom: '12px' }} />
+            {/* ✅ LOGO IMEONGEZWA UKUBWA (130px) */}
+            <img src="/logo.png" alt="KasiTrade Logo" style={{ height: '130px', width: 'auto', objectFit: 'contain', marginBottom: '12px' }} />
             <p style={{ margin: 0, color: colors.textSec, fontSize: '14px' }}>{currentText.subtitle || 'Welcome'}</p>
           </div>
 
