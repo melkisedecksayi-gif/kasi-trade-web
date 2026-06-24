@@ -1,182 +1,349 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { translations } from '../translations';
+import { THEME, getThemeColors } from '../theme';
+import Toast from './Toast';
 
-const Reports = ({ supabase, lang, userId, theme }) => {
+const fmt = (val) => { if (val == null || val === '') return '0'; const n = Number(val); return isNaN(n) ? '0' : n.toLocaleString(); };
+
+const Reports = ({ supabase, lang, userId, theme, showToast: parentShowToast, mode = 'admin', session }) => {
   const isDark = theme === 'dark';
-  const t = translations[lang].reports;
-  const g = translations[lang].general;
+  const colors = getThemeColors(isDark);
+  const t = translations[lang]?.reports || translations.sw.reports;
+  
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : true);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [view, setView] = useState('table');
+  const [dateRange, setDateRange] = useState('month');
+  const [toast, setToast] = useState(null);
 
-  const bg = isDark ? '#1e293b' : '#ffffff';
-  const cardBg = isDark ? '#0f172a' : '#f8fafc';
-  const textMain = isDark ? '#f1f5f9' : '#0f172a';
-  const textSec = isDark ? '#94a3b8' : '#64748b';
-  const border = isDark ? '#334155' : '#e2e8f0';
-  const btnBg = isDark ? '#334155' : '#f1f5f9';
-  const btnActive = '#3b82f6';
+  const effectiveUserId = userId || session?.user?.id;
 
   useEffect(() => {
-    if (!supabase || !userId) return;
-    const fetch = async () => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
+  const showToast = useCallback((message, type = 'info') => {
+    setToast({ message, type, id: Date.now() });
+    if (parentShowToast) parentShowToast(message, type);
+  }, [parentShowToast]);
+
+  useEffect(() => {
+    if (!supabase || !effectiveUserId) return;
+    let active = true;
+    const fetchSales = async () => {
       try {
-        let query = supabase.from('sales').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+        setLoading(true);
+        let query = supabase.from('sales').select('*').eq('user_id', effectiveUserId).order('created_at', { ascending: false });
+        
         const now = new Date();
-        if (filter === 'today') {
-          const start = now.toISOString().split('T')[0] + 'T00:00:00';
-          const end = now.toISOString().split('T')[0] + 'T23:59:59';
-          query = query.gte('created_at', start).lt('created_at', end);
-        } else if (filter === 'week') {
-          const start = new Date(now.setDate(now.getDate() - 7)).toISOString();
-          query = query.gte('created_at', start);
+        if (dateRange === 'today') {
+          const start = new Date(now.setHours(0,0,0,0)).toISOString();
+          const end = new Date(now.setHours(23,59,59,999)).toISOString();
+          query = query.gte('created_at', start).lte('created_at', end);
+        } else if (dateRange === 'week') {
+          const start = new Date(now);
+          start.setDate(now.getDate() - 7);
+          query = query.gte('created_at', start.toISOString());
+        } else if (dateRange === 'month') {
+          const start = new Date(now.getFullYear(), now.getMonth(), 1);
+          query = query.gte('created_at', start.toISOString());
+        } else if (dateRange === 'year') {
+          const start = new Date(now.getFullYear(), 0, 1);
+          query = query.gte('created_at', start.toISOString());
         }
+        
         const { data, error } = await query;
         if (error) throw error;
-        setSales(data || []);
-      } catch (err) { console.error(err); }
-      finally { setLoading(false); }
+        if (active) setSales(Array.isArray(data) ? data : []);
+      } catch (err) { 
+        console.error(err); 
+        showToast('❌ Hitilafu ya kupakia ripoti', 'error');
+      } finally { if (active) setLoading(false); }
     };
-    fetch();
-  }, [supabase, userId, filter]);
+    fetchSales();
+    return () => { active = false; };
+  }, [supabase, effectiveUserId, dateRange, showToast]);
 
-  const getChartData = () => {
-    const days = filter === 'today' ? 1 : filter === 'week' ? 7 : 30;
-    const chartData = [];
-    const now = new Date();
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      const daySales = sales.filter(s => s.created_at?.startsWith(dateStr));
-      const total = daySales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
-      chartData.push({ date: dateStr, label: date.toLocaleDateString(lang === 'sw' ? 'sw-TZ' : 'en-US', { month: 'short', day: 'numeric' }), value: total });
-    }
-    return chartData;
-  };
+  const totalSales = sales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
+  const totalProfit = sales.reduce((sum, s) => {
+    const itemsProfit = (s.items || []).reduce((p, i) => {
+      const profit = ((i.selling_price || i.price || 0) - (i.cost_price || 0)) * (i.qty || 1);
+      return p + profit;
+    }, 0);
+    return sum + itemsProfit;
+  }, 0);
+  const avgSale = sales.length > 0 ? totalSales / sales.length : 0;
 
-  const LineChart = ({ data, height = 200 }) => {
-    if (!data || data.length === 0) return <p style={{textAlign:'center', color:textSec, padding:'40px'}}>{t.noDataForGraph}</p>;
-    const maxValue = Math.max(...data.map(d => d.value), 1);
-    const padding = 40;
-    const chartHeight = height - padding * 2;
-    const points = data.map((d, i) => {
-      const x = (i / (data.length - 1)) * 100;
-      const y = 100 - ((d.value / maxValue) * 100);
-      return `${x},${y}`;
-    }).join(' ');
-    return (
-      <div style={{ position: 'relative', width: '100%', height: `${height}px`, background: cardBg, borderRadius: '8px', padding: '20px', boxSizing: 'border-box', border: `1px solid ${border}` }}>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: `${chartHeight}px` }}>
-          {[0, 25, 50, 75, 100].map(y => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke={border} strokeWidth="0.3" />)}
-          <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-          {data.map((d, i) => { const x = (i / (data.length - 1)) * 100; const y = 100 - ((d.value / maxValue) * 100); return <circle key={i} cx={x} cy={y} r="1.5" fill="#3b82f6" />; })}
-        </svg>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '11px', color: textSec }}>
-          {data.filter((_, i) => i % Math.ceil(data.length / 5) === 0).map((d, i) => <span key={i}>{d.label}</span>)}
-        </div>
-        <div style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: textSec, writingMode: 'vertical-rl' }}>TSh</div>
-      </div>
-    );
-  };
-
-  const chartData = getChartData();
-  const totalRevenue = sales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
-  const averageDaily = totalRevenue / (sales.length || 1);
-  const peakDay = [...sales].sort((a,b) => (b.total_amount||0) - (a.total_amount||0))[0];
+  const topProducts = React.useMemo(() => {
+    const productMap = {};
+    sales.forEach(s => {
+      (s.items || []).forEach(i => {
+        const key = i.name || 'Unknown';
+        if (!productMap[key]) productMap[key] = { name: key, qty: 0, revenue: 0 };
+        productMap[key].qty += i.qty || 1;
+        productMap[key].revenue += (i.price || i.selling_price || 0) * (i.qty || 1);
+      });
+    });
+    return Object.values(productMap).sort((a, b) => b.qty - a.qty).slice(0, 5);
+  }, [sales]);
 
   const exportCSV = () => {
-    const headers = ['ID', 'Tarehe', 'Bidhaa', 'Jumla', 'Malipo', 'Risiti'];
-    const rows = sales.map(s => [s.id, new Date(s.created_at).toLocaleString(), s.items?.map(i=>i.name).join(', '), s.total_amount, s.payment_method, s.receipt_number]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].map(e => e.join(",")).join("\n");
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", "mauzo_report.csv");
-    document.body.appendChild(link);
+    const headers = ['Tarehe', 'Risiti', 'Bidhaa', 'Jumla', 'Njia ya Malipo'];
+    const rows = sales.map(s => [
+      new Date(s.created_at).toLocaleString(),
+      s.receipt_number,
+      (s.items || []).map(i => i.name).join('; '),
+      s.total_amount,
+      s.payment_method
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `ripoti-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
+    showToast('✅ Ripoti ime-export!', 'success');
   };
 
+  if (mode !== 'admin') {
+    return (
+      <div style={{ 
+        background: colors.surface, 
+        padding: isMobile ? '40px 20px' : '60px 20px', 
+        borderRadius: THEME.radius.lg, 
+        textAlign: 'center', 
+        border: `2px solid ${colors.border}` 
+      }}>
+        <div style={{ fontSize: isMobile ? '50px' : '64px', marginBottom: isMobile ? '16px' : '20px' }}>🔒</div>
+        <h2 style={{ color: colors.text, marginBottom: isMobile ? '10px' : '10px', fontSize: isMobile ? '17px' : '20px' }}>
+          {lang === 'sw' ? 'Ripoti ni za Admin Pekee' : 'Reports are Admin Only'}
+        </h2>
+        <p style={{ color: colors.textSec, fontSize: isMobile ? '14px' : '15px' }}>
+          {lang === 'sw' ? 'Badilisha hali kwenda Admin ili kuona ripoti.' : 'Switch to Admin mode to view reports.'}
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ background: bg, padding: '20px', borderRadius: '12px', boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.05)', border: `1px solid ${border}` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={()=>setView('table')} style={{ padding: '8px 12px', background: view==='table'?btnActive:btnBg, color: view==='table'?'#fff':textMain, border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.title}</button>
-          <button onClick={()=>setView('analytics')} style={{ padding: '8px 12px', background: view==='analytics'?btnActive:btnBg, color: view==='analytics'?'#fff':textMain, border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.analytics}</button>
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={()=>setFilter('all')} style={{ padding: '8px 12px', background: filter==='all'?btnActive:btnBg, color: filter==='all'?'#fff':textMain, border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.dateRange}: Zote</button>
-          <button onClick={()=>setFilter('today')} style={{ padding: '8px 12px', background: filter==='today'?btnActive:btnBg, color: filter==='today'?'#fff':textMain, border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.dailySales}</button>
-          <button onClick={()=>setFilter('week')} style={{ padding: '8px 12px', background: filter==='week'?btnActive:btnBg, color: filter==='week'?'#fff':textMain, border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.monthlySales}</button>
-          {view === 'table' && <button onClick={exportCSV} style={{ padding: '8px 12px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.exportCSV}</button>}
-        </div>
+    <div style={{ 
+      background: colors.surface, 
+      padding: isMobile ? '14px' : THEME.space.xl, 
+      borderRadius: THEME.radius.lg, 
+      boxShadow: THEME.shadow.sm, 
+      border: `2px solid ${colors.border}` 
+    }}>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      
+      <div style={{ marginBottom: isMobile ? '16px' : THEME.space.xl }}>
+        <h2 style={{ margin: `0 0 ${isMobile ? '8px' : '8px'}`, color: colors.text, fontSize: isMobile ? '19px' : '22px' }}>{t.title}</h2>
+        <p style={{ margin: 0, color: colors.textSec, fontSize: isMobile ? '13px' : '14px' }}>{t.subtitle}</p>
       </div>
 
-      {view === 'analytics' && (
-        <div style={{ marginBottom: '30px' }}>
-          <h3 style={{ margin: '0 0 15px', color: textMain }}>{t.salesTrend}</h3>
-          <LineChart data={chartData} height={250} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginTop: '20px' }}>
-            <div style={{ padding: '15px', background: isDark ? '#1e3a5f' : '#eff6ff', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
-              <p style={{ margin: '0 0 5px', fontSize: '12px', color: '#60a5fa' }}>{t.totalSales}</p>
-              <p style={{ margin: 0, fontSize: '1.3rem', fontWeight: 'bold', color: textMain }}>{totalRevenue.toLocaleString()} TSh</p>
-            </div>
-            <div style={{ padding: '15px', background: isDark ? '#14532d' : '#f0fdf4', borderRadius: '8px', borderLeft: '4px solid #22c55e' }}>
-              <p style={{ margin: '0 0 5px', fontSize: '12px', color: '#4ade80' }}>{t.averageDaily}</p>
-              <p style={{ margin: 0, fontSize: '1.3rem', fontWeight: 'bold', color: textMain }}>{Math.round(averageDaily).toLocaleString()} TSh</p>
-            </div>
-            <div style={{ padding: '15px', background: isDark ? '#451a03' : '#fef3c7', borderRadius: '8px', borderLeft: '4px solid #f59e0b' }}>
-              <p style={{ margin: '0 0 5px', fontSize: '12px', color: '#fbbf24' }}>{t.peakDay}</p>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 'bold', color: textMain }}>{peakDay ? `${new Date(peakDay.created_at).toLocaleDateString()}: ${(peakDay.total_amount||0).toLocaleString()} TSh` : '-'}</p>
-            </div>
-            <div style={{ padding: '15px', background: cardBg, borderRadius: '8px', borderLeft: `4px solid ${border}` }}>
-              <p style={{ margin: '0 0 5px', fontSize: '12px', color: textSec }}>{t.transactions}</p>
-              <p style={{ margin: 0, fontSize: '1.3rem', fontWeight: 'bold', color: textMain }}>{sales.length}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Date Range Filter */}
+      <div style={{ 
+        display: 'flex', 
+        gap: isMobile ? '8px' : THEME.space.s, 
+        marginBottom: isMobile ? '16px' : THEME.space.xl, 
+        flexWrap: 'wrap',
+        flexDirection: isMobile ? 'column' : 'row'
+      }}>
+        {['today', 'week', 'month', 'year', 'all'].map(range => (
+          <button
+            key={range}
+            onClick={() => setDateRange(range)}
+            style={{
+              padding: isMobile ? '12px 16px' : `${THEME.space.s} ${THEME.space.m}`,
+              background: dateRange === range ? THEME.colors.primary : colors.surface,
+              color: dateRange === range ? '#fff' : colors.text,
+              border: `2px solid ${colors.border}`,
+              borderRadius: THEME.radius.md,
+              cursor: 'pointer',
+              fontWeight: dateRange === range ? 'bold' : 'normal',
+              fontSize: isMobile ? '14px' : '13px',
+              flex: isMobile ? '1' : 'none',
+              textAlign: 'center'
+            }}
+          >
+            {t[range]}
+          </button>
+        ))}
+      </div>
 
-      {view === 'table' && (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: isMobile ? '60px 20px' : '80px 20px' }}>
+          <div style={{ display: 'inline-block', width: isMobile ? '40px' : '50px', height: isMobile ? '40px' : '50px', border: `4px solid #e2e8f0`, borderTopColor: THEME.colors.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+          <p style={{ color: colors.textSec, marginTop: isMobile ? '15px' : '20px', fontSize: isMobile ? '14px' : '16px' }}>{lang === 'sw' ? 'Inapakia...' : 'Loading...'}</p>
+        </div>
+      ) : sales.length === 0 ? (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: isMobile ? '60px 20px' : '80px 20px', 
+          background: isDark ? THEME.colors.surfaceDark : '#f8fafc', 
+          borderRadius: THEME.radius.md,
+          border: `2px dashed ${colors.border}`
+        }}>
+          <div style={{ fontSize: isMobile ? '50px' : '60px', marginBottom: isMobile ? '12px' : '16px' }}>📊</div>
+          <p style={{ color: colors.text, fontSize: isMobile ? '15px' : '16px', fontWeight: '500' }}>{t.noSales}</p>
+        </div>
+      ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-            <div style={{ padding: '15px', background: isDark ? '#1e3a5f' : '#eff6ff', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
-              <h4 style={{ margin: '0 0 5px', color: '#60a5fa' }}>{t.totalSales}</h4>
-              <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold', color: textMain }}>{totalRevenue.toLocaleString()} TSh</p>
+          {/* Stats Cards */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: isMobile ? '12px' : THEME.space.m, 
+            marginBottom: isMobile ? '16px' : THEME.space.xl 
+          }}>
+            <div style={{ 
+              padding: isMobile ? '14px' : THEME.space.l, 
+              background: isDark ? '#1e3a5f' : '#eff6ff', 
+              borderRadius: THEME.radius.md, 
+              borderLeft: `4px solid ${THEME.colors.primary}` 
+            }}>
+              <p style={{ margin: `0 0 ${isMobile ? '8px' : '8px'}`, color: '#60a5fa', fontSize: isMobile ? '12px' : '13px', fontWeight: '600' }}>{t.totalSales}</p>
+              <p style={{ margin: 0, fontSize: isMobile ? '1.4rem' : '1.5rem', fontWeight: '700', color: colors.text }}>{fmt(totalSales)} TSh</p>
             </div>
-            <div style={{ padding: '15px', background: isDark ? '#14532d' : '#f0fdf4', borderRadius: '8px', borderLeft: '4px solid #22c55e' }}>
-              <h4 style={{ margin: '0 0 5px', color: '#4ade80' }}>{t.transactions}</h4>
-              <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold', color: textMain }}>{sales.length}</p>
+            <div style={{ 
+              padding: isMobile ? '14px' : THEME.space.l, 
+              background: isDark ? '#14532d' : '#f0fdf4', 
+              borderRadius: THEME.radius.md, 
+              borderLeft: `4px solid ${THEME.colors.success}` 
+            }}>
+              <p style={{ margin: `0 0 ${isMobile ? '8px' : '8px'}`, color: '#4ade80', fontSize: isMobile ? '12px' : '13px', fontWeight: '600' }}>{t.totalProfit}</p>
+              <p style={{ margin: 0, fontSize: isMobile ? '1.4rem' : '1.5rem', fontWeight: '700', color: colors.text }}>{fmt(totalProfit)} TSh</p>
+            </div>
+            <div style={{ 
+              padding: isMobile ? '14px' : THEME.space.l, 
+              background: isDark ? '#4c1d95' : '#faf5ff', 
+              borderRadius: THEME.radius.md, 
+              borderLeft: `4px solid #a855f7` 
+            }}>
+              <p style={{ margin: `0 0 ${isMobile ? '8px' : '8px'}`, color: '#a855f7', fontSize: isMobile ? '12px' : '13px', fontWeight: '600' }}>{t.totalTransactions}</p>
+              <p style={{ margin: 0, fontSize: isMobile ? '1.4rem' : '1.5rem', fontWeight: '700', color: colors.text }}>{sales.length}</p>
+            </div>
+            <div style={{ 
+              padding: isMobile ? '14px' : THEME.space.l, 
+              background: isDark ? '#78350f' : '#fffbeb', 
+              borderRadius: THEME.radius.md, 
+              borderLeft: `4px solid ${THEME.colors.warning}` 
+            }}>
+              <p style={{ margin: `0 0 ${isMobile ? '8px' : '8px'}`, color: THEME.colors.warning, fontSize: isMobile ? '12px' : '13px', fontWeight: '600' }}>{t.avgSale}</p>
+              <p style={{ margin: 0, fontSize: isMobile ? '1.4rem' : '1.5rem', fontWeight: '700', color: colors.text }}>{fmt(avgSale)} TSh</p>
             </div>
           </div>
-          {loading ? <p style={{textAlign:'center', color:textSec}}>{g.loading}</p> : sales.length === 0 ? <p style={{textAlign:'center', color:textSec}}>{t.noSales}</p> : (
+
+          {/* Top Products */}
+          <div style={{ 
+            background: isDark ? THEME.colors.surfaceDark : '#f8fafc', 
+            padding: isMobile ? '14px' : THEME.space.l, 
+            borderRadius: THEME.radius.md, 
+            marginBottom: isMobile ? '16px' : THEME.space.xl, 
+            border: `2px solid ${colors.border}` 
+          }}>
+            <h3 style={{ margin: `0 0 ${isMobile ? '12px' : '16px'}`, color: colors.text, fontSize: isMobile ? '16px' : '18px' }}>🏆 {t.topProducts}</h3>
+            {topProducts.length === 0 ? (
+              <p style={{ color: colors.textSec, margin: 0, fontSize: isMobile ? '13px' : '14px' }}>{t.noData}</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '8px' : THEME.space.s }}>
+                {topProducts.map((p, i) => (
+                  <div key={i} style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    padding: isMobile ? '10px' : THEME.space.s, 
+                    background: colors.surface, 
+                    borderRadius: THEME.radius.sm, 
+                    border: `2px solid ${colors.border}`
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : THEME.space.m, flex: 1 }}>
+                      <span style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold', color: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : colors.textSec, minWidth: '30px' }}>
+                        #{i + 1}
+                      </span>
+                      <span style={{ color: colors.text, fontWeight: '500', fontSize: isMobile ? '13px' : '14px', wordBreak: 'break-word' }}>{p.name}</span>
+                    </div>
+                    <div style={{ textAlign: 'right', marginLeft: isMobile ? '10px' : 'auto' }}>
+                      <p style={{ margin: 0, fontSize: isMobile ? '11px' : '12px', color: colors.textSec }}>{p.qty} units</p>
+                      <p style={{ margin: 0, fontSize: isMobile ? '12px' : '13px', color: THEME.colors.success, fontWeight: 'bold' }}>{fmt(p.revenue)} TSh</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Sales Table */}
+          <div style={{ 
+            background: isDark ? THEME.colors.surfaceDark : '#f8fafc', 
+            padding: isMobile ? '14px' : THEME.space.l, 
+            borderRadius: THEME.radius.md, 
+            border: `2px solid ${colors.border}` 
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: isMobile ? '12px' : THEME.space.m, 
+              flexWrap: 'wrap', 
+              gap: isMobile ? '10px' : THEME.space.s,
+              flexDirection: isMobile ? 'column' : 'row'
+            }}>
+              <h3 style={{ margin: 0, color: colors.text, fontSize: isMobile ? '16px' : '18px' }}>📋 {lang === 'sw' ? 'Miamala ya Hivi Karibuni' : 'Recent Transactions'}</h3>
+              <button 
+                onClick={exportCSV} 
+                style={{ 
+                  padding: isMobile ? '10px 16px' : `${THEME.space.s} ${THEME.space.m}`, 
+                  background: THEME.colors.success, 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: THEME.radius.md, 
+                  cursor: 'pointer', 
+                  fontWeight: 'bold', 
+                  fontSize: isMobile ? '13px' : '13px' 
+                }}
+              >
+                {t.exportCSV}
+              </button>
+            </div>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isMobile ? '12px' : '13px' }}>
                 <thead>
-                  <tr style={{ background: cardBg, textAlign: 'left' }}>
-                    <th style={{ padding: '12px', borderBottom: `2px solid ${border}`, color: textMain }}>Tarehe</th>
-                    <th style={{ padding: '12px', borderBottom: `2px solid ${border}`, color: textMain }}>Bidhaa</th>
-                    <th style={{ padding: '12px', borderBottom: `2px solid ${border}`, color: textMain }}>{t.totalSales}</th>
-                    <th style={{ padding: '12px', borderBottom: `2px solid ${border}`, color: textMain }}>Malipo</th>
-                    <th style={{ padding: '12px', borderBottom: `2px solid ${border}`, color: textMain }}>Risiti</th>
+                  <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
+                    <th style={{ textAlign: 'left', padding: isMobile ? '8px' : '10px', color: colors.textSec, fontSize: isMobile ? '11px' : '12px', fontWeight: '600' }}>{lang === 'sw' ? 'Tarehe' : 'Date'}</th>
+                    <th style={{ textAlign: 'left', padding: isMobile ? '8px' : '10px', color: colors.textSec, fontSize: isMobile ? '11px' : '12px', fontWeight: '600' }}>{lang === 'sw' ? 'Risiti' : 'Receipt'}</th>
+                    <th style={{ textAlign: 'left', padding: isMobile ? '8px' : '10px', color: colors.textSec, fontSize: isMobile ? '11px' : '12px', fontWeight: '600' }}>{lang === 'sw' ? 'Bidhaa' : 'Items'}</th>
+                    <th style={{ textAlign: 'right', padding: isMobile ? '8px' : '10px', color: colors.textSec, fontSize: isMobile ? '11px' : '12px', fontWeight: '600' }}>{lang === 'sw' ? 'Jumla' : 'Total'}</th>
+                    <th style={{ textAlign: 'right', padding: isMobile ? '8px' : '10px', color: colors.textSec, fontSize: isMobile ? '11px' : '12px', fontWeight: '600' }}>{lang === 'sw' ? 'Malipo' : 'Payment'}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sales.map(s => (
-                    <tr key={s.id} style={{ borderBottom: `1px solid ${border}` }}>
-                      <td style={{ padding: '12px', color: textSec }}>{new Date(s.created_at).toLocaleDateString()}</td>
-                      <td style={{ padding: '12px', color: textSec }}>{s.items?.map(i=>`${i.name} x${i.qty}`).join(', ')}</td>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#4ade80' }}>{(s.total_amount||0).toLocaleString()} TSh</td>
-                      <td style={{ padding: '12px', color: textSec }}>{s.payment_method}</td>
-                      <td style={{ padding: '12px', fontFamily: 'monospace', color: textSec }}>#{s.receipt_number}</td>
+                  {sales.map((s, idx) => (
+                    <tr key={idx} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                      <td style={{ padding: isMobile ? '8px' : '10px', color: colors.text, fontSize: isMobile ? '11px' : '13px' }}>{new Date(s.created_at).toLocaleDateString()}</td>
+                      <td style={{ padding: isMobile ? '8px' : '10px', color: colors.textSec, fontFamily: 'monospace', fontSize: isMobile ? '10px' : '12px' }}>#{s.receipt_number}</td>
+                      <td style={{ padding: isMobile ? '8px' : '10px', color: colors.text, maxWidth: isMobile ? '100px' : '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: isMobile ? '11px' : '13px' }}>
+                        {(s.items || []).map(i => i.name).join(', ')}
+                      </td>
+                      <td style={{ padding: isMobile ? '8px' : '10px', color: THEME.colors.success, fontWeight: 'bold', textAlign: 'right', fontSize: isMobile ? '12px' : '13px' }}>{fmt(s.total_amount)} TSh</td>
+                      <td style={{ padding: isMobile ? '8px' : '10px', color: colors.textSec, textAlign: 'right', fontSize: isMobile ? '11px' : '13px' }}>{s.payment_method}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
         </>
       )}
+      
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

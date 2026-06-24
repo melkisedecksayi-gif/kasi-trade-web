@@ -1,23 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sw">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0f172a" />
-  <meta name="description" content="KasiTRADE Web - Modern POS System" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="KasiTRADE - Mfumo wa Mauzo" />
   <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+  <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
   <title>KasiTRADE Web</title>
   <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
     html, body {
       margin: 0;
       padding: 0;
       overflow-x: hidden;
       -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    input, select, textarea, button {
+      font-size: 16px !important; /* ✅ Kuzuia iOS auto-zoom */
     }
   </style>
 </head>
 <body>
-  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <noscript>Unahitaji kuwasha JavaScript kutumia app hii.</noscript>
   <div id="root"></div>
 </body>
 </html>
