@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './lib/supabaseClient';
-import Login from './components/Login';
+import { createClient } from '@supabase/supabase-js';
 import Dashboard from './components/Dashboard';
-import './App.css';
+import Auth from './components/Auth';
+
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Angalia kama user tayari amelogin
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    // Sikiliza mabadiliko ya login/logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -24,21 +25,14 @@ function App() {
   }, []);
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'system-ui' }}>
-        <div style={{ textAlign: 'center' }}>
-          <h2>🔄 DukaPOS inasubiri...</h2>
-          <p>Inaunganisha na database...</p>
-        </div>
-      </div>
-    );
+    return <div style={{minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Inapakia...</div>;
   }
 
-  return (
-    <div className="App">
-      {session ? <Dashboard session={session} supabase={supabase} /> : <Login supabase={supabase} />}
-    </div>
-  );
+  if (!session) {
+    return <Auth supabase={supabase} onAuthSuccess={() => supabase.auth.getSession().then(({ data: { session } }) => setSession(session))} />;
+  }
+
+  return <Dashboard supabase={supabase} />;
 }
 
 export default App;
