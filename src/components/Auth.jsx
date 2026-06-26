@@ -52,6 +52,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
     setRegistrationStep(1);
   };
 
+  // ✅ IMERAHISISHWA: Trigger ya Supabase inashughulikia profile creation
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -65,40 +66,55 @@ const Auth = ({ supabase, onAuthSuccess }) => {
           throw new Error(lang === 'sw' ? 'Tafadhali jaza taarifa zote na password iwe na herufi 6+.' : 'Please fill all fields and password must be 6+ chars.');
         }
         
-        // 1. Create Auth User
+        // ✅ Hatua 1: Create Auth User (trigger itaunda profile kiotomatiki)
         const { data, error: signUpError } = await supabase.auth.signUp({ 
           email, 
           password,
           options: { 
             data: { 
-              phone, gender, business_type: businessType, business_name: businessName,
-              country, region, district, ward
+              phone, 
+              gender,
+              business_type: businessType,
+              business_name: businessName,
+              country,
+              region,
+              district,
+              ward
             } 
           }
         });
         
         if (signUpError) throw signUpError;
         
-        // 2. Create/Update Profile (Safely)
+        // ✅ Hatua 2: Subiri kidogo kisha update profile na taarifa za ziada
         if (data?.user) {
           try {
-            // Tumia upsert ili kuzuia error kama profile tayari ipo
-            const { error: profileError } = await supabase
+            // Subiri trigger ifanye kazi yake
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Update profile na taarifa za biashara
+            const { error: updateError } = await supabase
               .from('profiles')
-              .upsert({ 
-                id: data.user.id,
-                phone, gender, 
-                business_type: businessType, 
+              .update({
+                phone,
+                gender,
+                business_type: businessType,
                 business_name: businessName,
-                country, region, district, ward, 
-                registration_step: 2 
-              }, { onConflict: 'id' });
+                country,
+                region,
+                district,
+                ward,
+                registration_step: 2
+              })
+              .eq('id', data.user.id);
               
-            if (profileError) {
-              console.warn('Profile warning:', profileError.message);
+            if (updateError) {
+              console.warn('Profile update warning:', updateError.message);
+              // Si fatal - mtumiaji anaendelea
             }
           } catch (dbErr) {
             console.warn('Profile DB error (non-fatal):', dbErr);
+            // Si fatal - mtumiaji anaendelea
           }
 
           setShowVerificationMsg(true);
@@ -334,12 +350,12 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                   {lang === 'sw' ? 'Nenosiri' : 'Password'}
                 </label>
                 <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#64748b' }}>
-                  {showPassword ? '🙈' : '️'}
+                  {showPassword ? '🙈' : '👁️'}
                 </button>
               </div>
 
               <button type="submit" disabled={loading} style={{ padding: '18px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)' }}>
-                {loading ? (lang === 'sw' ? ' Inasubiri...' : '⏳ Loading...') : (lang === 'sw' ? '🔓 Ingia' : '🔓 Sign In')}
+                {loading ? (lang === 'sw' ? '⏳ Inasubiri...' : '⏳ Loading...') : (lang === 'sw' ? '🔓 Ingia' : '🔓 Sign In')}
               </button>
             </>
           )}
@@ -358,13 +374,13 @@ const Auth = ({ supabase, onAuthSuccess }) => {
           <>
             <div style={{ textAlign: 'center', marginTop: '24px', color: '#64748b', fontSize: '14px' }}>
               {lang === 'sw' ? 'Huna akaunti? ' : "Don't have an account? "}
-              <button onClick={() => { setIsLogin(false); setPassword(''); }} style={{ background: 'none', border: 'none', color: '#667eea', fontWeight: '700', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+              <button onClick={() => { setIsLogin(false); setPassword(''); setRegistrationStep(1); }} style={{ background: 'none', border: 'none', color: '#667eea', fontWeight: '700', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
                 {lang === 'sw' ? 'Jisajili Sasa' : 'Sign Up'}
               </button>
             </div>
             <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
               <button onClick={() => setLang(l => l === 'sw' ? 'en' : 'sw')} style={{ background: '#f1f5f9', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-                {lang === 'sw' ? '🇬 English' : '🇹🇿 Kiswahili'}
+                {lang === 'sw' ? '🇬🇧 English' : '🇹🇿 Kiswahili'}
               </button>
             </div>
           </>
