@@ -41,18 +41,38 @@ const Auth = ({ supabase, onAuthSuccess }) => {
   }, [password]);
 
   const handleNextStep = () => {
-    if (!businessType || !businessName || !region || !district || !ward) {
-      showToast(lang === 'sw' ? 'Tafadhali jaza taarifa zote za biashara' : 'Please fill all business fields', 'error');
+    console.log('Current state:', { businessType, businessName, region, district, ward });
+    
+    if (!businessType) {
+      showToast(lang === 'sw' ? 'Tafadhali chagua aina ya biashara' : 'Please select business type', 'error');
       return;
     }
+    if (!businessName.trim()) {
+      showToast(lang === 'sw' ? 'Tafadhali ingiza jina la duka' : 'Please enter business name', 'error');
+      return;
+    }
+    if (!region) {
+      showToast(lang === 'sw' ? 'Tafadhali chagua mkoa' : 'Please select region', 'error');
+      return;
+    }
+    if (!district) {
+      showToast(lang === 'sw' ? 'Tafadhali chagua wilaya' : 'Please select district', 'error');
+      return;
+    }
+    if (!ward) {
+      showToast(lang === 'sw' ? 'Tafadhali chagua kata' : 'Please select ward', 'error');
+      return;
+    }
+    
+    console.log('Moving to step 2');
     setRegistrationStep(2);
   };
 
   const handlePrevStep = () => {
+    console.log('Going back to step 1');
     setRegistrationStep(1);
   };
 
-  // ✅ IMERAHISISHWA: Trigger ya Supabase inashughulikia profile creation
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -66,7 +86,6 @@ const Auth = ({ supabase, onAuthSuccess }) => {
           throw new Error(lang === 'sw' ? 'Tafadhali jaza taarifa zote na password iwe na herufi 6+.' : 'Please fill all fields and password must be 6+ chars.');
         }
         
-        // ✅ Hatua 1: Create Auth User (trigger itaunda profile kiotomatiki)
         const { data, error: signUpError } = await supabase.auth.signUp({ 
           email, 
           password,
@@ -86,13 +105,10 @@ const Auth = ({ supabase, onAuthSuccess }) => {
         
         if (signUpError) throw signUpError;
         
-        // ✅ Hatua 2: Subiri kidogo kisha update profile na taarifa za ziada
         if (data?.user) {
           try {
-            // Subiri trigger ifanye kazi yake
             await new Promise(resolve => setTimeout(resolve, 500));
             
-            // Update profile na taarifa za biashara
             const { error: updateError } = await supabase
               .from('profiles')
               .update({
@@ -110,11 +126,9 @@ const Auth = ({ supabase, onAuthSuccess }) => {
               
             if (updateError) {
               console.warn('Profile update warning:', updateError.message);
-              // Si fatal - mtumiaji anaendelea
             }
           } catch (dbErr) {
             console.warn('Profile DB error (non-fatal):', dbErr);
-            // Si fatal - mtumiaji anaendelea
           }
 
           setShowVerificationMsg(true);
@@ -129,7 +143,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
     }
   };
 
-  // Mock data for Tanzania locations
+  // Tanzania locations data
   const regions = ['Dar es Salaam', 'Arusha', 'Mwanza', 'Dodoma', 'Mbeya', 'Morogoro', 'Tanga', 'Kilimanjaro'];
   const districts = {
     'Dar es Salaam': ['Kinondoni', 'Ilala', 'Temeke', 'Kigamboni', 'Ubungo'],
@@ -168,7 +182,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
           <p style={{ color: '#64748b', marginBottom: '28px', lineHeight: '1.6', fontSize: '15px' }}>
             {lang === 'sw' ? `Tumetuma link ya kuthibitisha kwenye ${email}. Tafadhali fungua email yako na ubofye link hiyo.` : `We sent a confirmation link to ${email}. Please open your email and click the link.`}
           </p>
-          <button onClick={() => { setShowVerificationMsg(false); setIsLogin(true); }} style={{ padding: '16px 32px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)' }}>
+          <button onClick={() => { setShowVerificationMsg(false); setIsLogin(true); setRegistrationStep(1); }} style={{ padding: '16px 32px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)' }}>
             {lang === 'sw' ? 'Rudi kwenye Login' : 'Back to Login'}
           </button>
         </div>
@@ -219,7 +233,34 @@ const Auth = ({ supabase, onAuthSuccess }) => {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {!isLogin && registrationStep === 1 ? (
+          {/* LOGIN FORM */}
+          {isLogin && (
+            <>
+              <div style={{ position: 'relative' }}>
+                <input type="email" id="email" placeholder=" " value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} style={{ padding: '16px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', width: '100%', outline: 'none' }} />
+                <label htmlFor="email" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', padding: '0 4px', color: '#64748b', fontSize: '15px', pointerEvents: 'none' }}>
+                  {lang === 'sw' ? 'Barua pepe' : 'Email'}
+                </label>
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <input type={showPassword ? 'text' : 'password'} id="loginPassword" placeholder=" " value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} style={{ padding: '16px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', width: '100%', outline: 'none', paddingRight: '50px' }} />
+                <label htmlFor="loginPassword" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', padding: '0 4px', color: '#64748b', fontSize: '15px', pointerEvents: 'none' }}>
+                  {lang === 'sw' ? 'Nenosiri' : 'Password'}
+                </label>
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#64748b' }}>
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
+
+              <button type="submit" disabled={loading} style={{ padding: '18px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)' }}>
+                {loading ? (lang === 'sw' ? '⏳ Inasubiri...' : '⏳ Loading...') : (lang === 'sw' ? '🔓 Ingia' : '🔓 Sign In')}
+              </button>
+            </>
+          )}
+
+          {/* REGISTRATION STEP 1: Business Info */}
+          {!isLogin && registrationStep === 1 && (
             <>
               <div>
                 <label style={{ display: 'block', marginBottom: '12px', color: '#1e293b', fontWeight: '600', fontSize: '15px' }}>
@@ -244,6 +285,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
 
               <div>
                 <h4 style={{ margin: '0 0 16px', color: '#1e293b', fontSize: '16px', fontWeight: '600' }}>{lang === 'sw' ? 'Mahali Linapatikana' : 'Location'}</h4>
+                
                 <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', marginBottom: '6px', color: '#64748b', fontSize: '14px' }}>{lang === 'sw' ? 'Nchi' : 'Country'}</label>
                   <select value={country} onChange={(e) => setCountry(e.target.value)} style={{ width: '100%', padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', background: '#fff', outline: 'none' }}>
@@ -289,7 +331,10 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                 {lang === 'sw' ? 'Endelea' : 'Continue'} <span>→</span>
               </button>
             </>
-          ) : !isLogin && registrationStep === 2 ? (
+          )}
+
+          {/* REGISTRATION STEP 2: Personal Info */}
+          {!isLogin && registrationStep === 2 && (
             <>
               <div style={{ position: 'relative' }}>
                 <input type="tel" id="phone" placeholder=" " value={phone} onChange={e => setPhone(e.target.value)} required disabled={loading} style={{ padding: '16px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', width: '100%', outline: 'none' }} />
@@ -328,48 +373,17 @@ const Auth = ({ supabase, onAuthSuccess }) => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button type="button" onClick={handlePrevStep} style={{ flex: 1, padding: '18px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
-                  {lang === 'sw' ? 'Rudi' : 'Back'}
+                  {lang === 'sw' ? '← Rudi' : '← Back'}
                 </button>
                 <button type="submit" disabled={loading} style={{ flex: 2, padding: '18px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)' }}>
                   {loading ? (lang === 'sw' ? '⏳ Inasubiri...' : '⏳ Loading...') : (lang === 'sw' ? '✨ Kamilisha' : '✨ Complete')}
                 </button>
               </div>
             </>
-          ) : (
-            <>
-              <div style={{ position: 'relative' }}>
-                <input type="email" id="email" placeholder=" " value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} style={{ padding: '16px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', width: '100%', outline: 'none' }} />
-                <label htmlFor="email" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', padding: '0 4px', color: '#64748b', fontSize: '15px', pointerEvents: 'none' }}>
-                  {lang === 'sw' ? 'Barua pepe' : 'Email'}
-                </label>
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <input type={showPassword ? 'text' : 'password'} id="loginPassword" placeholder=" " value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} style={{ padding: '16px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', width: '100%', outline: 'none', paddingRight: '50px' }} />
-                <label htmlFor="loginPassword" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', padding: '0 4px', color: '#64748b', fontSize: '15px', pointerEvents: 'none' }}>
-                  {lang === 'sw' ? 'Nenosiri' : 'Password'}
-                </label>
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#64748b' }}>
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
-              </div>
-
-              <button type="submit" disabled={loading} style={{ padding: '18px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)' }}>
-                {loading ? (lang === 'sw' ? '⏳ Inasubiri...' : '⏳ Loading...') : (lang === 'sw' ? '🔓 Ingia' : '🔓 Sign In')}
-              </button>
-            </>
           )}
         </form>
 
-        {!isLogin && registrationStep === 1 && (
-          <div style={{ textAlign: 'center', marginTop: '24px', color: '#64748b', fontSize: '14px' }}>
-            {lang === 'sw' ? 'Tayari una akaunti? ' : 'Already have an account? '}
-            <button onClick={() => setIsLogin(true)} style={{ background: 'none', border: 'none', color: '#667eea', fontWeight: '700', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
-              {lang === 'sw' ? 'Ingia' : 'Sign In'}
-            </button>
-          </div>
-        )}
-
+        {/* Switch between Login and Register */}
         {isLogin && (
           <>
             <div style={{ textAlign: 'center', marginTop: '24px', color: '#64748b', fontSize: '14px' }}>
@@ -384,6 +398,15 @@ const Auth = ({ supabase, onAuthSuccess }) => {
               </button>
             </div>
           </>
+        )}
+
+        {!isLogin && registrationStep === 1 && (
+          <div style={{ textAlign: 'center', marginTop: '24px', color: '#64748b', fontSize: '14px' }}>
+            {lang === 'sw' ? 'Tayari una akaunti? ' : 'Already have an account? '}
+            <button onClick={() => setIsLogin(true)} style={{ background: 'none', border: 'none', color: '#667eea', fontWeight: '700', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+              {lang === 'sw' ? 'Ingia' : 'Sign In'}
+            </button>
+          </div>
         )}
       </div>
 
