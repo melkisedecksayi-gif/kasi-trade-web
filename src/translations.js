@@ -8,7 +8,8 @@ export const translations = {
       reports: '📈 Ripoti',
       help: '❓ Msaada',
       account: '👤 Akaunti',
-      logout: '🚪 Toka'
+      logout: '🚪 Toka',
+      settings: '⚙️ Mipangilio'
     },
     dashboard: {
       title: 'Dashibodi',
@@ -106,11 +107,31 @@ export const translations = {
       newPassword: 'Password Mpya',
       confirmNewPassword: 'Thibitisha Password',
       update: 'Sasisha',
-      updating: 'Inasasisha...',
-      success: '✅ Password imebadilishwa!',
-      errorMatch: '❌ Password hazilingani',
-      errorLength: '❌ Password iwe na angalau herufi 6',
-      errorUpdate: '❌ Hitilafu ya kusasisha:'
+      updating: 'Inasasisha...'
+    },
+    // ✅ SETTINGS SECTION - SWAHILI
+    settings: {
+      title: 'Mipangilio',
+      subtitle: 'Badilisha lugha, muonekano, na vipendeleo vyako',
+      language: 'Lugha',
+      languageDesc: 'Chagua lugha unayopendelea',
+      theme: 'Mandhari',
+      themeDesc: 'Badilisha kati ya Light na Dark mode',
+      light: '☀️ Light Mode',
+      dark: '🌙 Dark Mode',
+      notifications: 'Arifa',
+      notificationsDesc: 'Pokea arifa za stock ndogo na mauzo',
+      currency: 'Sarafu',
+      currencyDesc: 'Sarafu inayotumika kwenye risiti',
+      reset: 'Weka Upya Mipangilio',
+      resetConfirm: 'Je, una uhakika unataka kuweka upya mipangilio yote?',
+      saved: '✅ Mipangilio imehifadhiwa!',
+      phone: 'Namba ya Simu',
+      region: 'Mkoa',
+      gender: 'Jinsia',
+      male: 'Mwanaume',
+      female: 'Mwanamke',
+      other: 'Nyingine'
     },
     general: {
       welcome: 'Karibu',
@@ -127,7 +148,8 @@ export const translations = {
       reports: '📈 Reports',
       help: '❓ Help',
       account: '👤 Account',
-      logout: '🚪 Logout'
+      logout: '🚪 Logout',
+      settings: '⚙️ Settings'
     },
     dashboard: {
       title: 'Dashboard',
@@ -225,11 +247,31 @@ export const translations = {
       newPassword: 'New Password',
       confirmNewPassword: 'Confirm Password',
       update: 'Update',
-      updating: 'Updating...',
-      success: '✅ Password updated!',
-      errorMatch: '❌ Passwords do not match',
-      errorLength: '❌ Password must be at least 6 characters',
-      errorUpdate: '❌ Update error:'
+      updating: 'Updating...'
+    },
+    // ✅ SETTINGS SECTION - ENGLISH
+    settings: {
+      title: 'Settings',
+      subtitle: 'Change language, appearance, and your preferences',
+      language: 'Language',
+      languageDesc: 'Choose your preferred language',
+      theme: 'Theme',
+      themeDesc: 'Switch between Light and Dark mode',
+      light: '☀️ Light Mode',
+      dark: '🌙 Dark Mode',
+      notifications: 'Notifications',
+      notificationsDesc: 'Receive alerts for low stock and sales',
+      currency: 'Currency',
+      currencyDesc: 'Currency used in receipts',
+      reset: 'Reset Settings',
+      resetConfirm: 'Are you sure you want to reset all settings?',
+      saved: '✅ Settings saved!',
+      phone: 'Phone Number',
+      region: 'Region',
+      gender: 'Gender',
+      male: 'Male',
+      female: 'Female',
+      other: 'Other'
     },
     general: {
       welcome: 'Welcome',

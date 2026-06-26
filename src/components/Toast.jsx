@@ -1,54 +1,70 @@
-import React, { useEffect, useState } from 'react';
-import { THEME } from '../theme';
+import React, { useEffect } from 'react';
 
-const Toast = ({ message, type = 'info', duration = 4000, onClose }) => {
-  const [visible, setVisible] = useState(false);
-
+const Toast = ({ message, type = 'info', onClose, duration = 3000 }) => {
   useEffect(() => {
-    setVisible(true);
     const timer = setTimeout(() => {
-      setVisible(false);
-      setTimeout(onClose, 300); // Wait for exit animation
+      onClose();
     }, duration);
     return () => clearTimeout(timer);
-  }, [duration, onClose]);
+  }, [onClose, duration]);
 
-  const colors = {
-    success: { bg: '#16a34a', text: '#fff', icon: '✅' },
-    error: { bg: '#dc2626', text: '#fff', icon: '❌' },
-    warning: { bg: '#d97706', text: '#fff', icon: '⚠️' },
-    info: { bg: '#3b82f6', text: '#fff', icon: 'ℹ️' }
+  const getColors = () => {
+    switch (type) {
+      case 'success': return { bg: '#f0fdf4', border: '#22c55e', text: '#166534', icon: '✅' };
+      case 'error': return { bg: '#fef2f2', border: '#ef4444', text: '#991b1b', icon: '' };
+      case 'warning': return { bg: '#fffbeb', border: '#f59e0b', text: '#92400e', icon: '⚠️' };
+      default: return { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af', icon: 'ℹ️' };
+    }
   };
-  const c = colors[type] || colors.info;
+
+  const colors = getColors();
 
   return (
-    <div style={{
-      position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
-      background: c.bg, color: c.text, padding: `${THEME.space.m} ${THEME.space.l}`,
-      borderRadius: THEME.radius.md, boxShadow: THEME.shadow.lg,
-      display: 'flex', alignItems: 'center', gap: THEME.space.m,
-      minWidth: '280px', maxWidth: '400px',
-      animation: visible ? 'toastIn 0.3s ease forwards' : 'toastOut 0.3s ease forwards',
-      fontFamily: 'system-ui, sans-serif', fontSize: '14px', fontWeight: '500'
-    }}>
-      <span style={{ fontSize: '18px' }}>{c.icon}</span>
+    <div 
+      className="toast-enter"
+      style={{
+        position: 'fixed',
+        top: '20px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 99999,
+        background: colors.bg,
+        border: `1px solid ${colors.border}`,
+        borderLeft: `4px solid ${colors.border}`,
+        color: colors.text,
+        padding: '14px 20px',
+        borderRadius: '12px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        fontSize: '14px',
+        fontWeight: '500',
+        maxWidth: '90%',
+        width: 'auto',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)'
+      }}
+    >
+      <span style={{ fontSize: '18px' }}>{colors.icon}</span>
       <span style={{ flex: 1 }}>{message}</span>
-      <button onClick={() => { setVisible(false); setTimeout(onClose, 300); }} style={{
-        background: 'none', border: 'none', color: c.text, fontSize: '18px', cursor: 'pointer', padding: '4px', opacity: 0.8
-      }}>✕</button>
+      <button 
+        onClick={onClose}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: colors.text,
+          fontSize: '18px',
+          cursor: 'pointer',
+          padding: '0 4px',
+          lineHeight: 1,
+          opacity: 0.6
+        }}
+      >
+        ✕
+      </button>
     </div>
   );
 };
-
-// Add toast animations to document
-if (typeof document !== 'undefined' && !document.getElementById('toast-animations')) {
-  const style = document.createElement('style');
-  style.id = 'toast-animations';
-  style.innerHTML = `
-    @keyframes toastIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
-    @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }
-  `;
-  document.head.appendChild(style);
-}
 
 export default Toast;
