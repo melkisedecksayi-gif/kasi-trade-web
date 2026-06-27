@@ -1,13 +1,14 @@
 import React from 'react';
+import { Icons } from '../Icons';
 
 const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSidebarOpen, onToggle, isDarkMode }) => {
   const menuItems = [
-    { id: 'dashboard', icon: '🏠', label: lang === 'sw' ? 'Dashibodi' : 'Dashboard' },
-    { id: 'pos', icon: '', label: lang === 'sw' ? 'Mauzo' : 'Sales' },
-    { id: 'products', icon: '📦', label: lang === 'sw' ? 'Bidhaa' : 'Products' },
-    { id: 'customers', icon: '', label: lang === 'sw' ? 'Wateja' : 'Customers' },
-    { id: 'reports', icon: '📊', label: lang === 'sw' ? 'Ripoti' : 'Reports' },
-    { id: 'settings', icon: '⚙️', label: lang === 'sw' ? 'Mipangilio' : 'Settings' },
+    { id: 'dashboard', icon: Icons.Home, label: lang === 'sw' ? 'Dashibodi' : 'Dashboard' },
+    { id: 'pos', icon: Icons.ShoppingCart, label: lang === 'sw' ? 'Mauzo' : 'Sales' },
+    { id: 'products', icon: Icons.Box, label: lang === 'sw' ? 'Bidhaa' : 'Products' },
+    { id: 'customers', icon: Icons.Users, label: lang === 'sw' ? 'Wateja' : 'Customers' },
+    { id: 'reports', icon: Icons.BarChart, label: lang === 'sw' ? 'Ripoti' : 'Reports' },
+    { id: 'settings', icon: Icons.Settings, label: lang === 'sw' ? 'Mipangilio' : 'Settings' },
   ];
 
   return (
@@ -33,28 +34,27 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
         justifyContent: 'space-between'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
-          {/* ✅ LOGO HALISI YA KASITRADE */}
+          {/* ✅ LOGO BACKGROUND YA RANGI INAYOONEKANA */}
           <div style={{
             width: '44px',
             height: '44px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+            background: '#ffffff',
             borderRadius: '12px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '24px',
             flexShrink: 0,
-            boxShadow: '0 8px 16px rgba(99, 102, 241, 0.3)'
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            border: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`,
+            overflow: 'hidden'
           }}>
-            {/* Badilisha hii na logo yako */}
             <img 
               src="/logo.png" 
               alt="KasiTRADE" 
               style={{ 
                 width: '100%', 
                 height: '100%', 
-                objectFit: 'contain',
-                borderRadius: '12px'
+                objectFit: 'contain'
               }}
             />
           </div>
@@ -76,7 +76,7 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
           onClick={onToggle}
           style={{
             background: isSidebarOpen ? (isDarkMode ? '#334155' : '#f1f5f9') : 'transparent',
-            border: 'none',
+            border: `1px solid ${isSidebarOpen ? (isDarkMode ? '#475569' : '#e2e8f0') : 'transparent'}`,
             width: '32px',
             height: '32px',
             borderRadius: '8px',
@@ -86,21 +86,21 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
             justifyContent: 'center',
             color: isDarkMode ? '#f1f5f9' : '#475569',
             flexShrink: 0,
-            transition: 'all 0.2s',
-            fontSize: '18px'
+            transition: 'all 0.2s'
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#475569' : '#e2e8f0'}
           onMouseLeave={(e) => e.currentTarget.style.background = isSidebarOpen ? (isDarkMode ? '#334155' : '#f1f5f9') : 'transparent'}
           title={isSidebarOpen ? 'Funga Sidebar' : 'Fungua Sidebar'}
         >
-          {isSidebarOpen ? '✕' : '☰'}
+          {isSidebarOpen ? <Icons.X size={16} /> : <Icons.Menu size={16} />}
         </button>
       </div>
 
-      {/* MENU ITEMS */}
+      {/* ✅ MENU ITEMS NA ICONS ZOTE */}
       <nav style={{ flex: 1, padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
         {menuItems.map((item) => {
           const isActive = activePage === item.id;
+          const IconComponent = item.icon;
           return (
             <button
               key={item.id}
@@ -129,7 +129,7 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
                 if (!isActive) e.currentTarget.style.background = 'transparent';
               }}
             >
-              <span style={{ fontSize: '18px', minWidth: '24px', textAlign: 'center' }}>{item.icon}</span>
+              <IconComponent size={18} />
               {isSidebarOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
             </button>
           );
@@ -160,8 +160,8 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
           onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#334155' : '#f9fafb'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
-          <span style={{ fontSize: '18px', minWidth: '24px', textAlign: 'center' }}>❓</span>
-          {isSidebarOpen && <span>Msaada</span>}
+          <Icons.Help size={18} />
+          {isSidebarOpen && <span>{lang === 'sw' ? 'Msaada' : 'Help'}</span>}
         </button>
 
         <button
@@ -186,7 +186,7 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
           onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#450a0a' : '#fef2f2'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
-          <span style={{ fontSize: '18px', minWidth: '24px', textAlign: 'center' }}>🚪</span>
+          <Icons.LogOut size={18} />
           {isSidebarOpen && <span>{lang === 'sw' ? 'Toka' : 'Logout'}</span>}
         </button>
       </div>
