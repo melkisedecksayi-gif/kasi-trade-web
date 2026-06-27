@@ -20,12 +20,11 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
   });
 
   const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
 
-  const triggerToast = (msg) => {
+  const triggerToast = (msg, type = 'success') => {
     setToastMessage(msg);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
@@ -34,63 +33,107 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        if (profileData) {
-          setProfile(profileData);
-          setEditForm({
-            full_name: profileData.full_name || '',
-            phone: profileData.phone || '',
-            gender: profileData.gender || '',
-            address: profileData.address || '',
-            business_name: profileData.business_name || ''
-          });
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        
+        if (user) {
+          setUser(user);
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+          
+          if (profileError && profileError.code !== 'PGRST116') {
+            throw profileError;
+          }
+          
+          if (profileData) {
+            setProfile(profileData);
+            setEditForm({
+              full_name: profileData.full_name || '',
+              phone: profileData.phone || '',
+              gender: profileData.gender || '',
+              address: profileData.address || '',
+              business_name: profileData.business_name || ''
+            });
+          }
         }
+      } catch (err) {
+        console.error('Error loading profile:', err);
+        triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     loadData();
-  }, [supabase]);
+  }, [supabase, lang]);
 
   // Handle photo upload
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      triggerToast(lang === 'sw' ? 'Picha ni kubwa sana! Max 2MB' : 'Photo too large! Max 2MB');
+    if (!file || !user) {
+      triggerToast(lang === 'sw' ? 'Hakuna picha iliyochaguliwa' : 'No file selected', 'error');
       return;
     }
 
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      triggerToast(lang === 'sw' ? 'Picha ni kubwa sana! Max 2MB' : 'Photo too large! Max 2MB', 'error');
+      return;
+    }
+
+    // Validate file type
     if (!file.type.startsWith('image/')) {
-      triggerToast(lang === 'sw' ? 'Tafadhali chagua picha tu' : 'Please select an image only');
+      triggerToast(lang === 'sw' ? 'Tafadhali chagua picha tu (JPG, PNG)' : 'Please select an image only (JPG, PNG)', 'error');
       return;
     }
 
     setUploadingPhoto(true);
     try {
+      // Read file as base64
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64 = reader.result;
-        
-        const { error } = await supabase
-          .from('profiles')
-          .update({ avatar_url: base64 })
-          .eq('id', user.id);
+        try {
+          const base64 = reader.result;
+          
+          console.log('Uploading photo...');
+          
+          // Update profile with base64 image
+          const { data, error } = await supabase
+            .from('profiles')
+            .update({ avatar_url: base64 })
+            .eq('id', user.id)
+            .select()
+            .single();
 
-        if (error) {
-          triggerToast(lang === 'sw' ? 'Hitilafu: ' + error.message : 'Error: ' + error.message);
-        } else {
+          if (error) {
+            console.error('Upload error:', error);
+            throw error;
+          }
+
+          console.log('Upload success:', data);
           setProfile({ ...profile, avatar_url: base64 });
-          triggerToast(lang === 'sw' ? 'Picha imebadilishwa!' : 'Photo updated!');
+          triggerToast(lang === 'sw' ? '✅ Picha imebadilishwa!' : '✅ Photo updated!');
+        } catch (err) {
+          console.error('Error in onloadend:', err);
+          triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
+        } finally {
+          setUploadingPhoto(false);
         }
+      };
+      
+      reader.onerror = () => {
+        console.error('FileReader error');
+        triggerToast(lang === 'sw' ? 'Hitilafu ya kusoma faili' : 'Error reading file', 'error');
         setUploadingPhoto(false);
       };
+      
       reader.readAsDataURL(file);
     } catch (err) {
-      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
+      console.error('Upload error:', err);
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
       setUploadingPhoto(false);
     }
   };
@@ -99,41 +142,45 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
     e.preventDefault();
     if (!user) return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .update(editForm)
-      .eq('id', user.id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(editForm)
+        .eq('id', user.id);
 
-    if (error) {
-      triggerToast(lang === 'sw' ? 'Hitilafu: ' + error.message : 'Error: ' + error.message);
-    } else {
+      if (error) throw error;
+      
       setProfile({ ...profile, ...editForm });
       setShowEditModal(false);
-      triggerToast(lang === 'sw' ? 'Taarifa zimesasishwa!' : 'Profile updated!');
+      triggerToast(lang === 'sw' ? '✅ Taarifa zimesasishwa!' : '✅ Profile updated!');
+    } catch (err) {
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
     }
   };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      triggerToast(lang === 'sw' ? 'Nenosiri hazifanani!' : 'Passwords do not match!');
+      triggerToast(lang === 'sw' ? '❌ Nenosiri hazifanani!' : '❌ Passwords do not match!', 'error');
       return;
     }
     if (passwordForm.newPassword.length < 6) {
-      triggerToast(lang === 'sw' ? 'Nenosiri iwe na herufi 6+' : 'Password must be 6+ characters');
+      triggerToast(lang === 'sw' ? '❌ Nenosiri iwe na herufi 6+' : '❌ Password must be 6+ characters', 'error');
       return;
     }
 
-    const { error } = await supabase.auth.updateUser({
-      password: passwordForm.newPassword
-    });
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.newPassword
+      });
 
-    if (error) {
-      triggerToast(lang === 'sw' ? 'Hitilafu: ' + error.message : 'Error: ' + error.message);
-    } else {
+      if (error) throw error;
+      
       setShowPasswordModal(false);
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      triggerToast(lang === 'sw' ? 'Nenosiri limebadilishwa!' : 'Password changed!');
+      setPasswordForm({ newPassword: '', confirmPassword: '' });
+      triggerToast(lang === 'sw' ? '✅ Nenosiri limebadilishwa!' : '✅ Password changed!');
+    } catch (err) {
+      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message, 'error');
     }
   };
 
@@ -228,22 +275,20 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '10px 20px',
-                background: '#6366f1',
+                background: uploadingPhoto ? '#94a3b8' : '#6366f1',
                 color: '#fff',
                 borderRadius: '10px',
-                cursor: 'pointer',
+                cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
                 fontSize: '14px',
                 fontWeight: '600',
                 transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                boxShadow: uploadingPhoto ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.3)'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#4f46e5'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#6366f1'}
             >
               <Icons.Camera size={16} />
               {uploadingPhoto 
-                ? (lang === 'sw' ? 'Inapakiwa...' : 'Uploading...') 
-                : (lang === 'sw' ? 'Chagua Picha' : 'Select Picture')}
+                ? (lang === 'sw' ? '⏳ Inapakiwa...' : '⏳ Uploading...') 
+                : (lang === 'sw' ? '📷 Chagua Picha' : '📷 Select Picture')}
               <input 
                 type="file" 
                 accept="image/*" 
@@ -490,8 +535,22 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
       )}
 
       {showToast && (
-        <div style={{ position: 'fixed', top: '30px', right: '30px', background: '#10b981', color: '#fff', padding: '14px 24px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(16, 185, 129, 0.4)', zIndex: 2000, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Icons.CheckCircle size={20} /> {toastMessage}
+        <div style={{ 
+          position: 'fixed', 
+          top: '30px', 
+          right: '30px', 
+          background: toastMessage.includes('❌') || toastMessage.includes('Error') || toastMessage.includes('Hitilafu') ? '#ef4444' : '#10b981', 
+          color: '#fff', 
+          padding: '14px 24px', 
+          borderRadius: '12px', 
+          boxShadow: '0 10px 30px rgba(0,0,0,0.2)', 
+          zIndex: 2000, 
+          fontWeight: '600', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px' 
+        }}>
+          {toastMessage}
         </div>
       )}
     </div>
