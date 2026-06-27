@@ -1,258 +1,196 @@
-import React, { useState } from 'react';
-import Toast from './Toast';
+import React from 'react';
+import { Icons } from './Icons';
 
-const Footer = ({ lang }) => {
-  const [email, setEmail] = useState('');
-  const [toast, setToast] = useState(null);
+const Footer = ({ lang, isDarkMode }) => {
+  const currentYear = new Date().getFullYear();
+  
+  const links = [
+    { label: lang === 'sw' ? 'Nyumbani' : 'Home', icon: Icons.Home },
+    { label: lang === 'sw' ? 'Msaada' : 'Help', icon: Icons.Help },
+    { label: lang === 'sw' ? 'Mawasiliano' : 'Contact', icon: Icons.Mail },
+    { label: lang === 'sw' ? 'Sera ya Faragha' : 'Privacy Policy', icon: Icons.Eye },
+  ];
 
-  const showToast = (message, type = 'info') => setToast({ message, type, id: Date.now() });
-
-  const handleNewsletterSubmit = (e) => {
-    e.preventDefault();
-    if (email) {
-      showToast(lang === 'sw' ? '✅ Asante kwa kujiandikisha!' : '✅ Thanks for subscribing!', 'success');
-      setEmail('');
-    }
-  };
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const socials = [
+    { icon: Icons.Globe, label: 'Website', color: '#6366f1' },
+    { icon: Icons.Mail, label: 'Email', color: '#ec4899' },
+    { icon: Icons.Phone, label: 'Phone', color: '#10b981' },
+  ];
 
   return (
-    <div style={{ position: 'relative', background: 'linear-gradient(135deg, #0047AB 0%, #002F87 100%)', color: '#fff', overflow: 'hidden' }}>
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      
-      {/* Animated Wave */}
-      <div style={{ position: 'absolute', top: '-100px', left: 0, width: '100%', overflow: 'hidden', lineHeight: 0 }}>
-        <svg style={{ position: 'relative', display: 'block', width: 'calc(100% + 1.3px)', height: '100px' }} xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 50 Q 50 100 100 50 T 200 50 T 300 50 T 400 50 T 500 50 T 600 50 T 700 50 T 800 50 T 900 50 T 1000 50 T 1100 50 T 1200 50 T 1300 50 T 1400 50 T 1500 50 T 1600 50 T 1700 50 T 1800 50 T 1900 50 T 2000 50 V 100 H 0 Z" fill="#fff" style={{ animation: 'wave 10s linear infinite' }} />
-        </svg>
-      </div>
-
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '80px 20px 40px', position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '40px', marginBottom: '40px' }}>
-          
-          {/* Brand Section */}
-          <div>
-            <div style={{ fontSize: '32px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '40px' }}>🏪</span>
-              <span style={{ fontWeight: '700', fontSize: '28px' }}>KasiTRADE</span>
+    <footer style={{
+      background: isDarkMode ? '#1e293b' : '#ffffff',
+      borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+      padding: '40px 0 20px',
+      marginTop: '60px',
+      transition: 'all 0.3s'
+    }}>
+      <div style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '0 24px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '32px',
+        marginBottom: '32px'
+      }}>
+        {/* Brand */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <div style={{
+              width: '44px', height: '44px',
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              borderRadius: '12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff',
+              boxShadow: '0 8px 16px rgba(99, 102, 241, 0.3)'
+            }}>
+              <Icons.ShoppingCart size={22} />
             </div>
-            <p style={{ margin: '0 0 20px', color: 'rgba(255,255,255,0.8)', lineHeight: '1.6', fontSize: '14px' }}>
-              {lang === 'sw' ? 'Mfumo wa kisasa wa POS unaokusaidia kusimamia biashara yako kwa urahisi na ufanisi.' : 'Modern POS system to help you manage your business with ease and efficiency.'}
-            </p>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              {['facebook', 'instagram', 'tiktok', 'whatsapp'].map((social) => (
-                <button
-                  key={social}
-                  type="button"
-                  style={{ 
-                    width: '40px', 
-                    height: '40px', 
-                    background: 'rgba(255,255,255,0.1)', 
-                    borderRadius: '50%', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    color: '#fff',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s',
-                    fontSize: '18px'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                >
-                  {social === 'facebook' ? '📘' : social === 'instagram' ? '📷' : social === 'tiktok' ? '🎵' : '💬'}
-                </button>
-              ))}
+            <div>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: isDarkMode ? '#f1f5f9' : '#0f172a', letterSpacing: '-0.5px' }}>
+                KasiTRADE
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: '11px', color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                POS System
+              </p>
             </div>
           </div>
-
-          {/* Quick Links */}
-          <div>
-            <h4 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: '600' }}>{lang === 'sw' ? 'Viungo vya Haraka' : 'Quick Links'}</h4>
-            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-              {[
-                { label: lang === 'sw' ? 'Dashibodi' : 'Dashboard', icon: '📊' },
-                { label: lang === 'sw' ? 'Bidhaa' : 'Products', icon: '📦' },
-                { label: lang === 'sw' ? 'Mauzo' : 'Sales', icon: '🛒' },
-                { label: lang === 'sw' ? 'Ripoti' : 'Reports', icon: '📈' }
-              ].map((item, i) => (
-                <li key={i} style={{ marginBottom: '12px' }}>
-                  <button 
-                    type="button"
-                    style={{ 
-                      background: 'none',
-                      border: 'none',
-                      color: 'rgba(255,255,255,0.8)', 
-                      cursor: 'pointer',
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '8px', 
-                      transition: 'all 0.3s', 
-                      fontSize: '14px',
-                      padding: 0
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.transform = 'translateX(5px)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; e.currentTarget.style.transform = 'translateX(0)'; }}
-                  >
-                    <span>{item.icon}</span>
-                    <span>{item.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Contact Info */}
-          <div>
-            <h4 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: '600' }}>{lang === 'sw' ? 'Wasiliana Nasi' : 'Contact Us'}</h4>
-            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-              <li style={{ marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <span style={{ fontSize: '20px' }}>📍</span>
-                <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', lineHeight: '1.5' }}>Sinza Kumekucha, Dar es Salaam, Tanzania</span>
-              </li>
-              <li style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '20px' }}>📧</span>
-                <a href="mailto:info@kasitrade.co.tz" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '14px', transition: 'color 0.3s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; }}
-                >
-                  info@kasitrade.co.tz
-                </a>
-              </li>
-              <li style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '20px' }}>📞</span>
-                <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px' }}>+255 622 995 734</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Newsletter */}
-          <div>
-            <h4 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: '600' }}>{lang === 'sw' ? 'Jiunge Nasi' : 'Subscribe'}</h4>
-            <p style={{ margin: '0 0 16px', color: 'rgba(255,255,255,0.8)', fontSize: '14px', lineHeight: '1.5' }}>
-              {lang === 'sw' ? 'Pata updates na maelekezo mapya moja kwa moja kwenye email yako.' : 'Get updates and new features directly to your email.'}
-            </p>
-            <form onSubmit={handleNewsletterSubmit} style={{ display: 'flex', gap: '8px' }}>
-              <input 
-                type="email" 
-                placeholder={lang === 'sw' ? 'Email yako' : 'Your email'}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                style={{ 
-                  flex: 1, 
-                  padding: '12px 16px', 
-                  border: 'none', 
-                  borderRadius: '8px', 
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-              <button 
-                type="submit"
-                style={{ 
-                  padding: '12px 20px', 
-                  background: '#FF6B35', 
-                  color: '#fff', 
-                  border: 'none', 
-                  borderRadius: '8px', 
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  transition: 'all 0.3s',
-                  whiteSpace: 'nowrap'
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#FF5722'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; e.currentTarget.style.transform = 'translateY(0)'; }}
-              >
-                {lang === 'sw' ? 'Jiunge' : 'Join'}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Bottom Bar */}
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
-            © {new Date().getFullYear()} KasiTRADE. {lang === 'sw' ? 'Haki zote zimehifadhiwa.' : 'All rights reserved.'}
+          <p style={{ margin: 0, fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b', lineHeight: '1.6' }}>
+            {lang === 'sw' 
+              ? 'Mfumo wa kisasa wa POS unaokuletea uzoefu bora wa biashara. Endesha duka lako kwa ufanisi zaidi.' 
+              : 'Modern POS system bringing you the best business experience. Run your shop more efficiently.'}
           </p>
-          <div style={{ display: 'flex', gap: '20px' }}>
-            <button 
-              type="button"
-              style={{ 
-                background: 'none',
-                border: 'none',
-                color: 'rgba(255,255,255,0.6)', 
-                cursor: 'pointer',
-                fontSize: '13px', 
-                padding: 0,
-                transition: 'color 0.3s' 
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
-            >
-              {lang === 'sw' ? 'Sera ya Faragha' : 'Privacy Policy'}
-            </button>
-            <button 
-              type="button"
-              style={{ 
-                background: 'none',
-                border: 'none',
-                color: 'rgba(255,255,255,0.6)', 
-                cursor: 'pointer',
-                fontSize: '13px', 
-                padding: 0,
-                transition: 'color 0.3s' 
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
-            >
-              {lang === 'sw' ? 'Masharti ya Matumizi' : 'Terms of Service'}
-            </button>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+            {socials.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <div key={i} style={{
+                  width: '36px', height: '36px',
+                  background: `${s.color}15`,
+                  borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: s.color, cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.background = `${s.color}30`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.background = `${s.color}15`; }}
+                >
+                  <Icon size={16} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Quick Links */}
+        <div>
+          <h4 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {lang === 'sw' ? 'Viungo vya Haraka' : 'Quick Links'}
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {links.map((link, i) => {
+              const Icon = link.icon;
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  color: isDarkMode ? '#94a3b8' : '#64748b',
+                  fontSize: '13px', cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.transform = 'translateX(4px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = isDarkMode ? '#94a3b8' : '#64748b'; e.currentTarget.style.transform = 'translateX(0)'; }}
+                >
+                  <Icon size={14} /> {link.label}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div>
+          <h4 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {lang === 'sw' ? 'Mawasiliano' : 'Contact'}
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '13px' }}>
+              <Icons.Mail size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
+              <span>support@kasitrade.co.tz</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '13px' }}>
+              <Icons.Phone size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
+              <span>+255 123 456 789</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '13px' }}>
+              <Icons.Globe size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
+              <span>Dar es Salaam, Tanzania</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Version & Status */}
+        <div>
+          <h4 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {lang === 'sw' ? 'Hali ya Mfumo' : 'System Status'}
+          </h4>
+          <div style={{
+            padding: '16px',
+            background: isDarkMode ? '#0f172a' : '#f8fafc',
+            borderRadius: '12px',
+            border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <div style={{
+                width: '8px', height: '8px',
+                background: '#10b981',
+                borderRadius: '50%',
+                boxShadow: '0 0 8px #10b981',
+                animation: 'pulse 2s infinite'
+              }}></div>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                {lang === 'sw' ? 'Mfumo Unafanya Kazi' : 'System Operational'}
+              </span>
+            </div>
+            <div style={{ fontSize: '12px', color: isDarkMode ? '#94a3b8' : '#64748b', lineHeight: '1.6' }}>
+              <div>{lang === 'sw' ? 'Toleo:' : 'Version:'} <strong style={{ color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>v1.0.0</strong></div>
+              <div>{lang === 'sw' ? 'Uptime:' : 'Uptime:'} <strong style={{ color: '#10b981' }}>99.9%</strong></div>
+              <div>{lang === 'sw' ? 'Mwisho wa kusasisha:' : 'Last update:'} <strong style={{ color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>June 2026</strong></div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Back to Top Button */}
-      <button 
-        type="button"
-        onClick={scrollToTop}
-        style={{
-          position: 'fixed',
-          bottom: '30px',
-          right: '30px',
-          width: '50px',
-          height: '50px',
-          background: '#FF6B35',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '50%',
-          cursor: 'pointer',
-          fontSize: '20px',
-          boxShadow: '0 4px 15px rgba(255, 107, 53, 0.4)',
-          transition: 'all 0.3s',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 107, 53, 0.6)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 107, 53, 0.4)'; }}
-      >
-        ⬆️
-      </button>
+      {/* Bottom Bar */}
+      <div style={{
+        borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+        paddingTop: '20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '12px',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '20px 24px 0'
+      }}>
+        <div style={{ fontSize: '12px', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+          © {currentYear} KasiTRADE. {lang === 'sw' ? 'Haki zote zimehifadhiwa.' : 'All rights reserved.'}
+        </div>
+        <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+          <span style={{ cursor: 'pointer' }}>{lang === 'sw' ? 'Masharti' : 'Terms'}</span>
+          <span style={{ cursor: 'pointer' }}>{lang === 'sw' ? 'Faragha' : 'Privacy'}</span>
+          <span style={{ cursor: 'pointer' }}>{lang === 'sw' ? 'Kuki' : 'Cookies'}</span>
+        </div>
+      </div>
 
       <style>{`
-        @keyframes wave {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
         }
       `}</style>
-    </div>
+    </footer>
   );
 };
 

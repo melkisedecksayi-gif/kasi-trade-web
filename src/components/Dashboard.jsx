@@ -5,6 +5,7 @@ import Products from './Products';
 import Customers from './Customers';
 import Reports from './Reports';
 import Settings from './Settings';
+import Footer from './Footer';
 import { Icons } from './Icons';
 
 const Dashboard = ({ supabase }) => {
@@ -93,10 +94,9 @@ const Dashboard = ({ supabase }) => {
     <div style={{ display: 'flex', minHeight: '100vh', background: isDarkMode ? '#0f172a' : '#f8fafc', transition: 'background 0.3s' }}>
       <Sidebar supabase={supabase} onLogout={handleLogout} activePage={activePage} setActivePage={setActivePage} lang={lang} isSidebarOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} isDarkMode={isDarkMode} />
 
-      <div style={{ marginLeft: isSidebarOpen ? '260px' : '72px', flex: 1, padding: '32px', transition: 'margin-left 0.3s ease' }}>
+      <div style={{ marginLeft: isSidebarOpen ? '260px' : '72px', flex: 1, padding: '32px', transition: 'margin-left 0.3s ease', display: 'flex', flexDirection: 'column' }}>
         <div style={{ 
-          background: isDarkMode ? '#1e293b' : '#fff', 
-          borderRadius: '16px', padding: '20px 28px', marginBottom: '32px', 
+          background: isDarkMode ? '#1e293b' : '#fff', borderRadius: '16px', padding: '20px 28px', marginBottom: '32px', 
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
           border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' 
         }}>
@@ -132,55 +132,60 @@ const Dashboard = ({ supabase }) => {
           </div>
         </div>
 
-        {activePage === 'dashboard' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-              {statsCards.map((stat, index) => {
-                const Icon = stat.icon;
-                return (
-                  <div key={index} style={{ 
-                    background: isDarkMode ? '#1e293b' : '#fff', padding: '20px', borderRadius: '12px', 
-                    border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.2s' 
-                  }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.08)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                      <div style={{ width: '40px', height: '40px', background: `${stat.color}15`, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: stat.color }}>
-                        <Icon size={20} />
+        <div style={{ flex: 1 }}>
+          {activePage === 'dashboard' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                {statsCards.map((stat, index) => {
+                  const Icon = stat.icon;
+                  return (
+                    <div key={index} style={{ 
+                      background: isDarkMode ? '#1e293b' : '#fff', padding: '20px', borderRadius: '12px', 
+                      border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.2s' 
+                    }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.08)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <div style={{ width: '40px', height: '40px', background: `${stat.color}15`, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: stat.color }}>
+                          <Icon size={20} />
+                        </div>
                       </div>
+                      <p style={{ margin: '0 0 4px', fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: '500' }}>{stat.label}</p>
+                      <h3 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>{stat.value}</h3>
                     </div>
-                    <p style={{ margin: '0 0 4px', fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: '500' }}>{stat.label}</p>
-                    <h3 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>{stat.value}</h3>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', borderRadius: '16px', padding: '32px', color: '#fff', boxShadow: '0 12px 32px rgba(99, 102, 241, 0.3)', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: '-50%', right: '-20%', width: '300px', height: '300px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }}></div>
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <h2 style={{ margin: '0 0 8px', fontSize: '24px', fontWeight: '700' }}>{lang === 'sw' ? 'Karibu KasiTRADE!' : 'Welcome to KasiTRADE!'}</h2>
-                <p style={{ margin: '0 0 20px', fontSize: '14px', opacity: 0.95, maxWidth: '500px' }}>
-                  {lang === 'sw' ? 'Mfumo wako wa kisasa wa POS uko tayari. Anza sasa kwa kuchagua sehemu kwenye sidebar.' : 'Your modern POS system is ready. Get started by selecting a section from the sidebar.'}
-                </p>
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <button onClick={() => setActivePage('pos')} style={{ padding: '10px 20px', background: '#fff', color: '#6366f1', border: 'none', borderRadius: '10px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Icons.ShoppingCart size={16} /> {lang === 'sw' ? 'Anza Kuuza' : 'Start Selling'}
-                  </button>
-                  <button onClick={() => setActivePage('products')} style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.2)', color: '#fff', border: '2px solid rgba(255,255,255,0.3)', borderRadius: '10px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Icons.Box size={16} /> {lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Products'}
-                  </button>
+              <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', borderRadius: '16px', padding: '32px', color: '#fff', boxShadow: '0 12px 32px rgba(99, 102, 241, 0.3)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: '-50%', right: '-20%', width: '300px', height: '300px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }}></div>
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                  <h2 style={{ margin: '0 0 8px', fontSize: '24px', fontWeight: '700' }}>{lang === 'sw' ? 'Karibu KasiTRADE!' : 'Welcome to KasiTRADE!'}</h2>
+                  <p style={{ margin: '0 0 20px', fontSize: '14px', opacity: 0.95, maxWidth: '500px' }}>
+                    {lang === 'sw' ? 'Mfumo wako wa kisasa wa POS uko tayari. Anza sasa kwa kuchagua sehemu kwenye sidebar.' : 'Your modern POS system is ready. Get started by selecting a section from the sidebar.'}
+                  </p>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    <button onClick={() => setActivePage('pos')} style={{ padding: '10px 20px', background: '#fff', color: '#6366f1', border: 'none', borderRadius: '10px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Icons.ShoppingCart size={16} /> {lang === 'sw' ? 'Anza Kuuza' : 'Start Selling'}
+                    </button>
+                    <button onClick={() => setActivePage('products')} style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.2)', color: '#fff', border: '2px solid rgba(255,255,255,0.3)', borderRadius: '10px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Icons.Box size={16} /> {lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Products'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+          
+          {activePage === 'pos' && <POS lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
+          {activePage === 'products' && <Products lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
+          {activePage === 'customers' && <Customers lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
+          {activePage === 'reports' && <Reports lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
+          {activePage === 'settings' && <Settings lang={lang} setLang={setLang} supabase={supabase} currentShop={currentShop} shops={shops} setShops={setShops} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onNavigate={setActivePage} />}
+        </div>
         
-        {activePage === 'pos' && <POS lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
-        {activePage === 'products' && <Products lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
-        {activePage === 'customers' && <Customers lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
-        {activePage === 'reports' && <Reports lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
-        {activePage === 'settings' && <Settings lang={lang} setLang={setLang} supabase={supabase} currentShop={currentShop} shops={shops} setShops={setShops} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />}
+        {/* FOOTER */}
+        <Footer lang={lang} isDarkMode={isDarkMode} />
       </div>
     </div>
   );
