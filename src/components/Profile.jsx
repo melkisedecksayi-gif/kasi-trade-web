@@ -1,0 +1,527 @@
+import React, { useState, useEffect } from 'react';
+import { Icons } from './Icons';
+
+const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    full_name: '',
+    phone: '',
+    gender: '',
+    address: '',
+    business_name: ''
+  });
+
+  // Password form state
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUser(user);
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (profileData) {
+          setProfile(profileData);
+          setEditForm({
+            full_name: profileData.full_name || '',
+            phone: profileData.phone || '',
+            gender: profileData.gender || '',
+            address: profileData.address || '',
+            business_name: profileData.business_name || ''
+          });
+        }
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, [supabase]);
+
+  // Handle photo upload
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      triggerToast(lang === 'sw' ? 'Picha ni kubwa sana! Max 2MB' : 'Photo too large! Max 2MB');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      triggerToast(lang === 'sw' ? 'Tafadhali chagua picha tu' : 'Please select an image only');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      // Convert to base64 for storage
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result;
+        
+        // Save to profiles table
+        const { error } = await supabase
+          .from('profiles')
+          .update({ avatar_url: base64 })
+          .eq('id', user.id);
+
+        if (error) {
+          triggerToast(lang === 'sw' ? 'Hitilafu: ' + error.message : 'Error: ' + error.message);
+        } else {
+          setProfile({ ...profile, avatar_url: base64 });
+          triggerToast(lang === 'sw' ? 'Picha imebadilishwa!' : 'Photo updated!');
+        }
+        setUploadingPhoto(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Handle edit profile
+  const handleEditProfile = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(editForm)
+      .eq('id', user.id);
+
+    if (error) {
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + error.message : 'Error: ' + error.message);
+    } else {
+      setProfile({ ...profile, ...editForm });
+      setShowEditModal(false);
+      triggerToast(lang === 'sw' ? 'Taarifa zimesasishwa!' : 'Profile updated!');
+    }
+  };
+
+  // Handle change password
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      triggerToast(lang === 'sw' ? 'Nenosiri hazifanani!' : 'Passwords do not match!');
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      triggerToast(lang === 'sw' ? 'Nenosiri iwe na herufi 6+' : 'Password must be 6+ characters');
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: passwordForm.newPassword
+    });
+
+    if (error) {
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + error.message : 'Error: ' + error.message);
+    } else {
+      setShowPasswordModal(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      triggerToast(lang === 'sw' ? 'Nenosiri limebadilishwa!' : 'Password changed!');
+    }
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '---';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('sw-TZ', { year: 'numeric', month: '2-digit', day: '2-digit' }) + 
+           ' ' + date.toLocaleTimeString('sw-TZ', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '12px',
+    border: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`,
+    borderRadius: '10px', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
+    background: isDarkMode ? '#334155' : '#fff', color: isDarkMode ? '#f1f5f9' : '#0f172a'
+  };
+
+  const cardStyle = {
+    background: isDarkMode ? '#1e293b' : '#fff',
+    padding: '32px',
+    borderRadius: '16px',
+    border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+        <Icons.User size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
+        <p>{lang === 'sw' ? 'Inapakia...' : 'Loading...'}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: 'relative', zIndex: 10 }}>
+      {/* Back Button */}
+      <div style={{ marginBottom: '24px' }}>
+        <button 
+          onClick={onBack}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#6366f1',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 0'
+          }}
+        >
+          <Icons.ArrowLeft size={16} /> {lang === 'sw' ? 'Rudi' : 'Back'}
+        </button>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '40px' }}>
+          
+          {/* Left: Photo */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ position: 'relative', marginBottom: '16px' }}>
+              <div style={{
+                width: '180px',
+                height: '180px',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                border: `4px solid ${isDarkMode ? '#334155' : '#f1f5f9'}`,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {profile?.avatar_url ? (
+                  <img 
+                    src={profile.avatar_url} 
+                    alt="Profile" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ color: '#fff', fontSize: '64px', fontWeight: '700' }}>
+                    {(profile?.full_name || profile?.business_name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              
+              {/* Upload Button Overlay */}
+              <label 
+                style={{
+                  position: 'absolute',
+                  bottom: '8px',
+                  right: '8px',
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  background: '#6366f1',
+                  border: '3px solid #fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <Icons.Camera size={20} color="#fff" />
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handlePhotoUpload}
+                  style={{ display: 'none' }}
+                  disabled={uploadingPhoto}
+                />
+              </label>
+              
+              {uploadingPhoto && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'rgba(0,0,0,0.5)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: '600'
+                }}>
+                  {lang === 'sw' ? 'Inapakiwa...' : 'Uploading...'}
+                </div>
+              )}
+            </div>
+            
+            <h2 style={{ margin: '0 0 4px', fontSize: '24px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+              {profile?.full_name || profile?.business_name || 'User'}
+            </h2>
+            <p style={{ margin: 0, color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>
+              ({profile?.business_name || '---'})
+            </p>
+          </div>
+
+          {/* Right: Info */}
+          <div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {[
+                { label: lang === 'sw' ? 'Barua pepe' : 'Email', value: user?.email || '---', icon: Icons.Mail },
+                { label: lang === 'sw' ? 'Namba ya Simu' : 'Phone number', value: profile?.phone || '---', icon: Icons.Phone },
+                { label: lang === 'sw' ? 'Jinsia' : 'Gender', value: profile?.gender || '---', icon: Icons.User },
+                { label: lang === 'sw' ? 'Anwani' : 'Address', value: profile?.address || '---', icon: Icons.Home },
+                { label: lang === 'sw' ? 'Kampuni' : 'Company', value: profile?.business_name || '---', icon: Icons.Building },
+                { label: lang === 'sw' ? 'Tarehe ya kujiunga' : 'Created date', value: formatDate(user?.created_at), icon: Icons.Calendar },
+              ].map((item, i) => {
+                const Icon = item.icon;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ 
+                      width: '100px', 
+                      fontSize: '14px', 
+                      fontWeight: '600', 
+                      color: isDarkMode ? '#cbd5e1' : '#475569',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <Icon size={16} /> {item.label}
+                    </div>
+                    <div style={{ color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: '14px' }}>:</div>
+                    <div style={{ 
+                      flex: 1, 
+                      fontSize: '14px', 
+                      color: isDarkMode ? '#f1f5f9' : '#0f172a',
+                      fontWeight: '500'
+                    }}>
+                      {item.value}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Roles */}
+            <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
+                <div style={{ 
+                  width: '100px', 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  color: isDarkMode ? '#cbd5e1' : '#475569',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <Icons.User size={16} /> {lang === 'sw' ? 'Majukumu' : 'Roles'}
+                </div>
+                <div style={{ color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: '14px' }}>:</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '116px' }}>
+                <div style={{ 
+                  padding: '6px 12px', 
+                  background: isDarkMode ? '#334155' : '#f1f5f9', 
+                  borderRadius: '8px', 
+                  fontSize: '13px', 
+                  color: isDarkMode ? '#f1f5f9' : '#0f172a',
+                  display: 'inline-block',
+                  width: 'fit-content'
+                }}>
+                  {lang === 'sw' ? 'Mmiliki wa Biashara' : 'Business Owner'}
+                </div>
+                <div style={{ 
+                  padding: '6px 12px', 
+                  background: isDarkMode ? '#334155' : '#f1f5f9', 
+                  borderRadius: '8px', 
+                  fontSize: '13px', 
+                  color: isDarkMode ? '#f1f5f9' : '#0f172a',
+                  display: 'inline-block',
+                  width: 'fit-content'
+                }}>
+                  CEO
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ marginTop: '32px', display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={() => setShowEditModal(true)}
+                style={{
+                  padding: '12px 24px',
+                  background: '#6366f1',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#4f46e5'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#6366f1'}
+              >
+                <Icons.Edit size={16} /> {lang === 'sw' ? 'Hariri' : 'Edit'}
+              </button>
+              <button 
+                onClick={() => setShowPasswordModal(true)}
+                style={{
+                  padding: '12px 24px',
+                  background: isDarkMode ? '#334155' : '#64748b',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#475569' : '#475569'}
+                onMouseLeave={(e) => e.currentTarget.style.background = isDarkMode ? '#334155' : '#64748b'}
+              >
+                <Icons.Lock size={16} /> {lang === 'sw' ? 'Badilisha Nenosiri' : 'Change password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* EDIT PROFILE MODAL */}
+      {showEditModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: isDarkMode ? '#1e293b' : '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '500px', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                {lang === 'sw' ? 'Hariri Wasifu' : 'Edit Profile'}
+              </h2>
+              <button onClick={() => setShowEditModal(false)} style={{ background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                <Icons.X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleEditProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Jina Kamili' : 'Full Name'}
+                </label>
+                <input type="text" value={editForm.full_name} onChange={(e) => setEditForm({...editForm, full_name: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Namba ya Simu' : 'Phone'}
+                </label>
+                <input type="tel" value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Jinsia' : 'Gender'}
+                </label>
+                <select value={editForm.gender} onChange={(e) => setEditForm({...editForm, gender: e.target.value})} style={inputStyle}>
+                  <option value="">{lang === 'sw' ? 'Chagua...' : 'Select...'}</option>
+                  <option value="male">{lang === 'sw' ? 'Mwanaume' : 'Male'}</option>
+                  <option value="female">{lang === 'sw' ? 'Mwanamke' : 'Female'}</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Anwani' : 'Address'}
+                </label>
+                <input type="text" value={editForm.address} onChange={(e) => setEditForm({...editForm, address: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Jina la Biashara' : 'Business Name'}
+                </label>
+                <input type="text" value={editForm.business_name} onChange={(e) => setEditForm({...editForm, business_name: e.target.value})} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="button" onClick={() => setShowEditModal(false)} style={{ flex: 1, padding: '12px', background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: isDarkMode ? '#f1f5f9' : '#475569' }}>
+                  {lang === 'sw' ? 'Ghairi' : 'Cancel'}
+                </button>
+                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>
+                  {lang === 'sw' ? 'Hifadhi' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CHANGE PASSWORD MODAL */}
+      {showPasswordModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: isDarkMode ? '#1e293b' : '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                {lang === 'sw' ? 'Badilisha Nenosiri' : 'Change Password'}
+              </h2>
+              <button onClick={() => setShowPasswordModal(false)} style={{ background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                <Icons.X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Nenosiri Jipya' : 'New Password'}
+                </label>
+                <input type="password" required value={passwordForm.newPassword} onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Thibitisha Nenosiri' : 'Confirm Password'}
+                </label>
+                <input type="password" required value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="button" onClick={() => setShowPasswordModal(false)} style={{ flex: 1, padding: '12px', background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: isDarkMode ? '#f1f5f9' : '#475569' }}>
+                  {lang === 'sw' ? 'Ghairi' : 'Cancel'}
+                </button>
+                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>
+                  {lang === 'sw' ? 'Badilisha' : 'Change'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showToast && (
+        <div style={{ position: 'fixed', top: '30px', right: '30px', background: '#10b981', color: '#fff', padding: '14px 24px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(16, 185, 129, 0.4)', zIndex: 2000, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Icons.CheckCircle size={20} /> {toastMessage}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Profile;
