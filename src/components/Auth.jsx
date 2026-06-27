@@ -3,7 +3,7 @@ import { translations } from '../translations';
 import Toast from './Toast';
 
 const Auth = ({ supabase, onAuthSuccess }) => {
-  const [mode, setMode] = useState('login'); // 'login', 'register-step-1', 'register-step-2'
+  const [mode, setMode] = useState('login');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   
@@ -106,7 +106,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
       if (error) {
         let msg = error.message;
         if (msg.toLowerCase().includes('already registered')) {
-          msg = '❌ Email hii tayari imeshajisajiliwa. Tumia email nyingine.';
+          msg = ' Email hii tayari imeshajisajiliwa. Tumia email nyingine.';
         }
         showToast(msg, 'error');
         setLoading(false);
@@ -203,22 +203,26 @@ const Auth = ({ supabase, onAuthSuccess }) => {
       
       <div style={{ background: 'rgba(255, 255, 255, 0.98)', backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', position: 'relative', zIndex: 1 }}>
         
-        {/* Logo */}
+        {/* ✅ LOGO YA KASITRADE - Imewekwa vizuri */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ 
-            width: '80px', 
-            height: '80px', 
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-            borderRadius: '20px', 
+            width: '100px', 
+            height: '100px', 
             margin: '0 auto 16px',
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
-            fontSize: '40px',
-            boxShadow: '0 10px 30px rgba(102, 126, 234, 0.3)',
             animation: 'logoFloat 3s ease-in-out infinite'
           }}>
-            🏪
+            <img 
+              src="/logo.png" 
+              alt="KasiTRADE Logo" 
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'contain'
+              }}
+            />
           </div>
           <h1 style={{ 
             margin: '0 0 4px', 
@@ -244,24 +248,24 @@ const Auth = ({ supabase, onAuthSuccess }) => {
           </p>
         </div>
 
-        {/* Language Switcher - Side Position */}
+        {/* ✅ LANGUAGE SWITCHER - Pembeni (Bendera tu) */}
         <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', gap: '8px' }}>
           <button 
             type="button"
             onClick={handleLangChange}
             style={{ 
-              background: lang === 'sw' ? '#667eea' : '#f1f5f9', 
+              background: '#f1f5f9', 
               border: 'none', 
               padding: '8px 12px', 
               borderRadius: '8px', 
               cursor: 'pointer', 
-              fontSize: '16px',
-              fontWeight: '600',
-              transition: 'all 0.2s'
+              fontSize: '20px',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
             }}
-            title={lang === 'sw' ? 'English' : 'Kiswahili'}
+            title={lang === 'sw' ? 'Switch to English' : 'Badilisha Kiswahili'}
           >
-            {lang === 'sw' ? '🇹🇿' : '🇬'}
+            {lang === 'sw' ? '🇹' : '🇬🇧'}
           </button>
         </div>
 
@@ -296,7 +300,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                 onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
               />
               
-              {/* Forgot Password Link */}
+              {/* ✅ FORGOT PASSWORD LINK */}
               <button 
                 type="button"
                 onClick={() => setShowForgotPassword(true)}
@@ -410,7 +414,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                   fontSize: '14px'
                 }}
               >
-                {lang === 'sw' ? 'Rudi' : 'Back to Login'}
+                {lang === 'sw' ? '← Rudi' : '← Back to Login'}
               </button>
             </form>
           </div>
@@ -560,7 +564,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                 onChange={(e) => setCountry(e.target.value)} 
                 style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', width: '100%', background: '#fff', fontSize: '15px' }}
               >
-                <option value="Tanzania">🇹🇿 Tanzania</option>
+                <option value="Tanzania">🇿 Tanzania</option>
                 <option value="Kenya">🇰🇪 Kenya</option>
                 <option value="Uganda">🇺🇬 Uganda</option>
               </select>
@@ -586,7 +590,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                 </select>
               </div>
 
-              {/* ✅ WARD INPUT - User types their own ward */}
+              {/* ✅ WARD INPUT - User anaandika mwenyewe */}
               <input 
                 type="text" 
                 placeholder={lang === 'sw' ? 'Andika Kata yako' : 'Type your Ward'} 
