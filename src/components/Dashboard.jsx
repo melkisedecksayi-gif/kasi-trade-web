@@ -25,7 +25,6 @@ const Dashboard = ({ supabase }) => {
 
   const [stats, setStats] = useState({ totalSales: 0, todaySales: 0, todayProfit: 0, totalProducts: 0, totalCustomers: 0, lowStock: 0 });
 
-  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
@@ -117,7 +116,7 @@ const Dashboard = ({ supabase }) => {
 
       <div style={{ marginLeft: isSidebarOpen ? '260px' : '72px', flex: 1, padding: '32px', transition: 'margin-left 0.3s ease', display: 'flex', flexDirection: 'column' }}>
         
-        {/* TOPBAR MPYA */}
+        {/* TOPBAR */}
         <div style={{ 
           background: isDarkMode ? '#1e293b' : '#fff', 
           borderRadius: '16px', 
@@ -127,7 +126,8 @@ const Dashboard = ({ supabase }) => {
           justifyContent: 'space-between', 
           alignItems: 'center', 
           border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, 
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)' 
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          position: 'relative'
         }}>
           {/* Left: User Profile */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} ref={userMenuRef}>
@@ -143,7 +143,6 @@ const Dashboard = ({ supabase }) => {
                 padding: '4px'
               }}
             >
-              {/* User Avatar */}
               <div style={{
                 width: '48px',
                 height: '48px',
@@ -176,18 +175,18 @@ const Dashboard = ({ supabase }) => {
               </div>
             </button>
 
-            {/* User Dropdown Menu */}
+            {/* User Dropdown Menu - CHINI YA AVATAR */}
             {showUserMenu && (
               <div style={{
                 position: 'absolute',
-                top: '80px',
+                top: '70px',
                 left: '24px',
                 background: isDarkMode ? '#1e293b' : '#fff',
                 borderRadius: '12px',
                 border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
                 boxShadow: '0 12px 32px rgba(0,0,0,0.15)',
                 padding: '8px',
-                minWidth: '220px',
+                minWidth: '240px',
                 zIndex: 1000
               }}>
                 <button 
@@ -285,7 +284,6 @@ const Dashboard = ({ supabase }) => {
 
           {/* Right: Shop Selector + Active Status */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }} ref={shopDropdownRef}>
-            {/* Shop Dropdown */}
             <div style={{ position: 'relative' }}>
               <button 
                 onClick={() => setShowShopDropdown(!showShopDropdown)}
@@ -352,7 +350,6 @@ const Dashboard = ({ supabase }) => {
               )}
             </div>
 
-            {/* Active Status */}
             {currentShop && (
               <span style={{ 
                 display: 'flex', alignItems: 'center', gap: '6px', 
@@ -367,7 +364,6 @@ const Dashboard = ({ supabase }) => {
           </div>
         </div>
 
-        {/* PAGE CONTENT */}
         <div style={{ flex: 1 }}>
           {activePage === 'dashboard' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>

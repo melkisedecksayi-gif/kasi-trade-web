@@ -11,7 +11,6 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
   const [toastMessage, setToastMessage] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  // Edit form state
   const [editForm, setEditForm] = useState({
     full_name: '',
     phone: '',
@@ -20,7 +19,6 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
     business_name: ''
   });
 
-  // Password form state
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -61,13 +59,11 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    // Check file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       triggerToast(lang === 'sw' ? 'Picha ni kubwa sana! Max 2MB' : 'Photo too large! Max 2MB');
       return;
     }
 
-    // Check file type
     if (!file.type.startsWith('image/')) {
       triggerToast(lang === 'sw' ? 'Tafadhali chagua picha tu' : 'Please select an image only');
       return;
@@ -75,12 +71,10 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
 
     setUploadingPhoto(true);
     try {
-      // Convert to base64 for storage
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result;
         
-        // Save to profiles table
         const { error } = await supabase
           .from('profiles')
           .update({ avatar_url: base64 })
@@ -101,7 +95,6 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
     }
   };
 
-  // Handle edit profile
   const handleEditProfile = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -120,7 +113,6 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
     }
   };
 
-  // Handle change password
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -178,7 +170,6 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
 
   return (
     <div style={{ position: 'relative', zIndex: 10 }}>
-      {/* Back Button */}
       <div style={{ marginBottom: '24px' }}>
         <button 
           onClick={onBack}
@@ -204,91 +195,74 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
           
           {/* Left: Photo */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ position: 'relative', marginBottom: '16px' }}>
-              <div style={{
-                width: '180px',
-                height: '180px',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                border: `4px solid ${isDarkMode ? '#334155' : '#f1f5f9'}`,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                {profile?.avatar_url ? (
-                  <img 
-                    src={profile.avatar_url} 
-                    alt="Profile" 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <div style={{ color: '#fff', fontSize: '64px', fontWeight: '700' }}>
-                    {(profile?.full_name || profile?.business_name || 'U').charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              
-              {/* Upload Button Overlay */}
-              <label 
-                style={{
-                  position: 'absolute',
-                  bottom: '8px',
-                  right: '8px',
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '50%',
-                  background: '#6366f1',
-                  border: '3px solid #fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >
-                <Icons.Camera size={20} color="#fff" />
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handlePhotoUpload}
-                  style={{ display: 'none' }}
-                  disabled={uploadingPhoto}
+            <div style={{
+              width: '180px',
+              height: '180px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              border: `4px solid ${isDarkMode ? '#334155' : '#f1f5f9'}`,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '16px'
+            }}>
+              {profile?.avatar_url ? (
+                <img 
+                  src={profile.avatar_url} 
+                  alt="Profile" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
-              </label>
-              
-              {uploadingPhoto && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0, left: 0, right: 0, bottom: 0,
-                  background: 'rgba(0,0,0,0.5)',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  fontSize: '12px',
-                  fontWeight: '600'
-                }}>
-                  {lang === 'sw' ? 'Inapakiwa...' : 'Uploading...'}
+              ) : (
+                <div style={{ color: '#fff', fontSize: '64px', fontWeight: '700' }}>
+                  {(profile?.full_name || profile?.business_name || 'U').charAt(0).toUpperCase()}
                 </div>
               )}
             </div>
             
-            <h2 style={{ margin: '0 0 4px', fontSize: '24px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
-              {profile?.full_name || profile?.business_name || 'User'}
-            </h2>
-            <p style={{ margin: 0, color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>
-              ({profile?.business_name || '---'})
-            </p>
+            {/* Select Picture Button */}
+            <label 
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                background: '#6366f1',
+                color: '#fff',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#4f46e5'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#6366f1'}
+            >
+              <Icons.Camera size={16} />
+              {uploadingPhoto 
+                ? (lang === 'sw' ? 'Inapakiwa...' : 'Uploading...') 
+                : (lang === 'sw' ? 'Chagua Picha' : 'Select Picture')}
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handlePhotoUpload}
+                style={{ display: 'none' }}
+                disabled={uploadingPhoto}
+              />
+            </label>
           </div>
 
           {/* Right: Info */}
           <div>
+            <h2 style={{ margin: '0 0 24px', fontSize: '24px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+              {profile?.full_name || profile?.business_name || 'User'}
+            </h2>
+            <p style={{ margin: '0 0 24px', color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>
+              ({profile?.business_name || '---'})
+            </p>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {[
                 { label: lang === 'sw' ? 'Barua pepe' : 'Email', value: user?.email || '---', icon: Icons.Mail },
@@ -302,7 +276,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
                 return (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div style={{ 
-                      width: '100px', 
+                      width: '120px', 
                       fontSize: '14px', 
                       fontWeight: '600', 
                       color: isDarkMode ? '#cbd5e1' : '#475569',
@@ -330,7 +304,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
             <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
                 <div style={{ 
-                  width: '100px', 
+                  width: '120px', 
                   fontSize: '14px', 
                   fontWeight: '600', 
                   color: isDarkMode ? '#cbd5e1' : '#475569',
@@ -342,7 +316,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
                 </div>
                 <div style={{ color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: '14px' }}>:</div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '116px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '136px' }}>
                 <div style={{ 
                   padding: '6px 12px', 
                   background: isDarkMode ? '#334155' : '#f1f5f9', 
