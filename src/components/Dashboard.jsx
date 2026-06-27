@@ -10,12 +10,11 @@ import { Icons } from './Icons';
 const Dashboard = ({ supabase }) => {
   const [activePage, setActivePage] = useState('dashboard');
   const [lang, setLang] = useState(() => localStorage.getItem('app_lang') || 'sw');
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('dark_mode') === 'true');
   const [userProfile, setUserProfile] = useState(null);
   const [shops, setShops] = useState([]);
   const [currentShop, setCurrentShop] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [showAddShopModal, setShowAddShopModal] = useState(false);
-  const [newShopForm, setNewShopForm] = useState({ shop_name: '', shop_type: 'duka', region: '' });
   
   const [stats, setStats] = useState({ totalSales: 0, todaySales: 0, todayProfit: 0, totalProducts: 0, totalCustomers: 0, lowStock: 0 });
 
@@ -28,7 +27,6 @@ const Dashboard = ({ supabase }) => {
       setUserProfile(profile);
 
       const { data: shopsData } = await supabase.from('shops').select('*').eq('user_id', user.id);
-      
       if (shopsData && shopsData.length > 0) {
         setShops(shopsData);
         const currentShopId = profile?.current_shop_id || shopsData[0].id;
@@ -51,19 +49,20 @@ const Dashboard = ({ supabase }) => {
       const { count: prodCount } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('shop_id', currentShop.id);
       const { count: custCount } = await supabase.from('customers').select('*', { count: 'exact', head: true }).eq('shop_id', currentShop.id);
       const { count: lowStockCount } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('shop_id', currentShop.id).lt('stock', 10);
-
       const today = new Date().toISOString().split('T')[0];
       const { data: todayTrans } = await supabase.from('transactions').select('total_amount, profit').eq('shop_id', currentShop.id).gte('created_at', today);
-      
       const todaySales = todayTrans?.reduce((sum, t) => sum + (t.total_amount || 0), 0) || 0;
       const todayProfit = todayTrans?.reduce((sum, t) => sum + (t.profit || 0), 0) || 0;
-
       setStats({ totalProducts: prodCount || 0, totalCustomers: custCount || 0, lowStock: lowStockCount || 0, todaySales, todayProfit, totalSales: todaySales });
     };
     fetchStats();
   }, [currentShop, supabase]);
 
-  // ✅ LOGIC YA ACTIVE STATUS
+  useEffect(() => {
+    document.body.style.background = isDarkMode ? '#0f172a' : '#f8fafc';
+    document.body.style.color = isDarkMode ? '#f1f5f9' : '#0f172a';
+  }, [isDarkMode]);
+
   const isShopActive = (shop) => {
     if (!shop) return false;
     const now = new Date();
@@ -79,18 +78,6 @@ const Dashboard = ({ supabase }) => {
     if (userProfile) supabase.from('profiles').update({ current_shop_id: shopId }).eq('id', userProfile.id);
   };
 
-  const handleAddShop = async (e) => {
-    e.preventDefault();
-    if (!newShopForm.shop_name || !userProfile) return;
-    const { data } = await supabase.from('shops').insert([{ user_id: userProfile.id, ...newShopForm }]).select().single();
-    if (data) {
-      setShops([...shops, data]);
-      setCurrentShop(data);
-      setShowAddShopModal(false);
-      setNewShopForm({ shop_name: '', shop_type: 'duka', region: '' });
-    }
-  };
-
   const handleLogout = async () => { await supabase.auth.signOut(); window.location.reload(); };
   const formatCurrency = (amount) => new Intl.NumberFormat('sw-TZ', { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 }).format(amount);
 
@@ -103,44 +90,45 @@ const Dashboard = ({ supabase }) => {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
-      <Sidebar supabase={supabase} onLogout={handleLogout} activePage={activePage} setActivePage={setActivePage} lang={lang} isSidebarOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+    <div style={{ display: 'flex', minHeight: '100vh', background: isDarkMode ? '#0f172a' : '#f8fafc', transition: 'background 0.3s' }}>
+      <Sidebar supabase={supabase} onLogout={handleLogout} activePage={activePage} setActivePage={setActivePage} lang={lang} isSidebarOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} isDarkMode={isDarkMode} />
 
       <div style={{ marginLeft: isSidebarOpen ? '260px' : '72px', flex: 1, padding: '32px', transition: 'margin-left 0.3s ease' }}>
-        {/* TOPBAR */}
-        <div style={{ background: '#fff', borderRadius: '16px', padding: '20px 28px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+        <div style={{ 
+          background: isDarkMode ? '#1e293b' : '#fff', 
+          borderRadius: '16px', padding: '20px 28px', marginBottom: '32px', 
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+          border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' 
+        }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#0f172a' }}>
-              {activePage === 'dashboard' && 'Dashibodi'}
-              {activePage === 'pos' && 'Mauzo'}
-              {activePage === 'products' && 'Bidhaa'}
-              {activePage === 'customers' && 'Wateja'}
-              {activePage === 'reports' && 'Ripoti'}
-              {activePage === 'settings' && 'Mipangilio'}
+            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+              {activePage === 'dashboard' && (lang === 'sw' ? 'Dashibodi' : 'Dashboard')}
+              {activePage === 'pos' && (lang === 'sw' ? 'Mauzo' : 'Sales')}
+              {activePage === 'products' && (lang === 'sw' ? 'Bidhaa' : 'Products')}
+              {activePage === 'customers' && (lang === 'sw' ? 'Wateja' : 'Customers')}
+              {activePage === 'reports' && (lang === 'sw' ? 'Ripoti' : 'Reports')}
+              {activePage === 'settings' && (lang === 'sw' ? 'Mipangilio' : 'Settings')}
             </h1>
-            <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>{currentShop?.shop_name || '---'}</p>
+            <p style={{ margin: '4px 0 0', color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>{currentShop?.shop_name || '---'}</p>
           </div>
+          
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <select value={currentShop?.id || ''} onChange={(e) => handleShopChange(e.target.value)} style={{ padding: '10px 16px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '14px', fontWeight: '600', outline: 'none' }}>
+            <select value={currentShop?.id || ''} onChange={(e) => handleShopChange(e.target.value)} style={{ 
+              padding: '10px 16px', border: `2px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`, borderRadius: '12px', fontSize: '14px', fontWeight: '600', outline: 'none',
+              background: isDarkMode ? '#334155' : '#fff', color: isDarkMode ? '#f1f5f9' : '#0f172a', cursor: 'pointer'
+            }}>
               {shops.map(shop => <option key={shop.id} value={shop.id}>{shop.shop_name}</option>)}
             </select>
             
-            {/* ✅ ACTIVE STATUS BADGE */}
             {currentShop && (
               <span style={{ 
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '8px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', 
-                background: isShopActive(currentShop) ? '#d1fae5' : '#fee2e2', 
-                color: isShopActive(currentShop) ? '#059669' : '#dc2626' 
+                display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', 
+                background: isShopActive(currentShop) ? '#d1fae5' : '#fee2e2', color: isShopActive(currentShop) ? '#059669' : '#dc2626' 
               }}>
                 {isShopActive(currentShop) ? <Icons.Activity size={14} /> : <Icons.XCircle size={14} />}
                 {isShopActive(currentShop) ? (lang === 'sw' ? 'Inafanya Kazi' : 'Active') : (lang === 'sw' ? 'Imefungwa' : 'Closed')}
               </span>
             )}
-
-            <button onClick={() => setShowAddShopModal(true)} style={{ padding: '10px 20px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Icons.Plus size={16} /> {lang === 'sw' ? 'Duka Jipya' : 'New Shop'}
-            </button>
           </div>
         </div>
 
@@ -150,7 +138,10 @@ const Dashboard = ({ supabase }) => {
               {statsCards.map((stat, index) => {
                 const Icon = stat.icon;
                 return (
-                  <div key={index} style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.2s' }}
+                  <div key={index} style={{ 
+                    background: isDarkMode ? '#1e293b' : '#fff', padding: '20px', borderRadius: '12px', 
+                    border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'all 0.2s' 
+                  }}
                     onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.08)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
@@ -158,8 +149,8 @@ const Dashboard = ({ supabase }) => {
                         <Icon size={20} />
                       </div>
                     </div>
-                    <p style={{ margin: '0 0 4px', fontSize: '13px', color: '#64748b', fontWeight: '500' }}>{stat.label}</p>
-                    <h3 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>{stat.value}</h3>
+                    <p style={{ margin: '0 0 4px', fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: '500' }}>{stat.label}</p>
+                    <h3 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>{stat.value}</h3>
                   </div>
                 );
               })}
@@ -185,35 +176,12 @@ const Dashboard = ({ supabase }) => {
           </div>
         )}
         
-        {activePage === 'pos' && <POS lang={lang} supabase={supabase} currentShop={currentShop} />}
-        {activePage === 'products' && <Products lang={lang} supabase={supabase} currentShop={currentShop} />}
-        {activePage === 'customers' && <Customers lang={lang} supabase={supabase} currentShop={currentShop} />}
-        {activePage === 'reports' && <Reports lang={lang} supabase={supabase} currentShop={currentShop} />}
-        {activePage === 'settings' && <Settings lang={lang} supabase={supabase} currentShop={currentShop} />}
+        {activePage === 'pos' && <POS lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
+        {activePage === 'products' && <Products lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
+        {activePage === 'customers' && <Customers lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
+        {activePage === 'reports' && <Reports lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
+        {activePage === 'settings' && <Settings lang={lang} setLang={setLang} supabase={supabase} currentShop={currentShop} shops={shops} setShops={setShops} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />}
       </div>
-
-      {showAddShopModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#0f172a' }}>+ {lang === 'sw' ? 'Duka Jipya' : 'New Shop'}</h2>
-              <button onClick={() => setShowAddShopModal(false)} style={{ background: '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.X size={16} /></button>
-            </div>
-            <form onSubmit={handleAddShop} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input type="text" placeholder={lang === 'sw' ? 'Jina la Duka' : 'Shop Name'} required value={newShopForm.shop_name} onChange={(e) => setNewShopForm({...newShopForm, shop_name: e.target.value})} style={{ padding: '12px', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', outline: 'none' }} />
-              <select value={newShopForm.shop_type} onChange={(e) => setNewShopForm({...newShopForm, shop_type: e.target.value})} style={{ padding: '12px', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', outline: 'none', background: '#fff' }}>
-                <option value="duka">🛒 Duka</option>
-                <option value="microfinance">💰 Microfinance</option>
-              </select>
-              <input type="text" placeholder={lang === 'sw' ? 'Mkoa' : 'Region'} value={newShopForm.region} onChange={(e) => setNewShopForm({...newShopForm, region: e.target.value})} style={{ padding: '12px', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', outline: 'none' }} />
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setShowAddShopModal(false)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: '#475569' }}>{lang === 'sw' ? 'Ghairi' : 'Cancel'}</button>
-                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>{lang === 'sw' ? 'Hifadhi' : 'Save'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
