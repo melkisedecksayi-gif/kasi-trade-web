@@ -25,6 +25,17 @@ const Dashboard = ({ supabase }) => {
 
   const [stats, setStats] = useState({ totalSales: 0, todaySales: 0, todayProfit: 0, totalProducts: 0, totalCustomers: 0, lowStock: 0 });
 
+  // Reload profile when navigating to ensure we have latest data
+  const loadUserProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (profile) {
+        setUserProfile(profile);
+      }
+    }
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
@@ -62,6 +73,14 @@ const Dashboard = ({ supabase }) => {
     };
     loadData();
   }, [supabase, lang]);
+
+  // Listen for profile updates
+  useEffect(() => {
+    if (activePage === 'profile') {
+      const interval = setInterval(loadUserProfile, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [activePage]);
 
   useEffect(() => {
     if (!currentShop?.id) return;
@@ -110,6 +129,20 @@ const Dashboard = ({ supabase }) => {
     { label: lang === 'sw' ? 'Stock Ndogo' : 'Low Stock', value: stats.lowStock, icon: Icons.Alert, color: '#ef4444' },
   ];
 
+  // Get user initial or photo
+  const getUserAvatar = () => {
+    if (userProfile?.avatar_url) {
+      return userProfile.avatar_url;
+    }
+    return null;
+  };
+
+  const getUserInitial = () => {
+    if (userProfile?.full_name) return userProfile.full_name.charAt(0).toUpperCase();
+    if (userProfile?.business_name) return userProfile.business_name.charAt(0).toUpperCase();
+    return 'U';
+  };
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: isDarkMode ? '#0f172a' : '#f8fafc', transition: 'background 0.3s' }}>
       <Sidebar supabase={supabase} onLogout={handleLogout} activePage={activePage} setActivePage={setActivePage} lang={lang} isSidebarOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} isDarkMode={isDarkMode} />
@@ -143,6 +176,7 @@ const Dashboard = ({ supabase }) => {
                 padding: '4px'
               }}
             >
+              {/* User Avatar - Picha au Herufi */}
               <div style={{
                 width: '48px',
                 height: '48px',
@@ -158,10 +192,19 @@ const Dashboard = ({ supabase }) => {
                 fontSize: '18px',
                 flexShrink: 0
               }}>
-                {userProfile?.avatar_url ? (
-                  <img src={userProfile.avatar_url} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {getUserAvatar() ? (
+                  <img 
+                    src={getUserAvatar()} 
+                    alt="User" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      // Fallback to initial if image fails
+                      e.target.style.display = 'none';
+                      e.target.parentElement.innerHTML = getUserInitial();
+                    }}
+                  />
                 ) : (
-                  (userProfile?.full_name || userProfile?.business_name || 'U').charAt(0).toUpperCase()
+                  getUserInitial()
                 )}
               </div>
               <div style={{ textAlign: 'left' }}>
@@ -175,7 +218,7 @@ const Dashboard = ({ supabase }) => {
               </div>
             </button>
 
-            {/* User Dropdown Menu - CHINI YA AVATAR */}
+            {/* User Dropdown Menu */}
             {showUserMenu && (
               <div style={{
                 position: 'absolute',
@@ -414,7 +457,7 @@ const Dashboard = ({ supabase }) => {
           {activePage === 'customers' && <Customers lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
           {activePage === 'reports' && <Reports lang={lang} supabase={supabase} currentShop={currentShop} isDarkMode={isDarkMode} />}
           {activePage === 'settings' && <Settings lang={lang} setLang={setLang} supabase={supabase} currentShop={currentShop} shops={shops} setShops={setShops} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onNavigate={setActivePage} />}
-          {activePage === 'profile' && <Profile lang={lang} supabase={supabase} isDarkMode={isDarkMode} onBack={() => setActivePage('dashboard')} />}
+          {activePage === 'profile' && <Profile lang={lang} supabase={supabase} isDarkMode={isDarkMode} onBack={() => setActivePage('dashboard')} onProfileUpdate={loadUserProfile} />}
         </div>
         
         <Footer lang={lang} isDarkMode={isDarkMode} />

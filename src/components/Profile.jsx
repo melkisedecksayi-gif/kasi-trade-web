@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 
-const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
+const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -78,13 +78,11 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
       return;
     }
 
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       triggerToast(lang === 'sw' ? 'Picha ni kubwa sana! Max 2MB' : 'Photo too large! Max 2MB', 'error');
       return;
     }
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       triggerToast(lang === 'sw' ? 'Tafadhali chagua picha tu (JPG, PNG)' : 'Please select an image only (JPG, PNG)', 'error');
       return;
@@ -92,32 +90,29 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
 
     setUploadingPhoto(true);
     try {
-      // Read file as base64
       const reader = new FileReader();
       reader.onloadend = async () => {
         try {
           const base64 = reader.result;
           
-          console.log('Uploading photo...');
-          
-          // Update profile with base64 image
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('profiles')
             .update({ avatar_url: base64 })
-            .eq('id', user.id)
-            .select()
-            .single();
+            .eq('id', user.id);
 
-          if (error) {
-            console.error('Upload error:', error);
-            throw error;
-          }
-
-          console.log('Upload success:', data);
+          if (error) throw error;
+          
+          // Update local state
           setProfile({ ...profile, avatar_url: base64 });
+          
+          // Notify parent component (Dashboard) to refresh topbar avatar
+          if (onProfileUpdate) {
+            await onProfileUpdate();
+          }
+          
           triggerToast(lang === 'sw' ? '✅ Picha imebadilishwa!' : '✅ Photo updated!');
         } catch (err) {
-          console.error('Error in onloadend:', err);
+          console.error('Error:', err);
           triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
         } finally {
           setUploadingPhoto(false);
@@ -125,14 +120,12 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
       };
       
       reader.onerror = () => {
-        console.error('FileReader error');
         triggerToast(lang === 'sw' ? 'Hitilafu ya kusoma faili' : 'Error reading file', 'error');
         setUploadingPhoto(false);
       };
       
       reader.readAsDataURL(file);
     } catch (err) {
-      console.error('Upload error:', err);
       triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
       setUploadingPhoto(false);
     }
@@ -152,6 +145,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
       
       setProfile({ ...profile, ...editForm });
       setShowEditModal(false);
+      if (onProfileUpdate) await onProfileUpdate();
       triggerToast(lang === 'sw' ? '✅ Taarifa zimesasishwa!' : '✅ Profile updated!');
     } catch (err) {
       triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
@@ -161,11 +155,11 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      triggerToast(lang === 'sw' ? '❌ Nenosiri hazifanani!' : '❌ Passwords do not match!', 'error');
+      triggerToast(lang === 'sw' ? ' Nenosiri hazifanani!' : ' Passwords do not match!', 'error');
       return;
     }
     if (passwordForm.newPassword.length < 6) {
-      triggerToast(lang === 'sw' ? '❌ Nenosiri iwe na herufi 6+' : '❌ Password must be 6+ characters', 'error');
+      triggerToast(lang === 'sw' ? '❌ Nenosiri iwe na herufi 6+' : ' Password must be 6+ characters', 'error');
       return;
     }
 
@@ -287,7 +281,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
             >
               <Icons.Camera size={16} />
               {uploadingPhoto 
-                ? (lang === 'sw' ? '⏳ Inapakiwa...' : '⏳ Uploading...') 
+                ? (lang === 'sw' ? '⏳ Inapakiwa...' : ' Uploading...') 
                 : (lang === 'sw' ? '📷 Chagua Picha' : '📷 Select Picture')}
               <input 
                 type="file" 
@@ -539,7 +533,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack }) => {
           position: 'fixed', 
           top: '30px', 
           right: '30px', 
-          background: toastMessage.includes('❌') || toastMessage.includes('Error') || toastMessage.includes('Hitilafu') ? '#ef4444' : '#10b981', 
+          background: toastMessage.includes('') || toastMessage.includes('Error') || toastMessage.includes('Hitilafu') ? '#ef4444' : '#10b981', 
           color: '#fff', 
           padding: '14px 24px', 
           borderRadius: '12px', 
