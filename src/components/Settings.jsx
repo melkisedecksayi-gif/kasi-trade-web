@@ -9,6 +9,50 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
   const [newShopForm, setNewShopForm] = useState({ shop_name: '', shop_type: 'duka', region: '' });
   const [helpSearch, setHelpSearch] = useState('');
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Working Hours State
+  const [workingHours, setWorkingHours] = useState({
+    monday: { open: '08:00', close: '20:00', isClosed: false },
+    tuesday: { open: '08:00', close: '20:00', isClosed: false },
+    wednesday: { open: '08:00', close: '20:00', isClosed: false },
+    thursday: { open: '08:00', close: '20:00', isClosed: false },
+    friday: { open: '08:00', close: '20:00', isClosed: false },
+    saturday: { open: '09:00', close: '18:00', isClosed: false },
+    sunday: { open: '10:00', close: '16:00', isClosed: true }
+  });
+
+  // Tax State
+  const [taxSettings, setTaxSettings] = useState({
+    taxEnabled: true,
+    taxRate: 18,
+    taxName: 'VAT',
+    taxNumber: '',
+    priceIncludesTax: false
+  });
+
+  // Receipt State
+  const [receiptSettings, setReceiptSettings] = useState({
+    showHeader: true,
+    headerText: 'Thank you for your purchase!',
+    showFooter: true,
+    footerText: 'Come again!',
+    showTax: true,
+    showDiscount: true,
+    showBarcode: true,
+    receiptTitle: currentShop?.shop_name || 'Receipt'
+  });
+
+  // Staff State
+  const [staffList, setStaffList] = useState([]);
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [staffForm, setStaffForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'cashier',
+    password: ''
+  });
 
   const triggerToast = (msg) => {
     setToastMessage(msg);
@@ -43,6 +87,103 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
     }
   };
 
+  // Save Working Hours
+  const handleSaveHours = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('shops')
+        .update({
+          working_hours: workingHours,
+          working_hours_start: workingHours.monday.open,
+          working_hours_end: workingHours.monday.close
+        })
+        .eq('id', currentShop.id);
+
+      if (error) throw error;
+      triggerToast(lang === 'sw' ? '✅ Masaa yamehifadhiwa!' : '✅ Hours saved!');
+    } catch (err) {
+      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Save Tax Settings
+  const handleSaveTax = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('shops')
+        .update({
+          tax_enabled: taxSettings.taxEnabled,
+          tax_rate: parseFloat(taxSettings.taxRate),
+          tax_name: taxSettings.taxName,
+          tax_number: taxSettings.taxNumber,
+          price_includes_tax: taxSettings.priceIncludesTax
+        })
+        .eq('id', currentShop.id);
+
+      if (error) throw error;
+      triggerToast(lang === 'sw' ? '✅ Kodi imehifadhiwa!' : '✅ Tax settings saved!');
+    } catch (err) {
+      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Save Receipt Settings
+  const handleSaveReceipt = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('shops')
+        .update({
+          receipt_settings: receiptSettings
+        })
+        .eq('id', currentShop.id);
+
+      if (error) throw error;
+      triggerToast(lang === 'sw' ? '✅ Mipangilio ya risiti imehifadhiwa!' : '✅ Receipt settings saved!');
+    } catch (err) {
+      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Add Staff
+  const handleAddStaff = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .insert([{
+          shop_id: currentShop.id,
+          name: staffForm.name,
+          email: staffForm.email,
+          phone: staffForm.phone,
+          role: staffForm.role,
+          password: staffForm.password,
+          is_active: true
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      setStaffList([...staffList, data]);
+      setShowAddStaffModal(false);
+      setStaffForm({ name: '', email: '', phone: '', role: 'cashier', password: '' });
+      triggerToast(lang === 'sw' ? '✅ Mfanyakazi ameongezwa!' : '✅ Staff added!');
+    } catch (err) {
+      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const tabs = [
     { id: 'general', label: lang === 'sw' ? 'Jumla' : 'General', icon: Icons.Settings },
     { id: 'hours', label: lang === 'sw' ? 'Masaa' : 'Hours', icon: Icons.Clock },
@@ -50,45 +191,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
     { id: 'receipt', label: lang === 'sw' ? 'Risiti' : 'Receipt', icon: Icons.Printer },
     { id: 'staff', label: lang === 'sw' ? 'Wafanyakazi' : 'Staff', icon: Icons.Users },
     { id: 'help', label: lang === 'sw' ? 'Msaada' : 'Help', icon: Icons.Help },
-  ];
-
-  const faqs = [
-    {
-      q: lang === 'sw' ? 'Jinsi ya kuongeza bidhaa mpya?' : 'How to add new products?',
-      a: lang === 'sw' ? 'Nenda kwenye "Bidhaa" kwenye sidebar, bofya "Ongeza Bidhaa", jaza taarifa zote na uhifadhi.' : 'Go to "Products" in the sidebar, click "Add Product", fill in all details and save.'
-    },
-    {
-      q: lang === 'sw' ? 'Ninawezaje kuuza bidhaa?' : 'How can I sell products?',
-      a: lang === 'sw' ? 'Nenda kwenye "Mauzo (POS)", chagua bidhaa kwa kubofya, ongeza kwenye kikapu, kisha bofya "Lipa Sasa".' : 'Go to "Sales (POS)", select products by clicking, add to cart, then click "Pay Now".'
-    },
-    {
-      q: lang === 'sw' ? 'Jinsi ya kuongeza duka jipya?' : 'How to add a new shop?',
-      a: lang === 'sw' ? 'Nenda kwenye "Mipangilio" > "Jumla" > bofya "Ongeza Duka". Unaweza kuwa na maduka mengi.' : 'Go to "Settings" > "General" > click "Add Shop". You can have multiple shops.'
-    },
-    {
-      q: lang === 'sw' ? 'Ninawezaje kuona ripoti za mauzo?' : 'How can I view sales reports?',
-      a: lang === 'sw' ? 'Nenda kwenye "Ripoti" kwenye sidebar. Unaweza kuchagua kipindi: Leo, Wiki Hii, au Mwezi Huu.' : 'Go to "Reports" in the sidebar. You can select period: Today, This Week, or This Month.'
-    },
-    {
-      q: lang === 'sw' ? 'Jinsi ya kubadilisha lugha?' : 'How to change language?',
-      a: lang === 'sw' ? 'Nenda kwenye "Mipangilio" > "Jumla" > chagua lugha (Kiswahili au English).' : 'Go to "Settings" > "General" > select language (Kiswahili or English).'
-    },
-    {
-      q: lang === 'sw' ? 'Ninawezaje kuweka masaa ya kazi?' : 'How to set working hours?',
-      a: lang === 'sw' ? 'Nenda kwenye "Mipangilio" > "Masaa". Weka muda wa kufungua na kufunga kwa kila siku.' : 'Go to "Settings" > "Hours". Set opening and closing times for each day.'
-    },
-  ];
-
-  const filteredFaqs = faqs.filter(f => 
-    f.q.toLowerCase().includes(helpSearch.toLowerCase()) || 
-    f.a.toLowerCase().includes(helpSearch.toLowerCase())
-  );
-
-  const shortcuts = [
-    { icon: Icons.ShoppingCart, label: lang === 'sw' ? 'Anza Kuuza' : 'Start Selling', action: 'pos', color: '#10b981' },
-    { icon: Icons.Box, label: lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Product', action: 'products', color: '#6366f1' },
-    { icon: Icons.Users, label: lang === 'sw' ? 'Ongeza Mteja' : 'Add Customer', action: 'customers', color: '#ec4899' },
-    { icon: Icons.BarChart, label: lang === 'sw' ? 'Tazama Ripoti' : 'View Reports', action: 'reports', color: '#f59e0b' },
   ];
 
   const inputStyle = { 
@@ -100,6 +202,11 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
   const cardStyle = { 
     background: isDarkMode ? '#1e293b' : '#fff', padding: '24px', borderRadius: '16px', 
     border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: '20px'
+  };
+
+  const toggleStyle = {
+    width: '56px', height: '28px', borderRadius: '14px', border: 'none',
+    cursor: 'pointer', position: 'relative', transition: 'background 0.3s'
   };
 
   return (
@@ -129,6 +236,7 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
         })}
       </div>
 
+      {/* =================== GENERAL TAB =================== */}
       {activeTab === 'general' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={cardStyle}>
@@ -161,8 +269,8 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
                 </p>
               </div>
               <button onClick={handleDarkModeToggle} style={{
-                width: '56px', height: '28px', borderRadius: '14px', border: 'none',
-                background: isDarkMode ? '#6366f1' : '#cbd5e1', cursor: 'pointer', position: 'relative', transition: 'background 0.3s'
+                ...toggleStyle,
+                background: isDarkMode ? '#6366f1' : '#cbd5e1'
               }}>
                 <div style={{
                   position: 'absolute', top: '3px', left: isDarkMode ? '31px' : '3px', width: '22px', height: '22px',
@@ -208,6 +316,421 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
         </div>
       )}
 
+      {/* =================== HOURS TAB =================== */}
+      {activeTab === 'hours' && (
+        <div style={cardStyle}>
+          <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icons.Clock size={20} /> {lang === 'sw' ? 'Masaa ya Kazi' : 'Working Hours'}
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {Object.entries(workingHours).map(([day, hours]) => {
+              const dayNames = {
+                monday: lang === 'sw' ? 'Jumatatu' : 'Monday',
+                tuesday: lang === 'sw' ? 'Jumanne' : 'Tuesday',
+                wednesday: lang === 'sw' ? 'Jumatano' : 'Wednesday',
+                thursday: lang === 'sw' ? 'Alhamisi' : 'Thursday',
+                friday: lang === 'sw' ? 'Ijumaa' : 'Friday',
+                saturday: lang === 'sw' ? 'Jumamosi' : 'Saturday',
+                sunday: lang === 'sw' ? 'Jumapili' : 'Sunday'
+              };
+
+              return (
+                <div key={day} style={{
+                  display: 'flex', alignItems: 'center', gap: '16px',
+                  padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc',
+                  borderRadius: '10px'
+                }}>
+                  <div style={{ width: '120px', fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                    {dayNames[day]}
+                  </div>
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!hours.isClosed}
+                      onChange={(e) => setWorkingHours({
+                        ...workingHours,
+                        [day]: { ...hours, isClosed: !e.target.checked }
+                      })}
+                    />
+                    <span style={{ color: isDarkMode ? '#cbd5e1' : '#475569', fontSize: '14px' }}>
+                      {lang === 'sw' ? 'Fungua' : 'Open'}
+                    </span>
+                  </label>
+
+                  {!hours.isClosed && (
+                    <>
+                      <input
+                        type="time"
+                        value={hours.open}
+                        onChange={(e) => setWorkingHours({
+                          ...workingHours,
+                          [day]: { ...hours, open: e.target.value }
+                        })}
+                        style={{ ...inputStyle, width: '120px' }}
+                      />
+                      <span style={{ color: isDarkMode ? '#64748b' : '#94a3b8' }}>-</span>
+                      <input
+                        type="time"
+                        value={hours.close}
+                        onChange={(e) => setWorkingHours({
+                          ...workingHours,
+                          [day]: { ...hours, close: e.target.value }
+                        })}
+                        style={{ ...inputStyle, width: '120px' }}
+                      />
+                    </>
+                  )}
+
+                  {hours.isClosed && (
+                    <span style={{ color: '#ef4444', fontSize: '14px', fontWeight: '600' }}>
+                      {lang === 'sw' ? 'Imefungwa' : 'Closed'}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleSaveHours}
+            disabled={saving}
+            style={{
+              marginTop: '24px',
+              width: '100%',
+              padding: '14px',
+              background: saving ? '#94a3b8' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: saving ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {saving ? (lang === 'sw' ? '⏳ Inahifadhi...' : '⏳ Saving...') : (lang === 'sw' ? 'Hifadhi Masaa' : 'Save Hours')}
+          </button>
+        </div>
+      )}
+
+      {/* =================== TAX TAB =================== */}
+      {activeTab === 'tax' && (
+        <div style={cardStyle}>
+          <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icons.Cash size={20} /> {lang === 'sw' ? 'Mipangilio ya Kodi' : 'Tax Settings'}
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                  {lang === 'sw' ? 'Washa Kodi' : 'Enable Tax'}
+                </div>
+                <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                  {lang === 'sw' ? 'Ongeza kodi kwenye mauzo' : 'Add tax to sales'}
+                </div>
+              </div>
+              <button
+                onClick={() => setTaxSettings({ ...taxSettings, taxEnabled: !taxSettings.taxEnabled })}
+                style={{
+                  ...toggleStyle,
+                  background: taxSettings.taxEnabled ? '#10b981' : '#cbd5e1'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px', left: taxSettings.taxEnabled ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+
+            {taxSettings.taxEnabled && (
+              <>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                    {lang === 'sw' ? 'Jina la Kodi' : 'Tax Name'}
+                  </label>
+                  <input
+                    type="text"
+                    value={taxSettings.taxName}
+                    onChange={(e) => setTaxSettings({ ...taxSettings, taxName: e.target.value })}
+                    style={inputStyle}
+                    placeholder="VAT"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                    {lang === 'sw' ? 'Kiwango cha Kodi (%)' : 'Tax Rate (%)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={taxSettings.taxRate}
+                    onChange={(e) => setTaxSettings({ ...taxSettings, taxRate: e.target.value })}
+                    style={inputStyle}
+                    min="0"
+                    max="100"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                    {lang === 'sw' ? 'Namba ya Kodi (TIN)' : 'Tax Number (TIN)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={taxSettings.taxNumber}
+                    onChange={(e) => setTaxSettings({ ...taxSettings, taxNumber: e.target.value })}
+                    style={inputStyle}
+                    placeholder="123-456-789"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+                  <div>
+                    <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                      {lang === 'sw' ? 'Bei Zinaingiza Kodi' : 'Prices Include Tax'}
+                    </div>
+                    <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                      {lang === 'sw' ? 'Bei zilizowekwa tayari zina kodi' : 'Entered prices already include tax'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setTaxSettings({ ...taxSettings, priceIncludesTax: !taxSettings.priceIncludesTax })}
+                    style={{
+                      ...toggleStyle,
+                      background: taxSettings.priceIncludesTax ? '#6366f1' : '#cbd5e1'
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: '3px', left: taxSettings.priceIncludesTax ? '31px' : '3px', width: '22px', height: '22px',
+                      borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }} />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={handleSaveTax}
+            disabled={saving}
+            style={{
+              marginTop: '24px',
+              width: '100%',
+              padding: '14px',
+              background: saving ? '#94a3b8' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: saving ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {saving ? (lang === 'sw' ? '⏳ Inahifadhi...' : '⏳ Saving...') : (lang === 'sw' ? 'Hifadhi Kodi' : 'Save Tax Settings')}
+          </button>
+        </div>
+      )}
+
+      {/* =================== RECEIPT TAB =================== */}
+      {activeTab === 'receipt' && (
+        <div style={cardStyle}>
+          <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icons.Printer size={20} /> {lang === 'sw' ? 'Mipangilio ya Risiti' : 'Receipt Settings'}
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                {lang === 'sw' ? 'Kichwa cha Risiti' : 'Receipt Title'}
+              </label>
+              <input
+                type="text"
+                value={receiptSettings.receiptTitle}
+                onChange={(e) => setReceiptSettings({ ...receiptSettings, receiptTitle: e.target.value })}
+                style={inputStyle}
+                placeholder={currentShop?.shop_name || 'Receipt'}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                  {lang === 'sw' ? 'Onyesha Kichwa' : 'Show Header'}
+                </div>
+                <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                  {lang === 'sw' ? 'Onyesha ujumbe wa juu' : 'Show header message'}
+                </div>
+              </div>
+              <button
+                onClick={() => setReceiptSettings({ ...receiptSettings, showHeader: !receiptSettings.showHeader })}
+                style={{
+                  ...toggleStyle,
+                  background: receiptSettings.showHeader ? '#6366f1' : '#cbd5e1'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px', left: receiptSettings.showHeader ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+
+            {receiptSettings.showHeader && (
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Ujumbe wa Kichwa' : 'Header Text'}
+                </label>
+                <input
+                  type="text"
+                  value={receiptSettings.headerText}
+                  onChange={(e) => setReceiptSettings({ ...receiptSettings, headerText: e.target.value })}
+                  style={inputStyle}
+                  placeholder="Thank you for your purchase!"
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                  {lang === 'sw' ? 'Onyesha Kodi' : 'Show Tax'}
+                </div>
+                <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                  {lang === 'sw' ? 'Onyesha kodi kwenye risiti' : 'Show tax on receipt'}
+                </div>
+              </div>
+              <button
+                onClick={() => setReceiptSettings({ ...receiptSettings, showTax: !receiptSettings.showTax })}
+                style={{
+                  ...toggleStyle,
+                  background: receiptSettings.showTax ? '#6366f1' : '#cbd5e1'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px', left: receiptSettings.showTax ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                  {lang === 'sw' ? 'Onyesha Barcode' : 'Show Barcode'}
+                </div>
+                <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                  {lang === 'sw' ? 'Onyesha barcode kwenye risiti' : 'Show barcode on receipt'}
+                </div>
+              </div>
+              <button
+                onClick={() => setReceiptSettings({ ...receiptSettings, showBarcode: !receiptSettings.showBarcode })}
+                style={{
+                  ...toggleStyle,
+                  background: receiptSettings.showBarcode ? '#6366f1' : '#cbd5e1'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px', left: receiptSettings.showBarcode ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveReceipt}
+            disabled={saving}
+            style={{
+              marginTop: '24px',
+              width: '100%',
+              padding: '14px',
+              background: saving ? '#94a3b8' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: saving ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {saving ? (lang === 'sw' ? '⏳ Inahifadhi...' : '⏳ Saving...') : (lang === 'sw' ? 'Hifadhi Risiti' : 'Save Receipt Settings')}
+          </button>
+        </div>
+      )}
+
+      {/* =================== STAFF TAB =================== */}
+      {activeTab === 'staff' && (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icons.Users size={20} /> {lang === 'sw' ? 'Wafanyakazi' : 'Staff Members'}
+            </h3>
+            <button
+              onClick={() => setShowAddStaffModal(true)}
+              style={{
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '10px',
+                fontWeight: '600',
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Icons.Plus size={16} /> {lang === 'sw' ? 'Ongeza Mfanyakazi' : 'Add Staff'}
+            </button>
+          </div>
+
+          {staffList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+              <Icons.Users size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
+              <p>{lang === 'sw' ? 'Hakuna wafanyakazi bado' : 'No staff members yet'}</p>
+              <p style={{ fontSize: '13px', marginTop: '8px' }}>
+                {lang === 'sw' ? 'Bofya "Ongeza Mfanyakazi" kuanza' : 'Click "Add Staff" to get started'}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {staffList.map(staff => (
+                <div key={staff.id} style={{
+                  padding: '16px',
+                  background: isDarkMode ? '#334155' : '#f8fafc',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>{staff.name}</div>
+                    <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                      {staff.email} • {staff.role}
+                    </div>
+                  </div>
+                  <div style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    background: staff.is_active ? '#d1fae5' : '#fee2e2',
+                    color: staff.is_active ? '#059669' : '#dc2626'
+                  }}>
+                    {staff.is_active ? (lang === 'sw' ? 'Active' : 'Active') : (lang === 'sw' ? 'Inactive' : 'Inactive')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =================== HELP TAB =================== */}
       {activeTab === 'help' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={cardStyle}>
@@ -215,7 +738,12 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
               <Icons.Zap size={20} /> {lang === 'sw' ? 'Hatua za Haraka' : 'Quick Actions'}
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-              {shortcuts.map((sc, i) => {
+              {[
+                { icon: Icons.ShoppingCart, label: lang === 'sw' ? 'Anza Kuuza' : 'Start Selling', action: 'pos', color: '#10b981' },
+                { icon: Icons.Box, label: lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Product', action: 'products', color: '#6366f1' },
+                { icon: Icons.Users, label: lang === 'sw' ? 'Ongeza Mteja' : 'Add Customer', action: 'customers', color: '#ec4899' },
+                { icon: Icons.BarChart, label: lang === 'sw' ? 'Tazama Ripoti' : 'View Reports', action: 'reports', color: '#f59e0b' },
+              ].map((sc, i) => {
                 const Icon = sc.icon;
                 return (
                   <button key={i} onClick={() => onNavigate && onNavigate(sc.action)} style={{
@@ -245,87 +773,18 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
               <input type="text" placeholder={lang === 'sw' ? 'Andika swali lako...' : 'Type your question...'} value={helpSearch} onChange={(e) => setHelpSearch(e.target.value)} style={{ ...inputStyle, paddingLeft: '44px' }} />
             </div>
           </div>
-
-          <div style={cardStyle}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icons.Help size={20} /> {lang === 'sw' ? 'Maswali Yanayoulizwa Mara Kwa Mara' : 'Frequently Asked Questions'}
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {filteredFaqs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                  <Icons.Search size={40} style={{ opacity: 0.3, marginBottom: '10px' }} />
-                  <p>{lang === 'sw' ? 'Hakuna matokeo' : 'No results found'}</p>
-                </div>
-              ) : (
-                filteredFaqs.map((faq, i) => (
-                  <div key={i} style={{
-                    background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '12px',
-                    border: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`, overflow: 'hidden', transition: 'all 0.2s'
-                  }}>
-                    <button onClick={() => setExpandedFaq(expandedFaq === i ? null : i)} style={{
-                      width: '100%', padding: '16px', background: 'none', border: 'none',
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      cursor: 'pointer', textAlign: 'left', color: isDarkMode ? '#f1f5f9' : '#0f172a', fontWeight: '600', fontSize: '14px'
-                    }}>
-                      <span>{faq.q}</span>
-                      <Icons.ChevronDown size={18} style={{ transform: expandedFaq === i ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }} />
-                    </button>
-                    {expandedFaq === i && (
-                      <div style={{
-                        padding: '0 16px 16px', color: isDarkMode ? '#cbd5e1' : '#475569', fontSize: '14px', lineHeight: '1.6',
-                        borderTop: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`, paddingTop: '12px'
-                      }}>
-                        {faq.a}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div style={{
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', borderRadius: '16px', padding: '32px', color: '#fff', position: 'relative', overflow: 'hidden'
-          }}>
-            <div style={{ position: 'absolute', top: '-50%', right: '-20%', width: '300px', height: '300px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }}></div>
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Icons.Help size={22} /> {lang === 'sw' ? 'Unahitaji msaada zaidi?' : 'Need more help?'}
-              </h3>
-              <p style={{ margin: '0 0 20px', fontSize: '14px', opacity: 0.95 }}>
-                {lang === 'sw' ? 'Timu yetu ya msaada iko tayari kukusaidia saa 24/7.' : 'Our support team is ready to help you 24/7.'}
-              </p>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <a href="mailto:support@kasitrade.co.tz" style={{ padding: '10px 20px', background: '#fff', color: '#6366f1', borderRadius: '10px', textDecoration: 'none', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Icons.Mail size={16} /> {lang === 'sw' ? 'Tuma Email' : 'Send Email'}
-                </a>
-                <a href="tel:+255123456789" style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.2)', color: '#fff', border: '2px solid rgba(255,255,255,0.3)', borderRadius: '10px', textDecoration: 'none', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Icons.Phone size={16} /> {lang === 'sw' ? 'Piga Simu' : 'Call Us'}
-                </a>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
-      {['hours', 'tax', 'receipt', 'staff'].includes(activeTab) && (
-        <div style={{ ...cardStyle, textAlign: 'center', padding: '60px 24px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>⚙️</div>
-          <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
-            {lang === 'sw' ? 'Inaendelea Kujengwa...' : 'Under Construction...'}
-          </h3>
-          <p style={{ margin: 0, color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>
-            {lang === 'sw' ? `Tab ya ${activeTab} itakuja hivi karibuni` : `${activeTab} tab coming soon`}
-          </p>
-        </div>
-      )}
-
+      {/* ADD SHOP MODAL */}
       {showAddShopModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: isDarkMode ? '#1e293b' : '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>+ {lang === 'sw' ? 'Duka Jipya' : 'New Shop'}</h2>
-              <button onClick={() => setShowAddShopModal(false)} style={{ background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}><Icons.X size={16} /></button>
+              <button onClick={() => setShowAddShopModal(false)} style={{ background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                <Icons.X size={16} />
+              </button>
             </div>
             <form onSubmit={handleAddShop} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <input type="text" placeholder={lang === 'sw' ? 'Jina la Duka' : 'Shop Name'} required value={newShopForm.shop_name} onChange={(e) => setNewShopForm({...newShopForm, shop_name: e.target.value})} style={inputStyle} />
@@ -336,8 +795,12 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
               </select>
               <input type="text" placeholder={lang === 'sw' ? 'Mkoa' : 'Region'} value={newShopForm.region} onChange={(e) => setNewShopForm({...newShopForm, region: e.target.value})} style={inputStyle} />
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setShowAddShopModal(false)} style={{ flex: 1, padding: '12px', background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: isDarkMode ? '#f1f5f9' : '#475569' }}>{lang === 'sw' ? 'Ghairi' : 'Cancel'}</button>
-                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>{lang === 'sw' ? 'Hifadhi' : 'Save'}</button>
+                <button type="button" onClick={() => setShowAddShopModal(false)} style={{ flex: 1, padding: '12px', background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: isDarkMode ? '#f1f5f9' : '#475569' }}>
+                  {lang === 'sw' ? 'Ghairi' : 'Cancel'}
+                </button>
+                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>
+                  {lang === 'sw' ? 'Hifadhi' : 'Save'}
+                </button>
               </div>
             </form>
           </div>

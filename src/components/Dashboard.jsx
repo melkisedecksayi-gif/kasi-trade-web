@@ -18,14 +18,11 @@ const Dashboard = ({ supabase }) => {
   const [currentShop, setCurrentShop] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showShopDropdown, setShowShopDropdown] = useState(false);
   
   const userMenuRef = useRef(null);
-  const shopDropdownRef = useRef(null);
 
   const [stats, setStats] = useState({ totalSales: 0, todaySales: 0, todayProfit: 0, totalProducts: 0, totalCustomers: 0, lowStock: 0 });
 
-  // Reload profile when navigating to ensure we have latest data
   const loadUserProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -40,9 +37,6 @@ const Dashboard = ({ supabase }) => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setShowUserMenu(false);
-      }
-      if (shopDropdownRef.current && !shopDropdownRef.current.contains(event.target)) {
-        setShowShopDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -74,7 +68,6 @@ const Dashboard = ({ supabase }) => {
     loadData();
   }, [supabase, lang]);
 
-  // Listen for profile updates
   useEffect(() => {
     if (activePage === 'profile') {
       const interval = setInterval(loadUserProfile, 1000);
@@ -102,24 +95,13 @@ const Dashboard = ({ supabase }) => {
     document.body.style.color = isDarkMode ? '#f1f5f9' : '#0f172a';
   }, [isDarkMode]);
 
-  const isShopActive = (shop) => {
-    if (!shop) return false;
-    const now = new Date();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-    const [startHour, startMin] = (shop.working_hours_start || '08:00').split(':').map(Number);
-    const [endHour, endMin] = (shop.working_hours_end || '20:00').split(':').map(Number);
-    return currentTime >= (startHour * 60 + startMin) && currentTime <= (endHour * 60 + endMin);
-  };
-
-  const handleShopChange = (shopId) => {
-    const selectedShop = shops.find(s => s.id === shopId);
-    setCurrentShop(selectedShop);
-    setShowShopDropdown(false);
-    if (userProfile) supabase.from('profiles').update({ current_shop_id: shopId }).eq('id', userProfile.id);
-  };
-
   const handleLogout = async () => { await supabase.auth.signOut(); window.location.reload(); };
   const formatCurrency = (amount) => new Intl.NumberFormat('sw-TZ', { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 }).format(amount);
+
+  const handleLanguageChange = (newLang) => {
+    setLang(newLang);
+    localStorage.setItem('app_lang', newLang);
+  };
 
   const statsCards = [
     { label: lang === 'sw' ? 'Mauzo ya Leo' : 'Today Sales', value: formatCurrency(stats.todaySales), icon: Icons.Sales, color: '#10b981' },
@@ -129,11 +111,8 @@ const Dashboard = ({ supabase }) => {
     { label: lang === 'sw' ? 'Stock Ndogo' : 'Low Stock', value: stats.lowStock, icon: Icons.Alert, color: '#ef4444' },
   ];
 
-  // Get user initial or photo
   const getUserAvatar = () => {
-    if (userProfile?.avatar_url) {
-      return userProfile.avatar_url;
-    }
+    if (userProfile?.avatar_url) return userProfile.avatar_url;
     return null;
   };
 
@@ -176,7 +155,6 @@ const Dashboard = ({ supabase }) => {
                 padding: '4px'
               }}
             >
-              {/* User Avatar - Picha au Herufi */}
               <div style={{
                 width: '48px',
                 height: '48px',
@@ -198,7 +176,6 @@ const Dashboard = ({ supabase }) => {
                     alt="User" 
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => {
-                      // Fallback to initial if image fails
                       e.target.style.display = 'none';
                       e.target.parentElement.innerHTML = getUserInitial();
                     }}
@@ -325,85 +302,65 @@ const Dashboard = ({ supabase }) => {
             )}
           </div>
 
-          {/* Right: Shop Selector + Active Status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }} ref={shopDropdownRef}>
-            <div style={{ position: 'relative' }}>
-              <button 
-                onClick={() => setShowShopDropdown(!showShopDropdown)}
-                style={{
-                  padding: '10px 16px',
-                  background: isDarkMode ? '#334155' : '#f8fafc',
-                  border: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`,
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: isDarkMode ? '#f1f5f9' : '#0f172a',
-                  fontSize: '14px',
-                  fontWeight: '600'
-                }}
-              >
-                <Icons.Building size={16} />
-                {currentShop?.shop_name || '---'}
-                <Icons.ChevronDown size={14} />
-              </button>
-              
-              {showShopDropdown && shops.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: '8px',
-                  background: isDarkMode ? '#1e293b' : '#fff',
-                  borderRadius: '12px',
-                  border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
-                  boxShadow: '0 12px 32px rgba(0,0,0,0.15)',
-                  padding: '8px',
-                  minWidth: '200px',
-                  zIndex: 1000
-                }}>
-                  {shops.map(shop => (
-                    <button 
-                      key={shop.id}
-                      onClick={() => handleShopChange(shop.id)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        background: shop.id === currentShop?.id ? (isDarkMode ? '#334155' : '#f1f5f9') : 'none',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        color: isDarkMode ? '#f1f5f9' : '#0f172a',
-                        fontSize: '14px',
-                        fontWeight: shop.id === currentShop?.id ? '600' : '500',
-                        textAlign: 'left'
-                      }}
-                      onMouseEnter={(e) => { if (shop.id !== currentShop?.id) e.currentTarget.style.background = isDarkMode ? '#334155' : '#f1f5f9'; }}
-                      onMouseLeave={(e) => { if (shop.id !== currentShop?.id) e.currentTarget.style.background = 'none'; }}
-                    >
-                      <span>{shop.shop_name}</span>
-                      {shop.id === currentShop?.id && <Icons.Check size={16} color="#10b981" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {currentShop && (
+          {/* ✅ Right: Language Flags (TZ na USA) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Tanzania Flag */}
+            <button 
+              onClick={() => handleLanguageChange('sw')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                background: lang === 'sw' ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                border: `2px solid ${lang === 'sw' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`,
+                borderRadius: '10px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                opacity: lang === 'sw' ? 1 : 0.7
+              }}
+              onMouseEnter={(e) => { if (lang !== 'sw') e.currentTarget.style.opacity = '1'; }}
+              onMouseLeave={(e) => { if (lang !== 'sw') e.currentTarget.style.opacity = 0.7; }}
+              title="Kiswahili"
+            >
+              <span style={{ fontSize: '20px' }}>🇹</span>
               <span style={{ 
-                display: 'flex', alignItems: 'center', gap: '6px', 
-                padding: '8px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', 
-                background: isShopActive(currentShop) ? '#d1fae5' : '#fee2e2', 
-                color: isShopActive(currentShop) ? '#059669' : '#dc2626' 
+                fontSize: '13px', 
+                fontWeight: lang === 'sw' ? '700' : '500', 
+                color: isDarkMode ? '#f1f5f9' : '#0f172a' 
               }}>
-                {isShopActive(currentShop) ? <Icons.Activity size={14} /> : <Icons.XCircle size={14} />}
-                {isShopActive(currentShop) ? (lang === 'sw' ? 'Inafanya Kazi' : 'Active') : (lang === 'sw' ? 'Imefungwa' : 'Closed')}
+                SW
               </span>
-            )}
+            </button>
+
+            {/* USA Flag */}
+            <button 
+              onClick={() => handleLanguageChange('en')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                background: lang === 'en' ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                border: `2px solid ${lang === 'en' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`,
+                borderRadius: '10px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                opacity: lang === 'en' ? 1 : 0.7
+              }}
+              onMouseEnter={(e) => { if (lang !== 'en') e.currentTarget.style.opacity = '1'; }}
+              onMouseLeave={(e) => { if (lang !== 'en') e.currentTarget.style.opacity = 0.7; }}
+              title="English"
+            >
+              <span style={{ fontSize: '20px' }}>🇺🇸</span>
+              <span style={{ 
+                fontSize: '13px', 
+                fontWeight: lang === 'en' ? '700' : '500', 
+                color: isDarkMode ? '#f1f5f9' : '#0f172a' 
+              }}>
+                EN
+              </span>
+            </button>
           </div>
         </div>
 

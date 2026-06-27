@@ -5,6 +5,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -24,7 +25,8 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
     confirmPassword: ''
   });
 
-  const triggerToast = (msg, type = 'success') => {
+  const triggerToast = (msg) => {
+    console.log('Toast:', msg);
     setToastMessage(msg);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
@@ -32,11 +34,16 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
 
   useEffect(() => {
     const loadData = async () => {
+      console.log('Loading profile data...');
       setLoading(true);
       try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
+        if (userError) {
+          console.error('User error:', userError);
+          throw userError;
+        }
         
+        console.log('User loaded:', user?.email);
         if (user) {
           setUser(user);
           const { data: profileData, error: profileError } = await supabase
@@ -45,10 +52,14 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
             .eq('id', user.id)
             .single();
           
-          if (profileError && profileError.code !== 'PGRST116') {
-            throw profileError;
+          if (profileError) {
+            console.error('Profile error:', profileError);
+            if (profileError.code !== 'PGRST116') {
+              throw profileError;
+            }
           }
           
+          console.log('Profile data:', profileData);
           if (profileData) {
             setProfile(profileData);
             setEditForm({
@@ -62,7 +73,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
         }
       } catch (err) {
         console.error('Error loading profile:', err);
-        triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
+        triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
       } finally {
         setLoading(false);
       }
@@ -73,18 +84,20 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
   // Handle photo upload
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
+    console.log('File selected:', file);
+    
     if (!file || !user) {
-      triggerToast(lang === 'sw' ? 'Hakuna picha iliyochaguliwa' : 'No file selected', 'error');
+      triggerToast(lang === 'sw' ? 'Hakuna picha iliyochaguliwa' : 'No file selected');
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      triggerToast(lang === 'sw' ? 'Picha ni kubwa sana! Max 2MB' : 'Photo too large! Max 2MB', 'error');
+      triggerToast(lang === 'sw' ? 'Picha ni kubwa sana! Max 2MB' : 'Photo too large! Max 2MB');
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      triggerToast(lang === 'sw' ? 'Tafadhali chagua picha tu (JPG, PNG)' : 'Please select an image only (JPG, PNG)', 'error');
+      triggerToast(lang === 'sw' ? 'Tafadhali chagua picha tu' : 'Please select an image only');
       return;
     }
 
@@ -94,72 +107,112 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
       reader.onloadend = async () => {
         try {
           const base64 = reader.result;
+          console.log('Uploading photo...');
           
-          const { error } = await supabase
+          const { data, error } = await supabase
             .from('profiles')
             .update({ avatar_url: base64 })
-            .eq('id', user.id);
+            .eq('id', user.id)
+            .select()
+            .single();
 
-          if (error) throw error;
-          
-          // Update local state
+          if (error) {
+            console.error('Upload error:', error);
+            throw error;
+          }
+
+          console.log('Upload success:', data);
           setProfile({ ...profile, avatar_url: base64 });
           
-          // Notify parent component (Dashboard) to refresh topbar avatar
           if (onProfileUpdate) {
             await onProfileUpdate();
           }
           
           triggerToast(lang === 'sw' ? '✅ Picha imebadilishwa!' : '✅ Photo updated!');
         } catch (err) {
-          console.error('Error:', err);
-          triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
+          console.error('Error in upload:', err);
+          triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
         } finally {
           setUploadingPhoto(false);
         }
       };
       
       reader.onerror = () => {
-        triggerToast(lang === 'sw' ? 'Hitilafu ya kusoma faili' : 'Error reading file', 'error');
+        console.error('FileReader error');
+        triggerToast(lang === 'sw' ? 'Hitilafu ya kusoma faili' : 'Error reading file');
         setUploadingPhoto(false);
       };
       
       reader.readAsDataURL(file);
     } catch (err) {
-      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
+      console.error('Upload error:', err);
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
       setUploadingPhoto(false);
     }
   };
 
+  // Handle edit profile - IMEREKEBISHWA
   const handleEditProfile = async (e) => {
     e.preventDefault();
-    if (!user) return;
+    console.log('Form submitted!');
+    console.log('User:', user);
+    console.log('Edit form:', editForm);
+    
+    if (!user) {
+      console.error('No user found!');
+      triggerToast(lang === 'sw' ? '❌ Hakuna user! Ingia tena.' : '❌ No user! Please login again.');
+      return;
+    }
 
+    setSaving(true);
     try {
-      const { error } = await supabase
+      console.log('Updating profile...');
+      const { data, error } = await supabase
         .from('profiles')
-        .update(editForm)
-        .eq('id', user.id);
+        .update({
+          full_name: editForm.full_name,
+          phone: editForm.phone,
+          gender: editForm.gender,
+          address: editForm.address,
+          business_name: editForm.business_name,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id)
+        .select()
+        .single();
 
-      if (error) throw error;
-      
+      if (error) {
+        console.error('Update error:', error);
+        throw error;
+      }
+
+      console.log('Update success:', data);
       setProfile({ ...profile, ...editForm });
       setShowEditModal(false);
-      if (onProfileUpdate) await onProfileUpdate();
+      
+      if (onProfileUpdate) {
+        await onProfileUpdate();
+      }
+      
       triggerToast(lang === 'sw' ? '✅ Taarifa zimesasishwa!' : '✅ Profile updated!');
     } catch (err) {
-      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message, 'error');
+      console.error('Error updating profile:', err);
+      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
+    console.log('Change password form submitted');
+    
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      triggerToast(lang === 'sw' ? ' Nenosiri hazifanani!' : ' Passwords do not match!', 'error');
+      triggerToast(lang === 'sw' ? '❌ Nenosiri hazifanani!' : '❌ Passwords do not match!');
       return;
     }
     if (passwordForm.newPassword.length < 6) {
-      triggerToast(lang === 'sw' ? '❌ Nenosiri iwe na herufi 6+' : ' Password must be 6+ characters', 'error');
+      triggerToast(lang === 'sw' ? '❌ Nenosiri iwe na herufi 6+' : '❌ Password must be 6+ characters');
       return;
     }
 
@@ -174,7 +227,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
       setPasswordForm({ newPassword: '', confirmPassword: '' });
       triggerToast(lang === 'sw' ? '✅ Nenosiri limebadilishwa!' : '✅ Password changed!');
     } catch (err) {
-      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message, 'error');
+      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
     }
   };
 
@@ -262,7 +315,6 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
               )}
             </div>
             
-            {/* Select Picture Button */}
             <label 
               style={{
                 display: 'inline-flex',
@@ -281,7 +333,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
             >
               <Icons.Camera size={16} />
               {uploadingPhoto 
-                ? (lang === 'sw' ? '⏳ Inapakiwa...' : ' Uploading...') 
+                ? (lang === 'sw' ? '⏳ Inapakiwa...' : '⏳ Uploading...') 
                 : (lang === 'sw' ? '📷 Chagua Picha' : '📷 Select Picture')}
               <input 
                 type="file" 
@@ -339,7 +391,6 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
               })}
             </div>
 
-            {/* Roles */}
             <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
                 <div style={{ 
@@ -381,7 +432,6 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div style={{ marginTop: '32px', display: 'flex', gap: '12px' }}>
               <button 
                 onClick={() => setShowEditModal(true)}
@@ -447,19 +497,42 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
                   {lang === 'sw' ? 'Jina Kamili' : 'Full Name'}
                 </label>
-                <input type="text" value={editForm.full_name} onChange={(e) => setEditForm({...editForm, full_name: e.target.value})} style={inputStyle} />
+                <input 
+                  type="text" 
+                  value={editForm.full_name} 
+                  onChange={(e) => {
+                    console.log('Full name changed:', e.target.value);
+                    setEditForm({...editForm, full_name: e.target.value});
+                  }} 
+                  style={inputStyle} 
+                />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
                   {lang === 'sw' ? 'Namba ya Simu' : 'Phone'}
                 </label>
-                <input type="tel" value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} style={inputStyle} />
+                <input 
+                  type="tel" 
+                  value={editForm.phone} 
+                  onChange={(e) => {
+                    console.log('Phone changed:', e.target.value);
+                    setEditForm({...editForm, phone: e.target.value});
+                  }} 
+                  style={inputStyle} 
+                />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
                   {lang === 'sw' ? 'Jinsia' : 'Gender'}
                 </label>
-                <select value={editForm.gender} onChange={(e) => setEditForm({...editForm, gender: e.target.value})} style={inputStyle}>
+                <select 
+                  value={editForm.gender} 
+                  onChange={(e) => {
+                    console.log('Gender changed:', e.target.value);
+                    setEditForm({...editForm, gender: e.target.value});
+                  }} 
+                  style={inputStyle}
+                >
                   <option value="">{lang === 'sw' ? 'Chagua...' : 'Select...'}</option>
                   <option value="male">{lang === 'sw' ? 'Mwanaume' : 'Male'}</option>
                   <option value="female">{lang === 'sw' ? 'Mwanamke' : 'Female'}</option>
@@ -469,20 +542,67 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
                   {lang === 'sw' ? 'Anwani' : 'Address'}
                 </label>
-                <input type="text" value={editForm.address} onChange={(e) => setEditForm({...editForm, address: e.target.value})} style={inputStyle} />
+                <input 
+                  type="text" 
+                  value={editForm.address} 
+                  onChange={(e) => {
+                    console.log('Address changed:', e.target.value);
+                    setEditForm({...editForm, address: e.target.value});
+                  }} 
+                  style={inputStyle} 
+                />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
                   {lang === 'sw' ? 'Jina la Biashara' : 'Business Name'}
                 </label>
-                <input type="text" value={editForm.business_name} onChange={(e) => setEditForm({...editForm, business_name: e.target.value})} style={inputStyle} />
+                <input 
+                  type="text" 
+                  value={editForm.business_name} 
+                  onChange={(e) => {
+                    console.log('Business name changed:', e.target.value);
+                    setEditForm({...editForm, business_name: e.target.value});
+                  }} 
+                  style={inputStyle} 
+                />
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setShowEditModal(false)} style={{ flex: 1, padding: '12px', background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: isDarkMode ? '#f1f5f9' : '#475569' }}>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    console.log('Cancel clicked');
+                    setShowEditModal(false);
+                  }} 
+                  style={{ 
+                    flex: 1, 
+                    padding: '12px', 
+                    background: isDarkMode ? '#334155' : '#f1f5f9', 
+                    border: 'none', 
+                    borderRadius: '10px', 
+                    fontWeight: '600', 
+                    cursor: 'pointer', 
+                    color: isDarkMode ? '#f1f5f9' : '#475569' 
+                  }}
+                >
                   {lang === 'sw' ? 'Ghairi' : 'Cancel'}
                 </button>
-                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>
-                  {lang === 'sw' ? 'Hifadhi' : 'Save'}
+                <button 
+                  type="submit" 
+                  disabled={saving}
+                  style={{ 
+                    flex: 2, 
+                    padding: '12px', 
+                    background: saving ? '#94a3b8' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', 
+                    color: '#fff', 
+                    border: 'none', 
+                    borderRadius: '10px', 
+                    fontWeight: '600', 
+                    cursor: saving ? 'not-allowed' : 'pointer' 
+                  }}
+                >
+                  {saving 
+                    ? (lang === 'sw' ? '⏳ Inahifadhi...' : '⏳ Saving...') 
+                    : (lang === 'sw' ? 'Hifadhi' : 'Save')}
                 </button>
               </div>
             </form>
@@ -533,7 +653,7 @@ const Profile = ({ lang, supabase, isDarkMode, onBack, onProfileUpdate }) => {
           position: 'fixed', 
           top: '30px', 
           right: '30px', 
-          background: toastMessage.includes('') || toastMessage.includes('Error') || toastMessage.includes('Hitilafu') ? '#ef4444' : '#10b981', 
+          background: toastMessage.includes('❌') || toastMessage.includes('Error') || toastMessage.includes('Hitilafu') ? '#ef4444' : '#10b981', 
           color: '#fff', 
           padding: '14px 24px', 
           borderRadius: '12px', 
