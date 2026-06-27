@@ -1,248 +1,196 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { translations } from '../translations';
-import { THEME, getThemeColors } from '../theme';
-import Toast from './Toast';
-import ConfirmModal from './ConfirmModal';
+import React, { useState, useEffect } from 'react';
 
-const fmt = (val) => { if (val == null || val === '') return '0'; const n = Number(val); return isNaN(n) ? '0' : n.toLocaleString(); };
-
-const Products = ({ supabase, lang, userId, theme, showToast: parentShowToast, mode = 'cashier', session, searchTrigger }) => {
-  const isDark = theme === 'dark';
-  const colors = getThemeColors(isDark);
-  const t = translations[lang]?.products || translations.sw.products;
-  
-  const effectiveUserId = userId || session?.user?.id;
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : true);
+const Products = ({ lang, supabase, currentShop }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState('');
-  const [showBottomSheet, setShowBottomSheet] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [deleteId, setDeleteId] = useState(null);
-  const [swipedId, setSwipedId] = useState(null);
-  const [touchStartX, setTouchStartX] = useState(0);
-  const [form, setForm] = useState({ name: '', cost_price: '', selling_price: '', stock_quantity: '', barcode: '', category: '' });
-  const [toast, setToast] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [formData, setFormData] = useState({ name: '', category: 'Vyakula', buyPrice: '', sellPrice: '', stock: '', emoji: '📦' });
 
+  // ✅ FETCH REAL DATA FROM SUPABASE
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    if (typeof window !== 'undefined') {
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-    }
-  }, []);
-
-  const showToast = useCallback((message, type = 'info') => {
-    setToast({ message, type, id: Date.now() });
-    if (parentShowToast) parentShowToast(message, type);
-  }, [parentShowToast]);
-
-  useEffect(() => {
-    if (!supabase || !effectiveUserId) return;
-    let active = true;
-    const fetch = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase.from('products').select('*').eq('user_id', effectiveUserId).order('name');
-        if (error) throw error;
-        if (active) setProducts(Array.isArray(data) ? data : []);
-      } catch (err) { showToast(' Imeshindwa kupakia bidhaa', 'error'); } finally { if (active) setLoading(false); }
-    };
-    fetch();
-    return () => { active = false; };
-  }, [supabase, effectiveUserId, lang, showToast]);
-
-  const openForm = (product = null) => {
-    if (mode === 'admin') return showToast(' Hali ya Admin inaruhusu kutazama tu.', 'warning');
-    setEditing(product);
-    setForm({
-      name: product?.name || '', cost_price: product?.cost_price || '', selling_price: product?.selling_price || '',
-      stock_quantity: product?.stock_quantity || '', barcode: product?.barcode || '', category: product?.category || ''
-    });
-    setShowBottomSheet(true);
-  };
-
-  const closeForm = () => { setShowBottomSheet(false); setEditing(null); };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!effectiveUserId) { showToast('❌ User ID haipatikani.', 'error'); return; }
-    if (!form.name.trim()) { showToast('❌ Jina la bidhaa linahitajika!', 'error'); return; }
-    if (!form.selling_price || Number(form.selling_price) <= 0) { showToast('❌ Bei ya kuuza inahitajika!', 'error'); return; }
+    if (!currentShop?.id) return;
     
-    setSaving(true);
-    try {
-      const payload = { name: form.name.trim(), cost_price: Number(form.cost_price) || 0, selling_price: Number(form.selling_price) || 0, stock_quantity: Number(form.stock_quantity) || 0, barcode: form.barcode?.trim() || null, category: form.category?.trim() || null, user_id: effectiveUserId };
-      let result = editing ? await supabase.from('products').update(payload).eq('id', editing.id).eq('user_id', effectiveUserId).select() : await supabase.from('products').insert(payload).select();
-      if (result.error) throw result.error;
-      const { data: updatedProducts } = await supabase.from('products').select('*').eq('user_id', effectiveUserId).order('name');
-      setProducts(Array.isArray(updatedProducts) ? updatedProducts : []);
-      showToast(editing ? '✅ Bidhaa imesasishwa!' : t.saved, 'success');
-      closeForm();
-    } catch (err) { showToast(` ${err.message}`, 'error'); } finally { setSaving(false); }
+    const fetchProducts = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('shop_id', currentShop.id)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) setProducts(data);
+      setLoading(false);
+    };
+    fetchProducts();
+  }, [currentShop, supabase]);
+
+  const filteredProducts = products.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const openModal = (product = null) => {
+    if (product) {
+      setEditingProduct(product);
+      setFormData({ name: product.name, category: product.category, buyPrice: product.buy_price, sellPrice: product.sell_price, stock: product.stock, emoji: product.emoji || '📦' });
+    } else {
+      setEditingProduct(null);
+      setFormData({ name: '', category: 'Vyakula', buyPrice: '', sellPrice: '', stock: '', emoji: '📦' });
+    }
+    setIsModalOpen(true);
   };
 
-  const handleDeleteRequest = (id) => {
-    if (mode === 'admin') return showToast('🔒 Hali ya Admin inaruhusu kutazama tu.', 'warning');
-    setDeleteId(id);
-    setSwipedId(null);
+  const closeModal = () => { setIsModalOpen(false); setEditingProduct(null); };
+
+  // ✅ SAVE TO SUPABASE
+  const handleSave = async (e) => {
+    e.preventDefault();
+    const productData = {
+      shop_id: currentShop.id,
+      name: formData.name,
+      category: formData.category,
+      buy_price: Number(formData.buyPrice),
+      sell_price: Number(formData.sellPrice),
+      stock: Number(formData.stock),
+      emoji: formData.emoji
+    };
+
+    if (editingProduct) {
+      await supabase.from('products').update(productData).eq('id', editingProduct.id);
+      setProducts(products.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p));
+    } else {
+      const { data, error } = await supabase.from('products').insert([productData]).select().single();
+      if (!error && data) setProducts([data, ...products]);
+    }
+    closeModal();
   };
 
-  const confirmDelete = async () => {
-    if (!deleteId) return;
-    try {
-      const { error } = await supabase.from('products').delete().eq('id', deleteId).eq('user_id', effectiveUserId);
-      if (error) throw error;
-      setProducts(prev => prev.filter(p => p.id !== deleteId));
-      showToast(t.deleted, 'success');
-    } catch (err) { showToast('❌ Imeshindwa kufuta', 'error'); } finally { setDeleteId(null); }
+  // ✅ DELETE FROM SUPABASE
+  const handleDelete = async (id) => {
+    if (window.confirm(lang === 'sw' ? 'Una uhakika unataka kufuta bidhaa hii?' : 'Are you sure?')) {
+      await supabase.from('products').delete().eq('id', id);
+      setProducts(products.filter(p => p.id !== id));
+    }
   };
 
-  const handleTouchStart = (e, id) => { setTouchStartX(e.touches[0].clientX); setSwipedId(id); };
-  const handleTouchEnd = (e, id) => {
-    const touchEndX = e.changedTouches[0].clientX;
-    const diff = touchStartX - touchEndX;
-    if (diff < 50) setSwipedId(null);
-  };
-
-  const filtered = products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && String(p.barcode).includes(search)));
-
-  const inputStyle = { padding: '14px', fontSize: '16px', background: isDark ? 'rgba(30,41,59,0.5)' : '#ffffff', color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '12px', width: '100%', boxSizing: 'border-box' };
+  const formatCurrency = (amount) => new Intl.NumberFormat('sw-TZ', { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 }).format(amount);
+  const inputStyle = { width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' };
 
   return (
-    <div style={{ background: 'transparent', padding: isMobile ? '12px' : THEME.space.xl, width: '100%', boxSizing: 'border-box' }}>
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <ConfirmModal isOpen={!!deleteId} onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} title="Futa Bidhaa" message="Je, una uhakika unataka kufuta bidhaa hii?" />
-
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px', marginBottom: '16px' }}>
-        <div style={{ position: 'relative', flex: '1 1 300px' }}>
-          <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '16px', opacity: 0.5 }}>🔍</span>
-          <input type="text" placeholder={`${t.searchPlaceholder} (Ctrl+K)`} value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, paddingLeft: '40px' }} />
-          {search && <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#94a3b8' }}>✕</button>}
+    <div style={{ position: 'relative', zIndex: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#1e293b' }}>{lang === 'sw' ? 'Orodha ya Bidhaa' : 'Products Inventory'}</h2>
+          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>{products.length} {lang === 'sw' ? 'bidhaa zilizosajiliwa' : 'registered products'}</p>
         </div>
-        {mode === 'cashier' && (
-          <button onClick={() => openForm()} disabled={saving} className="btn-micro gradient-primary shadow-premium" style={{ color: '#fff', border: 'none', padding: '14px 20px', borderRadius: '12px', fontWeight: 'bold', fontSize: '15px', opacity: saving ? 0.6 : 1 }}>
-            {t.addProduct}
-          </button>
+        <button onClick={() => openModal()} style={{ padding: '12px 24px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '18px' }}>➕</span> {lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Product'}
+        </button>
+      </div>
+
+      <div style={{ marginBottom: '24px', position: 'relative' }}>
+        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '18px', color: '#94a3b8' }}>🔍</span>
+        <input type="text" placeholder={lang === 'sw' ? 'Tafuta bidhaa...' : 'Search products...'} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ width: '100%', padding: '14px 14px 14px 48px', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none', background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(10px)', boxSizing: 'border-box' }} />
+      </div>
+
+      <div style={{ background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(10px)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.5)', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>⏳ Inapakia bidhaa...</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', color: '#64748b' }}>{lang === 'sw' ? 'Bidhaa' : 'Product'}</th>
+                <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', color: '#64748b' }}>{lang === 'sw' ? 'Aina' : 'Category'}</th>
+                <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', color: '#64748b' }}>{lang === 'sw' ? 'Bei ya Kununua' : 'Buy Price'}</th>
+                <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', color: '#64748b' }}>{lang === 'sw' ? 'Bei ya Kuuza' : 'Sell Price'}</th>
+                <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', color: '#64748b' }}>Stock</th>
+                <th style={{ padding: '16px', textAlign: 'right', fontSize: '13px', color: '#64748b' }}>{lang === 'sw' ? 'Vitendo' : 'Actions'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map(product => (
+                <tr key={product.id} style={{ borderBottom: '1px solid #f1f5f9' }} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                  <td style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>{product.emoji}</div>
+                      <span style={{ fontWeight: '600', color: '#1e293b' }}>{product.name}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '16px', color: '#64748b', fontSize: '14px' }}>{product.category}</td>
+                  <td style={{ padding: '16px', color: '#64748b', fontSize: '14px' }}>{formatCurrency(product.buy_price)}</td>
+                  <td style={{ padding: '16px', fontWeight: '600', color: '#1e293b', fontSize: '14px' }}>{formatCurrency(product.sell_price)}</td>
+                  <td style={{ padding: '16px' }}>
+                    <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: product.stock < 10 ? '#fee2e2' : '#dcfce7', color: product.stock < 10 ? '#dc2626' : '#16a34a' }}>
+                      {product.stock} pcs
+                    </span>
+                  </td>
+                  <td style={{ padding: '16px', textAlign: 'right' }}>
+                    <button onClick={() => openModal(product)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', marginRight: '8px', color: '#667eea' }}>✏️</button>
+                    <button onClick={() => handleDelete(product.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#ef4444' }}>️</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {!loading && filteredProducts.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+            <div style={{ fontSize: '40px', marginBottom: '10px' }}>📦</div>
+            <p>{lang === 'sw' ? 'Hakuna bidhaa bado. Bofya "Ongeza Bidhaa" kuanza.' : 'No products yet. Click "Add Product" to start.'}</p>
+          </div>
         )}
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px' }}><div style={{ display: 'inline-block', width: '40px', height: '40px', border: '4px solid #e2e8f0', borderTopColor: THEME.colors.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div></div>
-      ) : filtered.length === 0 ? (
-        <div className="glass shadow-premium" style={{ textAlign: 'center', padding: '60px 20px', borderRadius: '16px' }}><div style={{ fontSize: '50px', marginBottom: '10px' }}>📦</div><p style={{ color: colors.text, fontSize: '15px', fontWeight: '500' }}>{t.noProducts}</p></div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-          {filtered.map(p => {
-            const profit = (p.selling_price || 0) - (p.cost_price || 0);
-            const isSwiped = swipedId === p.id;
-            return (
-              <div key={p.id} style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                {isMobile && mode === 'cashier' && (
-                  <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: '100px', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', zIndex: 1 }}>
-                    <button onClick={() => handleDeleteRequest(p.id)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '20px' }}>🗑️</span> Futa
-                    </button>
-                  </div>
-                )}
-                
-                <div 
-                  className="glass"
-                  onTouchStart={(e) => handleTouchStart(e, p.id)}
-                  onTouchEnd={(e) => handleTouchEnd(e, p.id)}
-                  style={{ 
-                    padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative', zIndex: 2,
-                    transform: isMobile && isSwiped ? 'translateX(-80px)' : 'translateX(0)',
-                    transition: 'transform 0.2s ease',
-                    background: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.9)'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <h4 style={{ margin: 0, fontSize: '16px', color: colors.text, fontWeight: '600', flex: 1 }}>{p.name}</h4>
-                    {mode === 'cashier' && !isMobile && (
-                      <button onClick={() => openForm(p)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '16px' }}>✏️</button>
-                    )}
-                  </div>
-                  <p style={{ margin: 0, color: THEME.colors.success, fontWeight: 'bold', fontSize: '1.2rem' }}>{fmt(p.selling_price)} TSh</p>
-                  
-                  {mode === 'admin' && (
-                    <div style={{ padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '8px', borderLeft: '3px solid #3b82f6' }}>
-                      <p style={{ margin: '2px 0', fontSize: '12px', color: '#f59e0b' }}>🏷️ Kununua: {fmt(p.cost_price)} TSh</p>
-                      <p style={{ margin: '2px 0', fontSize: '12px', color: '#10b981', fontWeight: 'bold' }}>📈 Faida: {fmt(profit)} TSh</p>
-                    </div>
-                  )}
-                  
-                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: colors.textSec }}> Stock: <strong style={{ color: (p.stock_quantity || 0) < 5 ? '#ef4444' : colors.text }}>{p.stock_quantity ?? '-'}</strong></p>
-                  
-                  {mode === 'cashier' && isMobile && (
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                      <button onClick={() => openForm(p)} className="btn-micro" style={{ flex: 1, padding: '8px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px' }}>✏️ Hariri</button>
-                    </div>
-                  )}
+      {isModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '500px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1e293b' }}>{editingProduct ? (lang === 'sw' ? 'Hariri Bidhaa' : 'Edit Product') : (lang === 'sw' ? 'Ongeza Bidhaa Mpya' : 'Add New Product')}</h2>
+              <button onClick={closeModal} style={{ background: '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+            </div>
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'sw' ? 'Jina la Bidhaa' : 'Product Name'}</label>
+                <input type="text" required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'sw' ? 'Aina' : 'Category'}</label>
+                  <select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} style={inputStyle}>
+                    <option>Vyakula</option><option>Vinywaji</option><option>Vipodozi</option><option>Nyumbani</option><option>Elektroniki</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#475569' }}>Icon/Emoji</label>
+                  <input type="text" value={formData.emoji} onChange={(e) => setFormData({...formData, emoji: e.target.value})} style={inputStyle} />
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      {isMobile && showBottomSheet && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 999, animation: 'fadeIn 0.2s ease' }} onClick={closeForm} />
-          <div style={{ 
-            position: 'fixed', bottom: 0, left: 0, right: 0, 
-            background: isDark ? '#0f172a' : '#ffffff', 
-            borderRadius: '24px 24px 0 0', padding: '24px 20px 40px', 
-            zIndex: 1000, maxHeight: '90vh', overflowY: 'auto',
-            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-            boxShadow: '0 -10px 40px rgba(0,0,0,0.2)'
-          }}>
-            <div style={{ width: '40px', height: '4px', background: '#cbd5e1', borderRadius: '2px', margin: '0 auto 20px' }} />
-            <h3 style={{ margin: '0 0 20px', color: colors.text, fontSize: '18px', fontWeight: '700' }}>{editing ? 'Hariri Bidhaa' : 'Ongeza Bidhaa Mpya'}</h3>
-            <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '12px' }}>
-              <input required placeholder="Jina la Bidhaa" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} disabled={saving} style={inputStyle} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <input required type="number" step="0.01" placeholder="Bei ya Kununua" value={form.cost_price} onChange={e => setForm({ ...form, cost_price: e.target.value })} disabled={saving} style={inputStyle} />
-                <input required type="number" step="0.01" placeholder="Bei ya Kuuza" value={form.selling_price} onChange={e => setForm({ ...form, selling_price: e.target.value })} disabled={saving} style={{...inputStyle, fontWeight: 'bold'}} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'sw' ? 'Bei ya Kununua' : 'Buy Price'}</label>
+                  <input type="number" required value={formData.buyPrice} onChange={(e) => setFormData({...formData, buyPrice: Number(e.target.value)})} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'sw' ? 'Bei ya Kuuza' : 'Sell Price'}</label>
+                  <input type="number" required value={formData.sellPrice} onChange={(e) => setFormData({...formData, sellPrice: Number(e.target.value)})} style={inputStyle} />
+                </div>
               </div>
-              <input type="number" placeholder="Idadi ya Stock" value={form.stock_quantity} onChange={e => setForm({ ...form, stock_quantity: e.target.value })} disabled={saving} style={inputStyle} />
-              <input placeholder="Barcode (Hiari)" value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} disabled={saving} style={inputStyle} />
-              <input placeholder="Kategoria (Hiari)" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} disabled={saving} style={inputStyle} />
-              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                <button type="button" onClick={closeForm} disabled={saving} style={{ flex: 1, padding: '16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px' }}>Ghairi</button>
-                <button type="submit" disabled={saving} className="btn-micro gradient-primary shadow-premium" style={{ flex: 1, padding: '16px', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', opacity: saving ? 0.7 : 1 }}>
-                  {saving ? 'Inahifadhi...' : (editing ? 'Sasisha' : 'Hifadhi')}
-                </button>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#475569' }}>Stock</label>
+                <input type="number" required value={formData.stock} onChange={(e) => setFormData({...formData, stock: Number(e.target.value)})} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="button" onClick={closeModal} style={{ flex: 1, padding: '14px', background: '#f1f5f9', border: 'none', borderRadius: '12px', fontWeight: '600', cursor: 'pointer', color: '#64748b' }}>{lang === 'sw' ? 'Ghairi' : 'Cancel'}</button>
+                <button type="submit" style={{ flex: 2, padding: '14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>{editingProduct ? (lang === 'sw' ? 'Hifadhi' : 'Save') : (lang === 'sw' ? 'Ongeza' : 'Add')}</button>
               </div>
             </form>
           </div>
-        </>
-      )}
-
-      {!isMobile && showBottomSheet && (
-        <div className="glass shadow-premium" style={{ padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '2px solid #3b82f6' }}>
-          <h3 style={{ margin: '0 0 16px', color: colors.text }}>{editing ? 'Hariri Bidhaa' : 'Ongeza Bidhaa Mpya'}</h3>
-          <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-            <input required placeholder="Jina la Bidhaa" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} disabled={saving} style={inputStyle} />
-            <input required type="number" step="0.01" placeholder="Bei ya Kununua" value={form.cost_price} onChange={e => setForm({ ...form, cost_price: e.target.value })} disabled={saving} style={inputStyle} />
-            <input required type="number" step="0.01" placeholder="Bei ya Kuuza" value={form.selling_price} onChange={e => setForm({ ...form, selling_price: e.target.value })} disabled={saving} style={{...inputStyle, fontWeight: 'bold'}} />
-            <input type="number" placeholder="Stock" value={form.stock_quantity} onChange={e => setForm({ ...form, stock_quantity: e.target.value })} disabled={saving} style={inputStyle} />
-            <input placeholder="Barcode" value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} disabled={saving} style={inputStyle} />
-            <input placeholder="Kategoria" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} disabled={saving} style={inputStyle} />
-            <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '12px' }}>
-              <button type="submit" disabled={saving} className="btn-micro gradient-success shadow-premium" style={{ flex: 1, padding: '12px', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold' }}>{saving ? 'Inahifadhi...' : t.saveProduct}</button>
-              <button type="button" onClick={closeForm} disabled={saving} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '12px', fontWeight: 'bold' }}>Ghairi</button>
-            </div>
-          </form>
         </div>
       )}
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      `}</style>
     </div>
   );
 };
