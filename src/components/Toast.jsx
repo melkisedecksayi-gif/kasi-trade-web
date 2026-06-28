@@ -1,68 +1,31 @@
 import React, { useEffect } from 'react';
 
-const Toast = ({ message, type = 'info', onClose, duration = 3000 }) => {
+const Toast = ({ message, type = 'success', onClose }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
-      onClose();
-    }, duration);
+      if (onClose) onClose();
+    }, 3000);
+
     return () => clearTimeout(timer);
-  }, [onClose, duration]);
+  }, [onClose]);
 
-  const getColors = () => {
-    switch (type) {
-      case 'success': return { bg: '#f0fdf4', border: '#22c55e', text: '#166534', icon: '✅' };
-      case 'error': return { bg: '#fef2f2', border: '#ef4444', text: '#991b1b', icon: '' };
-      case 'warning': return { bg: '#fffbeb', border: '#f59e0b', text: '#92400e', icon: '⚠️' };
-      default: return { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af', icon: 'ℹ️' };
-    }
-  };
-
-  const colors = getColors();
+  const bgColor = type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#10b981';
 
   return (
-    <div 
-      className="toast-enter"
-      style={{
-        position: 'fixed',
-        top: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 99999,
-        background: colors.bg,
-        border: `1px solid ${colors.border}`,
-        borderLeft: `4px solid ${colors.border}`,
-        color: colors.text,
-        padding: '14px 20px',
-        borderRadius: '12px',
-        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        fontSize: '14px',
-        fontWeight: '500',
-        maxWidth: '90%',
-        width: 'auto',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)'
-      }}
-    >
-      <span style={{ fontSize: '18px' }}>{colors.icon}</span>
-      <span style={{ flex: 1 }}>{message}</span>
-      <button 
-        onClick={onClose}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: colors.text,
-          fontSize: '18px',
-          cursor: 'pointer',
-          padding: '0 4px',
-          lineHeight: 1,
-          opacity: 0.6
-        }}
-      >
-        ✕
-      </button>
+    <div style={{
+      position: 'fixed',
+      top: '30px',
+      right: '30px',
+      background: bgColor,
+      color: '#fff',
+      padding: '14px 24px',
+      borderRadius: '12px',
+      boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+      zIndex: 2000,
+      fontSize: '14px',
+      fontWeight: '600'
+    }}>
+      {message}
     </div>
   );
 };
