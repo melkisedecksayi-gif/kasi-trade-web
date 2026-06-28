@@ -7,11 +7,8 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
   const [toastMessage, setToastMessage] = useState('');
   const [showAddShopModal, setShowAddShopModal] = useState(false);
   const [newShopForm, setNewShopForm] = useState({ shop_name: '', shop_type: 'duka', region: '' });
-  const [helpSearch, setHelpSearch] = useState('');
-  const [expandedFaq, setExpandedFaq] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Working Hours State
   const [workingHours, setWorkingHours] = useState({
     monday: { open: '08:00', close: '20:00', isClosed: false },
     tuesday: { open: '08:00', close: '20:00', isClosed: false },
@@ -22,7 +19,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
     sunday: { open: '10:00', close: '16:00', isClosed: true }
   });
 
-  // Tax State
   const [taxSettings, setTaxSettings] = useState({
     taxEnabled: true,
     taxRate: 18,
@@ -31,7 +27,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
     priceIncludesTax: false
   });
 
-  // Receipt State
   const [receiptSettings, setReceiptSettings] = useState({
     showHeader: true,
     headerText: 'Thank you for your purchase!',
@@ -41,17 +36,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
     showDiscount: true,
     showBarcode: true,
     receiptTitle: currentShop?.shop_name || 'Receipt'
-  });
-
-  // Staff State
-  const [staffList, setStaffList] = useState([]);
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
-  const [staffForm, setStaffForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    role: 'cashier',
-    password: ''
   });
 
   const triggerToast = (msg) => {
@@ -87,7 +71,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
     }
   };
 
-  // Save Working Hours
   const handleSaveHours = async () => {
     setSaving(true);
     try {
@@ -101,15 +84,14 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
         .eq('id', currentShop.id);
 
       if (error) throw error;
-      triggerToast(lang === 'sw' ? '✅ Masaa yamehifadhiwa!' : '✅ Hours saved!');
+      triggerToast(lang === 'sw' ? 'Masaa yamehifadhiwa!' : 'Hours saved!');
     } catch (err) {
-      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
     } finally {
       setSaving(false);
     }
   };
 
-  // Save Tax Settings
   const handleSaveTax = async () => {
     setSaving(true);
     try {
@@ -125,15 +107,14 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
         .eq('id', currentShop.id);
 
       if (error) throw error;
-      triggerToast(lang === 'sw' ? '✅ Kodi imehifadhiwa!' : '✅ Tax settings saved!');
+      triggerToast(lang === 'sw' ? 'Kodi imehifadhiwa!' : 'Tax settings saved!');
     } catch (err) {
-      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
     } finally {
       setSaving(false);
     }
   };
 
-  // Save Receipt Settings
   const handleSaveReceipt = async () => {
     setSaving(true);
     try {
@@ -145,40 +126,9 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
         .eq('id', currentShop.id);
 
       if (error) throw error;
-      triggerToast(lang === 'sw' ? '✅ Mipangilio ya risiti imehifadhiwa!' : '✅ Receipt settings saved!');
+      triggerToast(lang === 'sw' ? 'Mipangilio ya risiti imehifadhiwa!' : 'Receipt settings saved!');
     } catch (err) {
-      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Add Staff
-  const handleAddStaff = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const { data, error } = await supabase
-        .from('staff')
-        .insert([{
-          shop_id: currentShop.id,
-          name: staffForm.name,
-          email: staffForm.email,
-          phone: staffForm.phone,
-          role: staffForm.role,
-          password: staffForm.password,
-          is_active: true
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-      setStaffList([...staffList, data]);
-      setShowAddStaffModal(false);
-      setStaffForm({ name: '', email: '', phone: '', role: 'cashier', password: '' });
-      triggerToast(lang === 'sw' ? '✅ Mfanyakazi ameongezwa!' : '✅ Staff added!');
-    } catch (err) {
-      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -236,7 +186,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
         })}
       </div>
 
-      {/* =================== GENERAL TAB =================== */}
       {activeTab === 'general' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={cardStyle}>
@@ -248,7 +197,7 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
                 flex: 1, padding: '16px', border: `2px solid ${lang === 'sw' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`, borderRadius: '12px',
                 background: lang === 'sw' ? '#f0f7ff' : (isDarkMode ? '#334155' : '#fff'), cursor: 'pointer', fontWeight: '600',
                 color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px'
-              }}>🇹 Kiswahili</button>
+              }}>🇹🇿 Kiswahili</button>
               <button onClick={() => handleLanguageChange('en')} style={{
                 flex: 1, padding: '16px', border: `2px solid ${lang === 'en' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`, borderRadius: '12px',
                 background: lang === 'en' ? '#f0f7ff' : (isDarkMode ? '#334155' : '#fff'), cursor: 'pointer', fontWeight: '600',
@@ -316,7 +265,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
         </div>
       )}
 
-      {/* =================== HOURS TAB =================== */}
       {activeTab === 'hours' && (
         <div style={cardStyle}>
           <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -339,7 +287,7 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
                 <div key={day} style={{
                   display: 'flex', alignItems: 'center', gap: '16px',
                   padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc',
-                  borderRadius: '10px'
+                  borderRadius: '10px', flexWrap: 'wrap'
                 }}>
                   <div style={{ width: '120px', fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
                     {dayNames[day]}
@@ -409,12 +357,11 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
               cursor: saving ? 'not-allowed' : 'pointer'
             }}
           >
-            {saving ? (lang === 'sw' ? '⏳ Inahifadhi...' : '⏳ Saving...') : (lang === 'sw' ? 'Hifadhi Masaa' : 'Save Hours')}
+            {saving ? (lang === 'sw' ? 'Inahifadhi...' : 'Saving...') : (lang === 'sw' ? 'Hifadhi Masaa' : 'Save Hours')}
           </button>
         </div>
       )}
 
-      {/* =================== TAX TAB =================== */}
       {activeTab === 'tax' && (
         <div style={cardStyle}>
           <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -529,12 +476,11 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
               cursor: saving ? 'not-allowed' : 'pointer'
             }}
           >
-            {saving ? (lang === 'sw' ? '⏳ Inahifadhi...' : '⏳ Saving...') : (lang === 'sw' ? 'Hifadhi Kodi' : 'Save Tax Settings')}
+            {saving ? (lang === 'sw' ? 'Inahifadhi...' : 'Saving...') : (lang === 'sw' ? 'Hifadhi Kodi' : 'Save Tax Settings')}
           </button>
         </div>
       )}
 
-      {/* =================== RECEIPT TAB =================== */}
       {activeTab === 'receipt' && (
         <div style={cardStyle}>
           <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -559,9 +505,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
               <div>
                 <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
                   {lang === 'sw' ? 'Onyesha Kichwa' : 'Show Header'}
-                </div>
-                <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                  {lang === 'sw' ? 'Onyesha ujumbe wa juu' : 'Show header message'}
                 </div>
               </div>
               <button
@@ -598,9 +541,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
                 <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
                   {lang === 'sw' ? 'Onyesha Kodi' : 'Show Tax'}
                 </div>
-                <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                  {lang === 'sw' ? 'Onyesha kodi kwenye risiti' : 'Show tax on receipt'}
-                </div>
               </div>
               <button
                 onClick={() => setReceiptSettings({ ...receiptSettings, showTax: !receiptSettings.showTax })}
@@ -620,9 +560,6 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
               <div>
                 <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
                   {lang === 'sw' ? 'Onyesha Barcode' : 'Show Barcode'}
-                </div>
-                <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                  {lang === 'sw' ? 'Onyesha barcode kwenye risiti' : 'Show barcode on receipt'}
                 </div>
               </div>
               <button
@@ -656,81 +593,25 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
               cursor: saving ? 'not-allowed' : 'pointer'
             }}
           >
-            {saving ? (lang === 'sw' ? '⏳ Inahifadhi...' : '⏳ Saving...') : (lang === 'sw' ? 'Hifadhi Risiti' : 'Save Receipt Settings')}
+            {saving ? (lang === 'sw' ? 'Inahifadhi...' : 'Saving...') : (lang === 'sw' ? 'Hifadhi Risiti' : 'Save Receipt Settings')}
           </button>
         </div>
       )}
 
-      {/* =================== STAFF TAB =================== */}
       {activeTab === 'staff' && (
         <div style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icons.Users size={20} /> {lang === 'sw' ? 'Wafanyakazi' : 'Staff Members'}
+          <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+            <Icons.Users size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
+            <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+              {lang === 'sw' ? 'Wafanyakazi' : 'Staff Management'}
             </h3>
-            <button
-              onClick={() => setShowAddStaffModal(true)}
-              style={{
-                padding: '10px 20px',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: '600',
-                fontSize: '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Icons.Plus size={16} /> {lang === 'sw' ? 'Ongeza Mfanyakazi' : 'Add Staff'}
-            </button>
+            <p style={{ margin: 0, color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>
+              {lang === 'sw' ? 'Kitu hiki kitakuja hivi karibuni' : 'Coming soon'}
+            </p>
           </div>
-
-          {staffList.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-              <Icons.Users size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-              <p>{lang === 'sw' ? 'Hakuna wafanyakazi bado' : 'No staff members yet'}</p>
-              <p style={{ fontSize: '13px', marginTop: '8px' }}>
-                {lang === 'sw' ? 'Bofya "Ongeza Mfanyakazi" kuanza' : 'Click "Add Staff" to get started'}
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {staffList.map(staff => (
-                <div key={staff.id} style={{
-                  padding: '16px',
-                  background: isDarkMode ? '#334155' : '#f8fafc',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div>
-                    <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>{staff.name}</div>
-                    <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                      {staff.email} • {staff.role}
-                    </div>
-                  </div>
-                  <div style={{
-                    padding: '6px 12px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    background: staff.is_active ? '#d1fae5' : '#fee2e2',
-                    color: staff.is_active ? '#059669' : '#dc2626'
-                  }}>
-                    {staff.is_active ? (lang === 'sw' ? 'Active' : 'Active') : (lang === 'sw' ? 'Inactive' : 'Inactive')}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
-      {/* =================== HELP TAB =================== */}
       {activeTab === 'help' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={cardStyle}>
@@ -764,19 +645,35 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
 
           <div style={cardStyle}>
             <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icons.Search size={20} /> {lang === 'sw' ? 'Tafuta Msaada' : 'Search Help'}
+              <Icons.Help size={20} /> {lang === 'sw' ? 'Msaada' : 'Help'}
             </h3>
-            <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                <Icons.Search size={18} />
-              </span>
-              <input type="text" placeholder={lang === 'sw' ? 'Andika swali lako...' : 'Type your question...'} value={helpSearch} onChange={(e) => setHelpSearch(e.target.value)} style={{ ...inputStyle, paddingLeft: '44px' }} />
+            <p style={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px', lineHeight: '1.6' }}>
+              {lang === 'sw' 
+                ? 'Kwa msaada, wasiliana nasi kupitia:'
+                : 'For help, contact us via:'}
+            </p>
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <a href="mailto:support@kasitrade.co.tz" style={{
+                padding: '12px 16px', background: isDarkMode ? '#334155' : '#f1f5f9',
+                borderRadius: '10px', color: isDarkMode ? '#f1f5f9' : '#0f172a',
+                textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px',
+                fontSize: '14px'
+              }}>
+                <Icons.Mail size={18} /> support@kasitrade.co.tz
+              </a>
+              <a href="tel:+255123456789" style={{
+                padding: '12px 16px', background: isDarkMode ? '#334155' : '#f1f5f9',
+                borderRadius: '10px', color: isDarkMode ? '#f1f5f9' : '#0f172a',
+                textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px',
+                fontSize: '14px'
+              }}>
+                <Icons.Phone size={18} /> +255 123 456 789
+              </a>
             </div>
           </div>
         </div>
       )}
 
-      {/* ADD SHOP MODAL */}
       {showAddShopModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: isDarkMode ? '#1e293b' : '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
@@ -789,9 +686,9 @@ const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDar
             <form onSubmit={handleAddShop} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <input type="text" placeholder={lang === 'sw' ? 'Jina la Duka' : 'Shop Name'} required value={newShopForm.shop_name} onChange={(e) => setNewShopForm({...newShopForm, shop_name: e.target.value})} style={inputStyle} />
               <select value={newShopForm.shop_type} onChange={(e) => setNewShopForm({...newShopForm, shop_type: e.target.value})} style={inputStyle}>
-                <option value="duka">🛒 {lang === 'sw' ? 'Duka' : 'Retail Shop'}</option>
-                <option value="microfinance">💰 Microfinance</option>
-                <option value="restaurant">🍽️ {lang === 'sw' ? 'Hotel/Restaurant' : 'Hotel/Restaurant'}</option>
+                <option value="duka">{lang === 'sw' ? 'Duka' : 'Retail Shop'}</option>
+                <option value="microfinance">Microfinance</option>
+                <option value="restaurant">{lang === 'sw' ? 'Hotel/Restaurant' : 'Hotel/Restaurant'}</option>
               </select>
               <input type="text" placeholder={lang === 'sw' ? 'Mkoa' : 'Region'} value={newShopForm.region} onChange={(e) => setNewShopForm({...newShopForm, region: e.target.value})} style={inputStyle} />
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>

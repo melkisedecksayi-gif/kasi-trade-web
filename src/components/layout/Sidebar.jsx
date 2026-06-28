@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Icons } from '../Icons';
 
-const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSidebarOpen, onToggle, isDarkMode }) => {
+const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSidebarOpen, setIsSidebarOpen, isDarkMode }) => {
   const menuItems = [
     { id: 'dashboard', icon: Icons.Home, label: lang === 'sw' ? 'Dashibodi' : 'Dashboard' },
     { id: 'pos', icon: Icons.ShoppingCart, label: lang === 'sw' ? 'Mauzo' : 'Sales' },
@@ -11,84 +11,141 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
     { id: 'settings', icon: Icons.Settings, label: lang === 'sw' ? 'Mipangilio' : 'Settings' },
   ];
 
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
+  };
+
+  const handleMenuClick = (pageId) => {
+    setActivePage(pageId);
+    setIsSidebarOpen(false);
+  };
+
   return (
     <>
-      {/* Overlay kwa Mobile */}
+      {/* Overlay - Inafunga sidebar unapobofya */}
       {isSidebarOpen && (
         <div 
-          onClick={onToggle}
+          onClick={closeSidebar}
           style={{
             position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 99,
-            display: 'block'
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            zIndex: 998,
+            backdropFilter: 'blur(4px)',
+            cursor: 'pointer'
           }}
-          className="sidebar-overlay"
         />
       )}
       
-      {/* Sidebar */}
-      <div style={{
-        width: '260px',
-        background: isDarkMode ? '#1e293b' : '#ffffff',
-        height: '100vh',
-        position: 'fixed',
-        left: isSidebarOpen ? '0' : '-260px',
-        top: 0,
-        zIndex: 100,
-        transition: 'left 0.3s ease',
-        boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
-        display: 'flex',
-        flexDirection: 'column',
-        borderRight: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`
-      }} className="sidebar-drawer">
-        
+      {/* Sidebar Container */}
+      <div 
+        style={{
+          width: '260px',
+          background: isDarkMode ? '#1e293b' : '#ffffff',
+          height: '100vh',
+          position: 'fixed',
+          left: isSidebarOpen ? '0' : '-260px',
+          top: 0,
+          zIndex: 999,
+          transition: 'left 0.3s ease-in-out',
+          boxShadow: isSidebarOpen ? '4px 0 24px rgba(0,0,0,0.2)' : 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRight: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+          overflowY: 'auto'
+        }}
+      >
+        {/* Header */}
         <div style={{ 
           padding: '20px 16px', 
           borderBottom: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          flexShrink: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '44px', height: '44px',
+              width: '44px', 
+              height: '44px',
               background: '#ffffff',
               borderRadius: '12px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
               border: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`,
               overflow: 'hidden'
             }}>
-              <img src="/logo.png" alt="KasiTRADE" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              <img 
+                src="/logo.png" 
+                alt="KasiTRADE" 
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+              />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>KasiTRADE</h2>
-              <p style={{ margin: '2px 0 0', fontSize: '10px', color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>POS System</p>
+              <h2 style={{ 
+                margin: 0, 
+                fontSize: '18px', 
+                fontWeight: '800', 
+                color: isDarkMode ? '#f1f5f9' : '#0f172a' 
+              }}>
+                KasiTRADE
+              </h2>
+              <p style={{ 
+                margin: '2px 0 0', 
+                fontSize: '10px', 
+                color: isDarkMode ? '#94a3b8' : '#64748b', 
+                fontWeight: '600', 
+                textTransform: 'uppercase' 
+              }}>
+                POS System
+              </p>
             </div>
           </div>
+          
+          {/* Close Button */}
           <button 
-            onClick={onToggle}
+            onClick={closeSidebar}
             style={{
               background: isDarkMode ? '#334155' : '#f1f5f9',
-              border: 'none', width: '32px', height: '32px', borderRadius: '8px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: isDarkMode ? '#f1f5f9' : '#475569'
+              border: 'none', 
+              width: '36px', 
+              height: '36px', 
+              borderRadius: '8px',
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: isDarkMode ? '#f1f5f9' : '#475569',
+              transition: 'all 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#475569' : '#e2e8f0'}
+            onMouseLeave={(e) => e.currentTarget.style.background = isDarkMode ? '#334155' : '#f1f5f9'}
           >
-            <Icons.X size={16} />
+            <Icons.X size={18} />
           </button>
         </div>
 
-        <nav style={{ flex: 1, padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {/* Menu Items */}
+        <nav style={{ 
+          flex: 1, 
+          padding: '16px 12px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '4px' 
+        }}>
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             const isActive = activePage === item.id;
+            
             return (
               <button
                 key={item.id}
-                onClick={() => { setActivePage(item.id); onToggle(); }}
+                onClick={() => handleMenuClick(item.id)}
                 style={{
                   width: '100%',
                   display: 'flex',
@@ -103,7 +160,18 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
                   fontWeight: isActive ? '600' : '500',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  justifyContent: 'flex-start'
+                  justifyContent: 'flex-start',
+                  textAlign: 'left'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = isDarkMode ? '#334155' : '#f8fafc';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'transparent';
+                  }
                 }}
               >
                 <IconComponent size={20} />
@@ -113,9 +181,17 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
           })}
         </nav>
 
-        <div style={{ padding: '16px 12px', borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {/* Bottom Actions */}
+        <div style={{ 
+          padding: '16px 12px', 
+          borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '4px',
+          flexShrink: 0
+        }}>
           <button
-            onClick={() => { setActivePage('settings'); onToggle(); }}
+            onClick={() => handleMenuClick('settings')}
             style={{
               width: '100%',
               display: 'flex',
@@ -129,14 +205,22 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
               fontSize: '15px',
               fontWeight: '500',
               cursor: 'pointer',
-              justifyContent: 'flex-start'
+              justifyContent: 'flex-start',
+              textAlign: 'left',
+              transition: 'all 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#334155' : '#f8fafc'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <Icons.Help size={20} />
             <span>{lang === 'sw' ? 'Msaada' : 'Help'}</span>
           </button>
+          
           <button
-            onClick={onLogout}
+            onClick={() => {
+              onLogout();
+              setIsSidebarOpen(false);
+            }}
             style={{
               width: '100%',
               display: 'flex',
@@ -150,26 +234,18 @@ const Sidebar = ({ supabase, onLogout, activePage, setActivePage, lang, isSideba
               fontSize: '15px',
               fontWeight: '500',
               cursor: 'pointer',
-              justifyContent: 'flex-start'
+              justifyContent: 'flex-start',
+              textAlign: 'left',
+              transition: 'all 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#450a0a' : '#fef2f2'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <Icons.LogOut size={20} />
             <span>{lang === 'sw' ? 'Toka' : 'Logout'}</span>
           </button>
         </div>
       </div>
-
-      <style>{`
-        @media (min-width: 768px) {
-          .sidebar-overlay {
-            display: none !important;
-          }
-          .sidebar-drawer {
-            left: 0 !important;
-            box-shadow: none !important;
-          }
-        }
-      `}</style>
     </>
   );
 };

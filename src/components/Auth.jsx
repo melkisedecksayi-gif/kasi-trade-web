@@ -1,644 +1,716 @@
-import React, { useState, useEffect } from 'react';
-import { translations } from '../translations';
-import Toast from './Toast';
+import React, { useState } from 'react';
+import { Icons } from './Icons';
 
-const Auth = ({ supabase, onAuthSuccess }) => {
-  const [mode, setMode] = useState('login');
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  
-  const [businessType, setBusinessType] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  const [country, setCountry] = useState('Tanzania');
-  const [region, setRegion] = useState('');
-  const [district, setDistrict] = useState('');
-  const [ward, setWard] = useState('');
-  
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [lang, setLang] = useState(() => localStorage.getItem('app_lang') || 'sw');
-  const [passwordStrength, setPasswordStrength] = useState(0);
+const Settings = ({ lang, setLang, supabase, currentShop, shops, setShops, isDarkMode, setIsDarkMode, onNavigate }) => {
+  const [activeTab, setActiveTab] = useState('general');
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showAddShopModal, setShowAddShopModal] = useState(false);
+  const [newShopForm, setNewShopForm] = useState({ shop_name: '', shop_type: 'duka', region: '' });
+  const [saving, setSaving] = useState(false);
 
-  const t = translations[lang] || translations.sw;
-  const showToast = (msg, type) => setToast({ message: msg, type, id: Date.now() });
+  const [workingHours, setWorkingHours] = useState({
+    monday: { open: '08:00', close: '20:00', isClosed: false },
+    tuesday: { open: '08:00', close: '20:00', isClosed: false },
+    wednesday: { open: '08:00', close: '20:00', isClosed: false },
+    thursday: { open: '08:00', close: '20:00', isClosed: false },
+    friday: { open: '08:00', close: '20:00', isClosed: false },
+    saturday: { open: '09:00', close: '18:00', isClosed: false },
+    sunday: { open: '10:00', close: '16:00', isClosed: true }
+  });
 
-  const handleLangChange = () => {
-    const newLang = lang === 'sw' ? 'en' : 'sw';
+  const [taxSettings, setTaxSettings] = useState({
+    taxEnabled: true,
+    taxRate: 18,
+    taxName: 'VAT',
+    taxNumber: '',
+    priceIncludesTax: false
+  });
+
+  const [receiptSettings, setReceiptSettings] = useState({
+    showHeader: true,
+    headerText: 'Thank you for your purchase!',
+    showFooter: true,
+    footerText: 'Come again!',
+    showTax: true,
+    showDiscount: true,
+    showBarcode: true,
+    receiptTitle: currentShop?.shop_name || 'Receipt'
+  });
+
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleLanguageChange = (newLang) => {
     setLang(newLang);
     localStorage.setItem('app_lang', newLang);
+    triggerToast(newLang === 'sw' ? 'Lugha imebadilishwa' : 'Language changed');
   };
 
-  useEffect(() => {
-    let score = 0;
-    if (password.length > 6) score++;
-    if (password.length > 10) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[0-9]/.test(password)) score++;
-    if (/[^A-Za-z0-9]/.test(password)) score++;
-    setPasswordStrength(score);
-  }, [password]);
-
-  const handleNextStep = () => {
-    if (!email || !phone || !password || password.length < 6) {
-      return showToast(lang === 'sw' ? 'Jaza taarifa zote na password iwe na herufi 6+.' : 'Fill all fields. Password must be 6+ chars.', 'error');
-    }
-    setMode('register-step-2');
+  const handleDarkModeToggle = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    localStorage.setItem('dark_mode', newMode.toString());
+    triggerToast(newMode ? (lang === 'sw' ? 'Dark mode imewashwa' : 'Dark mode enabled') : (lang === 'sw' ? 'Dark mode imezimwa' : 'Dark mode disabled'));
   };
 
-  const handleLogin = async (e) => {
+  const handleAddShop = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    if (!newShopForm.shop_name) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data, error } = await supabase.from('shops').insert([{ user_id: user.id, ...newShopForm }]).select().single();
+    if (data && !error) {
+      setShops([...shops, data]);
+      setShowAddShopModal(false);
+      setNewShopForm({ shop_name: '', shop_type: 'duka', region: '' });
+      triggerToast(lang === 'sw' ? 'Duka jipya limeongezwa!' : 'New shop added!');
+    }
+  };
+
+  const handleSaveHours = async () => {
+    setSaving(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase
+        .from('shops')
+        .update({
+          working_hours: workingHours,
+          working_hours_start: workingHours.monday.open,
+          working_hours_end: workingHours.monday.close
+        })
+        .eq('id', currentShop.id);
+
       if (error) throw error;
-      if (onAuthSuccess) onAuthSuccess();
+      triggerToast(lang === 'sw' ? 'Masaa yamehifadhiwa!' : 'Hours saved!');
     } catch (err) {
-      showToast(`❌ ${err.message}`, 'error');
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleForgotPassword = async (e) => {
-    e.preventDefault();
-    if (!forgotEmail) return showToast('Ingiza barua pepe yako', 'error');
-    
-    setLoading(true);
+  const handleSaveTax = async () => {
+    setSaving(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+      const { error } = await supabase
+        .from('shops')
+        .update({
+          tax_enabled: taxSettings.taxEnabled,
+          tax_rate: parseFloat(taxSettings.taxRate),
+          tax_name: taxSettings.taxName,
+          tax_number: taxSettings.taxNumber,
+          price_includes_tax: taxSettings.priceIncludesTax
+        })
+        .eq('id', currentShop.id);
+
       if (error) throw error;
-      showToast('✅ Tumepokea ombi lako. Angalia email yako kwa maelekezo.', 'success');
-      setShowForgotPassword(false);
-      setForgotEmail('');
+      triggerToast(lang === 'sw' ? 'Kodi imehifadhiwa!' : 'Tax settings saved!');
     } catch (err) {
-      showToast(`❌ ${err.message}`, 'error');
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    if (!businessType) return showToast('Chagua aina ya biashara', 'error');
-    if (!businessName.trim()) return showToast('Ingiza jina la duka', 'error');
-    if (!region) return showToast('Chagua mkoa', 'error');
-    if (!district) return showToast('Ingiza au chagua wilaya', 'error');
-    if (!ward) return showToast('Ingiza kata', 'error');
-    
-    setLoading(true);
+  const handleSaveReceipt = async () => {
+    setSaving(true);
     try {
-      const { data, error } = await supabase.auth.signUp({ 
-        email, password,
-        options: { 
-          data: { 
-            phone, business_type: businessType, business_name: businessName, 
-            country, region, district, ward 
-          } 
-        }
-      });
-      
-      if (error) {
-        let msg = error.message;
-        if (msg.toLowerCase().includes('already registered')) {
-          msg = ' Email hii tayari imeshajisajiliwa. Tumia email nyingine.';
-        }
-        showToast(msg, 'error');
-        setLoading(false);
-        return;
-      }
-      
-      if (data?.user) {
-        try {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await supabase.from('profiles').update({
-            phone, business_type: businessType, business_name: businessName, 
-            country, region, district, ward, registration_step: 2
-          }).eq('id', data.user.id);
-        } catch (dbErr) { console.warn('Profile update:', dbErr); }
+      const { error } = await supabase
+        .from('shops')
+        .update({
+          receipt_settings: receiptSettings
+        })
+        .eq('id', currentShop.id);
 
-        showToast('✅ Usajili umekamilika! Angalia email yako.', 'success');
-        setTimeout(() => {
-          setMode('login');
-          resetForm();
-        }, 3000);
-      }
+      if (error) throw error;
+      triggerToast(lang === 'sw' ? 'Mipangilio ya risiti imehifadhiwa!' : 'Receipt settings saved!');
     } catch (err) {
-      console.error('Registration error:', err);
-      showToast(`❌ ${err.message || 'Hitilafu imetokea'}`, 'error');
+      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const resetForm = () => {
-    setEmail(''); setPassword(''); setPhone('');
-    setBusinessType(''); setBusinessName(''); setCountry('Tanzania');
-    setRegion(''); setDistrict(''); setWard('');
-  };
-
-  const regions = [
-    'Dar es Salaam', 'Arusha', 'Mwanza', 'Dodoma', 'Mbeya', 'Morogoro', 'Tanga', 
-    'Kilimanjaro', 'Kagera', 'Tabora', 'Rukwa', 'Mtwara', 'Mara', 'Pwani', 'Lindi', 
-    'Iringa', 'Kigoma', 'Shinyanga', 'Ruvuma', 'Singida', 'Manyara', 'Geita', 
-    'Katavi', 'Simiyu', 'Songwe', 'Njombe', 'Zanzibar'
+  const tabs = [
+    { id: 'general', label: lang === 'sw' ? 'Jumla' : 'General', icon: Icons.Settings },
+    { id: 'hours', label: lang === 'sw' ? 'Masaa' : 'Hours', icon: Icons.Clock },
+    { id: 'tax', label: lang === 'sw' ? 'Kodi' : 'Tax', icon: Icons.Cash },
+    { id: 'receipt', label: lang === 'sw' ? 'Risiti' : 'Receipt', icon: Icons.Printer },
+    { id: 'staff', label: lang === 'sw' ? 'Wafanyakazi' : 'Staff', icon: Icons.Users },
+    { id: 'help', label: lang === 'sw' ? 'Msaada' : 'Help', icon: Icons.Help },
   ];
-  
-  const districts = {
-    'Dar es Salaam': ['Kinondoni', 'Ilala', 'Temeke', 'Kigamboni', 'Ubungo'],
-    'Arusha': ['Arusha City', 'Arusha Rural', 'Meru', 'Monduli', 'Karatu', 'Ngorongoro', 'Longido', 'Simanjiro'],
-    'Mwanza': ['Ilemela', 'Nyamagana', 'Kwimba', 'Magu', 'Sengerema', 'Ukerewe', 'Misungwi'],
-    'Dodoma': ['Dodoma Urban', 'Dodoma Rural', 'Chamwino', 'Bahi', 'Kondoa', 'Mpwapwa', 'Kongwa', 'Chemba'],
-    'Mbeya': ['Mbeya Urban', 'Mbeya Rural', 'Rungwe', 'Kyela', 'Tukuyu', 'Chunya', 'Mbarali', 'Momba', 'Busokelo'],
-    'Morogoro': ['Morogoro Urban', 'Morogoro Rural', 'Kilosa', 'Mvomero', 'Ulanga', 'Kilombero', 'Gairo', 'Malinyi'],
-    'Tanga': ['Tanga City', 'Muheza', 'Korogwe', 'Pangani', 'Handeni', 'Kilindi', 'Lushoto', 'Mkinga', 'Bumbuli'],
-    'Kilimanjaro': ['Moshi Urban', 'Moshi Rural', 'Hai', 'Siha', 'Rombo', 'Mwanga', 'Same'],
-    'Kagera': ['Bukoba Urban', 'Bukoba Rural', 'Muleba', 'Biharamulo', 'Ngara', 'Karagwe', 'Missenyi', 'Kyerwa'],
-    'Tabora': ['Tabora Urban', 'Tabora Rural', 'Sikonge', 'Urambo', 'Uyui', 'Kaliua', 'Nzega', 'Igunga'],
-    'Rukwa': ['Sumbawanga Urban', 'Sumbawanga Rural', 'Nkasi', 'Kalambo'],
-    'Mtwara': ['Mtwara Urban', 'Mtwara Rural', 'Tandahimba', 'Masasi', 'Newala', 'Nanyumbu'],
-    'Mara': ['Musoma Urban', 'Musoma Rural', 'Tarime', 'Serengeti', 'Bunda', 'Rorya', 'Butiama'],
-    'Pwani': ['Kibaha', 'Bagamoyo', 'Mkuranga', 'Rufiji', 'Mafia', 'Kisarawe'],
-    'Lindi': ['Lindi Urban', 'Lindi Rural', 'Nachingwea', 'Kilifi', 'Liwale', 'Ruangwa'],
-    'Iringa': ['Iringa Urban', 'Iringa Rural', 'Mufindi', 'Kilolo', 'Ludewa', 'Makete'],
-    'Kigoma': ['Kigoma Urban', 'Kigoma Rural', 'Kasulu', 'Kibondo', 'Uvinza', 'Kakonko', 'Buhigwe'],
-    'Shinyanga': ['Shinyanga Urban', 'Shinyanga Rural', 'Kahama', 'Kishapu', 'Maswa', 'Meatu'],
-    'Ruvuma': ['Songea Urban', 'Songea Rural', 'Tunduru', 'Namtumbo', 'Nyasa', 'Mbinga'],
-    'Singida': ['Singida Urban', 'Singida Rural', 'Manyoni', 'Iramba', 'Ikungi'],
-    'Manyara': ['Babati', 'Hanang', 'Mbulu', 'Kiteto', 'Simanjiro'],
-    'Geita': ['Geita Town', 'Chato', 'Mbogwe', 'Nyang\'hwale', 'Bukombe'],
-    'Katavi': ['Mpanda', 'Mlele', 'Nsimbo'],
-    'Simiyu': ['Bariadi', 'Busega', 'Itilima', 'Maswa', 'Meatu'],
-    'Songwe': ['Tunduma', 'Mbozi', 'Momba', 'Songwe'],
-    'Njombe': ['Njombe Urban', 'Njombe Rural', 'Makambako', 'Ludewa', 'Makete', 'Wanging\'ombe'],
-    'Zanzibar': ['Mjini Magharibi', 'Kaskazini A', 'Kaskazini B', 'Kusini', 'Magharibi A', 'Magharibi B', 'Kati']
+
+  const inputStyle = { 
+    width: '100%', padding: '12px', 
+    border: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`, borderRadius: '10px', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
+    background: isDarkMode ? '#334155' : '#fff', color: isDarkMode ? '#f1f5f9' : '#0f172a'
   };
 
-  const currentDistricts = districts[region] || [];
-
-  const getPasswordStrengthColor = () => {
-    if (passwordStrength <= 2) return '#ef4444';
-    if (passwordStrength <= 3) return '#f59e0b';
-    return '#10b981';
+  const cardStyle = { 
+    background: isDarkMode ? '#1e293b' : '#fff', padding: '24px', borderRadius: '16px', 
+    border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: '20px'
   };
 
-  const getPasswordStrengthText = () => {
-    if (passwordStrength <= 2) return lang === 'sw' ? 'Dhaifu' : 'Weak';
-    if (passwordStrength <= 3) return lang === 'sw' ? 'Kati' : 'Medium';
-    return lang === 'sw' ? 'Imara' : 'Strong';
+  const toggleStyle = {
+    width: '56px', height: '28px', borderRadius: '14px', border: 'none',
+    cursor: 'pointer', position: 'relative', transition: 'background 0.3s'
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px', position: 'relative', overflow: 'hidden' }}>
-      {/* Background Animation */}
-      <div style={{ position: 'absolute', width: '500px', height: '500px', background: 'rgba(255,255,255,0.08)', borderRadius: '50%', top: '-150px', right: '-150px', animation: 'float 20s infinite' }} />
-      <div style={{ position: 'absolute', width: '350px', height: '350px', background: 'rgba(255,255,255,0.08)', borderRadius: '50%', bottom: '-100px', left: '-100px', animation: 'float 15s infinite reverse' }} />
-
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      
-      <div style={{ background: 'rgba(255, 255, 255, 0.98)', backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', position: 'relative', zIndex: 1 }}>
-        
-        {/* ✅ LOGO YA KASITRADE - Imewekwa vizuri */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ 
-            width: '100px', 
-            height: '100px', 
-            margin: '0 auto 16px',
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            animation: 'logoFloat 3s ease-in-out infinite'
-          }}>
-            <img 
-              src="/logo.png" 
-              alt="KasiTRADE Logo" 
-              style={{ 
-                width: '100%', 
-                height: '100%', 
-                objectFit: 'contain'
-              }}
-            />
-          </div>
-          <h1 style={{ 
-            margin: '0 0 4px', 
-            fontSize: '28px', 
-            fontWeight: '800',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            letterSpacing: '-0.5px'
-          }}>
-            KasiTRADE
-          </h1>
-          <p style={{ 
-            margin: 0, 
-            color: '#64748b', 
-            fontSize: '13px',
-            fontWeight: '500',
-            letterSpacing: '1px',
-            textTransform: 'uppercase'
-          }}>
-            {lang === 'sw' ? 'Mfumo wa Kisasa wa POS' : 'Modern POS System'}
-          </p>
-        </div>
-
-        {/* ✅ LANGUAGE SWITCHER - Pembeni (Bendera tu) */}
-        <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', gap: '8px' }}>
-          <button 
-            type="button"
-            onClick={handleLangChange}
-            style={{ 
-              background: '#f1f5f9', 
-              border: 'none', 
-              padding: '8px 12px', 
-              borderRadius: '8px', 
-              cursor: 'pointer', 
-              fontSize: '20px',
-              transition: 'all 0.2s',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-            }}
-            title={lang === 'sw' ? 'Switch to English' : 'Badilisha Kiswahili'}
-          >
-            {lang === 'sw' ? '🇹' : '🇬🇧'}
-          </button>
-        </div>
-
-        {/* ==================== LOGIN MODE ==================== */}
-        {mode === 'login' && (
-          <>
-            <h2 style={{ margin: '0 0 24px', fontSize: '22px', color: '#1e293b', fontWeight: '700', textAlign: 'center' }}>
-              {lang === 'sw' ? 'Ingia kwenye akaunti yako' : 'Sign in to your account'}
-            </h2>
-
-            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input 
-                type="email" 
-                placeholder={lang === 'sw' ? 'Barua pepe' : 'Email'} 
-                value={email} 
-                onChange={e => setEmail(e.target.value)} 
-                required 
-                disabled={loading} 
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none', transition: 'border-color 0.2s' }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-              />
-              <input 
-                type="password" 
-                placeholder={lang === 'sw' ? 'Nenosiri' : 'Password'} 
-                value={password} 
-                onChange={e => setPassword(e.target.value)} 
-                required 
-                disabled={loading} 
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none', transition: 'border-color 0.2s' }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-              />
-              
-              {/* ✅ FORGOT PASSWORD LINK */}
-              <button 
-                type="button"
-                onClick={() => setShowForgotPassword(true)}
-                style={{ 
-                  background: 'none', 
-                  border: 'none', 
-                  color: '#667eea', 
-                  fontWeight: '600', 
-                  cursor: 'pointer', 
-                  fontSize: '14px', 
-                  alignSelf: 'flex-end',
-                  textDecoration: 'underline',
-                  padding: '0'
-                }}
-              >
-                {lang === 'sw' ? 'Umesahau nenosiri?' : 'Forgot password?'}
-              </button>
-
-              <button 
-                type="submit" 
-                disabled={loading} 
-                style={{ 
-                  padding: '16px', 
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-                  color: '#fff', 
-                  border: 'none', 
-                  borderRadius: '12px', 
-                  fontWeight: 'bold', 
-                  fontSize: '16px', 
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
-                  transition: 'transform 0.2s'
-                }}
-              >
-                {loading ? '⏳ Inasubiri...' : '🔓 Ingia'}
-              </button>
-            </form>
-
-            <div style={{ textAlign: 'center', marginTop: '24px' }}>
-              <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
-                {lang === 'sw' ? 'Huna akaunti? ' : "Don't have account? "}
-                <button 
-                  type="button"
-                  onClick={() => setMode('register-step-1')} 
-                  style={{ 
-                    background: 'none', 
-                    border: 'none', 
-                    color: '#667eea', 
-                    fontWeight: '700', 
-                    cursor: 'pointer', 
-                    textDecoration: 'underline',
-                    fontSize: '14px'
-                  }}
-                >
-                  {lang === 'sw' ? 'Jisajili Sasa' : 'Sign Up'}
-                </button>
-              </p>
-            </div>
-          </>
-        )}
-
-        {/* ==================== FORGOT PASSWORD MODAL ==================== */}
-        {showForgotPassword && (
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.98)', borderRadius: '24px', padding: '40px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 10 }}>
-            <h2 style={{ margin: '0 0 16px', fontSize: '22px', color: '#1e293b', fontWeight: '700', textAlign: 'center' }}>
-              {lang === 'sw' ? 'Rejesha Nenosiri' : 'Reset Password'}
-            </h2>
-            <p style={{ margin: '0 0 24px', color: '#64748b', fontSize: '14px', textAlign: 'center' }}>
-              {lang === 'sw' ? 'Tutaikutuma link ya kurejesha nenosiri kwenye email yako.' : 'We will send you a link to reset your password.'}
-            </p>
-            
-            <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input 
-                type="email" 
-                placeholder={lang === 'sw' ? 'Barua pepe yako' : 'Your email'} 
-                value={forgotEmail} 
-                onChange={e => setForgotEmail(e.target.value)} 
-                required 
-                disabled={loading} 
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }}
-              />
-              
-              <button 
-                type="submit" 
-                disabled={loading} 
-                style={{ 
-                  padding: '16px', 
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-                  color: '#fff', 
-                  border: 'none', 
-                  borderRadius: '12px', 
-                  fontWeight: 'bold', 
-                  fontSize: '16px', 
-                  cursor: 'pointer'
-                }}
-              >
-                {loading ? '⏳ Inatuma...' : '📧 Tuma Link'}
-              </button>
-              
-              <button 
-                type="button"
-                onClick={() => { setShowForgotPassword(false); setForgotEmail(''); }}
-                style={{ 
-                  padding: '14px', 
-                  background: '#f1f5f9', 
-                  color: '#64748b', 
-                  border: 'none', 
-                  borderRadius: '12px', 
-                  fontWeight: '600', 
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                {lang === 'sw' ? '← Rudi' : '← Back to Login'}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* ==================== REGISTER STEP 1 ==================== */}
-        {mode === 'register-step-1' && (
-          <>
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ background: '#f1f5f9', borderRadius: '8px', padding: '8px', display: 'flex', gap: '8px' }}>
-                <div style={{ flex: 1, textAlign: 'center', padding: '8px', borderRadius: '6px', background: '#fff', color: '#667eea', fontWeight: '600', fontSize: '13px' }}>
-                  {lang === 'sw' ? 'HATUA 1 YA 2' : 'STEP 1 OF 2'}
-                </div>
-                <div style={{ flex: 1, textAlign: 'center', padding: '8px', borderRadius: '6px', background: 'transparent', color: '#64748b', fontWeight: '600', fontSize: '13px' }}>
-                  {lang === 'sw' ? 'HATUA 2 YA 2' : 'STEP 2 OF 2'}
-                </div>
-              </div>
-            </div>
-
-            <h2 style={{ margin: '0 0 24px', fontSize: '22px', color: '#1e293b', fontWeight: '700', textAlign: 'center' }}>
-              {lang === 'sw' ? 'Taarifa za Mtu' : 'Personal Information'}
-            </h2>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input 
-                type="email" 
-                placeholder={lang === 'sw' ? 'Barua pepe' : 'Email'} 
-                value={email} 
-                onChange={e => setEmail(e.target.value)} 
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }}
-              />
-              <input 
-                type="tel" 
-                placeholder={lang === 'sw' ? 'Namba ya Simu' : 'Phone Number'} 
-                value={phone} 
-                onChange={e => setPhone(e.target.value)} 
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }}
-              />
-              <input 
-                type="password" 
-                placeholder={lang === 'sw' ? 'Nenosiri (herufi 6+)' : 'Password (6+ chars)'} 
-                value={password} 
-                onChange={e => setPassword(e.target.value)} 
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }}
-              />
-              
-              {password.length > 0 && (
-                <div>
-                  <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <div key={level} style={{ flex: 1, height: '4px', background: level <= passwordStrength ? getPasswordStrengthColor() : '#e2e8f0', borderRadius: '2px' }} />
-                    ))}
-                  </div>
-                  <p style={{ margin: 0, fontSize: '12px', color: getPasswordStrengthColor(), fontWeight: '600' }}>{getPasswordStrengthText()}</p>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button 
-                  type="button"
-                  onClick={() => setMode('login')} 
-                  style={{ flex: 1, padding: '14px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  ← {lang === 'sw' ? 'Rudi' : 'Back'}
-                </button>
-                <button 
-                  type="button"
-                  onClick={handleNextStep} 
-                  style={{ flex: 2, padding: '14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  {lang === 'sw' ? 'Endelea' : 'Continue'} →
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ==================== REGISTER STEP 2 ==================== */}
-        {mode === 'register-step-2' && (
-          <>
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ background: '#f1f5f9', borderRadius: '8px', padding: '8px', display: 'flex', gap: '8px' }}>
-                <div style={{ flex: 1, textAlign: 'center', padding: '8px', borderRadius: '6px', background: 'transparent', color: '#64748b', fontWeight: '600', fontSize: '13px' }}>
-                  {lang === 'sw' ? 'HATUA 1 YA 2' : 'STEP 1 OF 2'}
-                </div>
-                <div style={{ flex: 1, textAlign: 'center', padding: '8px', borderRadius: '6px', background: '#fff', color: '#667eea', fontWeight: '600', fontSize: '13px' }}>
-                  {lang === 'sw' ? 'HATUA 2 YA 2' : 'STEP 2 OF 2'}
-                </div>
-              </div>
-            </div>
-
-            <h2 style={{ margin: '0 0 24px', fontSize: '22px', color: '#1e293b', fontWeight: '700', textAlign: 'center' }}>
-              {lang === 'sw' ? 'Taarifa za Biashara' : 'Business Information'}
-            </h2>
-
-            <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#1e293b', fontSize: '14px' }}>{lang === 'sw' ? 'Aina ya Biashara' : 'Business Type'}</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <button 
-                    type="button"
-                    onClick={() => setBusinessType('duka')} 
-                    style={{ 
-                      padding: '16px', 
-                      border: `2px solid ${businessType === 'duka' ? '#0047AB' : '#e2e8f0'}`, 
-                      borderRadius: '12px', 
-                      background: businessType === 'duka' ? '#f0f7ff' : '#fff', 
-                      cursor: 'pointer', 
-                      fontWeight: '600', 
-                      color: businessType === 'duka' ? '#0047AB' : '#64748b' 
-                    }}
-                  >
-                    🛒 {lang === 'sw' ? 'Duka' : 'Shop'}
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setBusinessType('microfinance')} 
-                    style={{ 
-                      padding: '16px', 
-                      border: `2px solid ${businessType === 'microfinance' ? '#0047AB' : '#e2e8f0'}`, 
-                      borderRadius: '12px', 
-                      background: businessType === 'microfinance' ? '#f0f7ff' : '#fff', 
-                      cursor: 'pointer', 
-                      fontWeight: '600', 
-                      color: businessType === 'microfinance' ? '#0047AB' : '#64748b' 
-                    }}
-                  >
-                    💰 Microfinance
-                  </button>
-                </div>
-              </div>
-
-              <input 
-                type="text" 
-                placeholder={lang === 'sw' ? 'Jina la duka/biashara' : 'Business Name'} 
-                value={businessName} 
-                onChange={e => setBusinessName(e.target.value)} 
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }}
-              />
-
-              <h4 style={{ margin: '8px 0 8px', color: '#1e293b', fontSize: '15px', fontWeight: '600' }}>
-                📍 {lang === 'sw' ? 'Mahali Linapatikana' : 'Location'}
-              </h4>
-
-              <select 
-                value={country} 
-                onChange={(e) => setCountry(e.target.value)} 
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', width: '100%', background: '#fff', fontSize: '15px' }}
-              >
-                <option value="Tanzania">🇿 Tanzania</option>
-                <option value="Kenya">🇰🇪 Kenya</option>
-                <option value="Uganda">🇺🇬 Uganda</option>
-              </select>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <select 
-                  value={region} 
-                  onChange={(e) => { setRegion(e.target.value); setDistrict(''); setWard(''); }} 
-                  style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', width: '100%', background: '#fff', fontSize: '15px' }}
-                >
-                  <option value="">{lang === 'sw' ? 'Chagua Mkoa...' : 'Select Region...'}</option>
-                  {regions.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-
-                <select 
-                  value={district} 
-                  onChange={(e) => { setDistrict(e.target.value); setWard(''); }} 
-                  disabled={!region}
-                  style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', width: '100%', background: '#fff', fontSize: '15px', opacity: !region ? 0.5 : 1 }}
-                >
-                  <option value="">{lang === 'sw' ? 'Chagua Wilaya...' : 'Select District...'}</option>
-                  {currentDistricts.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-
-              {/* ✅ WARD INPUT - User anaandika mwenyewe */}
-              <input 
-                type="text" 
-                placeholder={lang === 'sw' ? 'Andika Kata yako' : 'Type your Ward'} 
-                value={ward} 
-                onChange={(e) => setWard(e.target.value)} 
-                disabled={!district}
-                style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', width: '100%', fontSize: '15px', outline: 'none', opacity: !district ? 0.5 : 1 }}
-              />
-
-              <div style={{ background: '#f0f7ff', padding: '14px', borderRadius: '12px', borderLeft: '4px solid #0047AB' }}>
-                <p style={{ margin: 0, color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>
-                  💡 {lang === 'sw' ? 'Unamiliki duka zaidi ya moja? Utaweza kuongeza maduka mengine baada ya kujisajili.' : 'Own multiple shops? You can add more after registration.'}
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button 
-                  type="button"
-                  onClick={() => setMode('register-step-1')} 
-                  style={{ flex: 1, padding: '14px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  ← {lang === 'sw' ? 'Rudi' : 'Back'}
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={loading} 
-                  style={{ flex: 2, padding: '14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  {loading ? '⏳ Inasubiri...' : '✨ Kamilisha Usajili'}
-                </button>
-              </div>
-            </form>
-          </>
-        )}
+    <div style={{ position: 'relative', zIndex: 10, paddingBottom: '40px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Icons.Settings size={24} /> {lang === 'sw' ? 'Mipangilio ya Mfumo' : 'System Settings'}
+        </h2>
+        <p style={{ margin: '4px 0 0', color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>
+          {lang === 'sw' ? 'Duka: ' : 'Shop: '}{currentShop?.shop_name}
+        </p>
       </div>
 
-      <style>{`
-        @keyframes float { 
-          0%, 100% { transform: translateY(0) rotate(0deg); } 
-          50% { transform: translateY(-20px) rotate(10deg); } 
-        }
-        @keyframes logoFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-5px); }
-        }
-      `}</style>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', overflowX: 'auto', paddingBottom: '8px' }}>
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+              padding: '10px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap',
+              background: activeTab === tab.id ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : (isDarkMode ? '#334155' : '#f1f5f9'),
+              color: activeTab === tab.id ? '#fff' : (isDarkMode ? '#cbd5e1' : '#64748b'),
+              display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s'
+            }}>
+              <Icon size={16} /> {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'general' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={cardStyle}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icons.Globe size={20} /> {lang === 'sw' ? 'Lugha' : 'Language'}
+            </h3>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => handleLanguageChange('sw')} style={{
+                flex: 1, padding: '16px', border: `2px solid ${lang === 'sw' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`, borderRadius: '12px',
+                background: lang === 'sw' ? '#f0f7ff' : (isDarkMode ? '#334155' : '#fff'), cursor: 'pointer', fontWeight: '600',
+                color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px'
+              }}>🇹🇿 Kiswahili</button>
+              <button onClick={() => handleLanguageChange('en')} style={{
+                flex: 1, padding: '16px', border: `2px solid ${lang === 'en' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`, borderRadius: '12px',
+                background: lang === 'en' ? '#f0f7ff' : (isDarkMode ? '#334155' : '#fff'), cursor: 'pointer', fontWeight: '600',
+                color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px'
+              }}>🇬🇧 English</button>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isDarkMode ? <Icons.Moon size={20} /> : <Icons.Sun size={20} />}
+                  {lang === 'sw' ? 'Dark Mode' : 'Dark Mode'}
+                </h3>
+                <p style={{ margin: 0, fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                  {lang === 'sw' ? 'Badilisha muonekano wa mfumo' : 'Change system appearance'}
+                </p>
+              </div>
+              <button onClick={handleDarkModeToggle} style={{
+                ...toggleStyle,
+                background: isDarkMode ? '#6366f1' : '#cbd5e1'
+              }}>
+                <div style={{
+                  position: 'absolute', top: '3px', left: isDarkMode ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icons.ShoppingBag size={20} /> {lang === 'sw' ? 'Maduka Yangu' : 'My Shops'}
+              </h3>
+              <button onClick={() => setShowAddShopModal(true)} style={{
+                padding: '10px 20px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', border: 'none', borderRadius: '10px',
+                fontWeight: '600', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+              }}>
+                <Icons.Plus size={16} /> {lang === 'sw' ? 'Ongeza Duka' : 'Add Shop'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {shops.map(shop => (
+                <div key={shop.id} style={{
+                  padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '12px',
+                  border: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', fontSize: '15px' }}>{shop.shop_name}</div>
+                    <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b', marginTop: '4px' }}>{shop.shop_type} • {shop.region || '---'}</div>
+                  </div>
+                  <div style={{
+                    padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                    background: shop.id === currentShop?.id ? '#d1fae5' : (isDarkMode ? '#475569' : '#e2e8f0'),
+                    color: shop.id === currentShop?.id ? '#059669' : (isDarkMode ? '#cbd5e1' : '#64748b')
+                  }}>
+                    {shop.id === currentShop?.id ? (lang === 'sw' ? 'Inatumika' : 'Active') : (lang === 'sw' ? 'Tumia' : 'Switch')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'hours' && (
+        <div style={cardStyle}>
+          <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icons.Clock size={20} /> {lang === 'sw' ? 'Masaa ya Kazi' : 'Working Hours'}
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {Object.entries(workingHours).map(([day, hours]) => {
+              const dayNames = {
+                monday: lang === 'sw' ? 'Jumatatu' : 'Monday',
+                tuesday: lang === 'sw' ? 'Jumanne' : 'Tuesday',
+                wednesday: lang === 'sw' ? 'Jumatano' : 'Wednesday',
+                thursday: lang === 'sw' ? 'Alhamisi' : 'Thursday',
+                friday: lang === 'sw' ? 'Ijumaa' : 'Friday',
+                saturday: lang === 'sw' ? 'Jumamosi' : 'Saturday',
+                sunday: lang === 'sw' ? 'Jumapili' : 'Sunday'
+              };
+
+              return (
+                <div key={day} style={{
+                  display: 'flex', alignItems: 'center', gap: '16px',
+                  padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc',
+                  borderRadius: '10px', flexWrap: 'wrap'
+                }}>
+                  <div style={{ width: '120px', fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                    {dayNames[day]}
+                  </div>
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!hours.isClosed}
+                      onChange={(e) => setWorkingHours({
+                        ...workingHours,
+                        [day]: { ...hours, isClosed: !e.target.checked }
+                      })}
+                    />
+                    <span style={{ color: isDarkMode ? '#cbd5e1' : '#475569', fontSize: '14px' }}>
+                      {lang === 'sw' ? 'Fungua' : 'Open'}
+                    </span>
+                  </label>
+
+                  {!hours.isClosed && (
+                    <>
+                      <input
+                        type="time"
+                        value={hours.open}
+                        onChange={(e) => setWorkingHours({
+                          ...workingHours,
+                          [day]: { ...hours, open: e.target.value }
+                        })}
+                        style={{ ...inputStyle, width: '120px' }}
+                      />
+                      <span style={{ color: isDarkMode ? '#64748b' : '#94a3b8' }}>-</span>
+                      <input
+                        type="time"
+                        value={hours.close}
+                        onChange={(e) => setWorkingHours({
+                          ...workingHours,
+                          [day]: { ...hours, close: e.target.value }
+                        })}
+                        style={{ ...inputStyle, width: '120px' }}
+                      />
+                    </>
+                  )}
+
+                  {hours.isClosed && (
+                    <span style={{ color: '#ef4444', fontSize: '14px', fontWeight: '600' }}>
+                      {lang === 'sw' ? 'Imefungwa' : 'Closed'}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleSaveHours}
+            disabled={saving}
+            style={{
+              marginTop: '24px',
+              width: '100%',
+              padding: '14px',
+              background: saving ? '#94a3b8' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: saving ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {saving ? (lang === 'sw' ? 'Inahifadhi...' : 'Saving...') : (lang === 'sw' ? 'Hifadhi Masaa' : 'Save Hours')}
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'tax' && (
+        <div style={cardStyle}>
+          <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icons.Cash size={20} /> {lang === 'sw' ? 'Mipangilio ya Kodi' : 'Tax Settings'}
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                  {lang === 'sw' ? 'Washa Kodi' : 'Enable Tax'}
+                </div>
+                <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                  {lang === 'sw' ? 'Ongeza kodi kwenye mauzo' : 'Add tax to sales'}
+                </div>
+              </div>
+              <button
+                onClick={() => setTaxSettings({ ...taxSettings, taxEnabled: !taxSettings.taxEnabled })}
+                style={{
+                  ...toggleStyle,
+                  background: taxSettings.taxEnabled ? '#10b981' : '#cbd5e1'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px', left: taxSettings.taxEnabled ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+
+            {taxSettings.taxEnabled && (
+              <>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                    {lang === 'sw' ? 'Jina la Kodi' : 'Tax Name'}
+                  </label>
+                  <input
+                    type="text"
+                    value={taxSettings.taxName}
+                    onChange={(e) => setTaxSettings({ ...taxSettings, taxName: e.target.value })}
+                    style={inputStyle}
+                    placeholder="VAT"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                    {lang === 'sw' ? 'Kiwango cha Kodi (%)' : 'Tax Rate (%)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={taxSettings.taxRate}
+                    onChange={(e) => setTaxSettings({ ...taxSettings, taxRate: e.target.value })}
+                    style={inputStyle}
+                    min="0"
+                    max="100"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                    {lang === 'sw' ? 'Namba ya Kodi (TIN)' : 'Tax Number (TIN)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={taxSettings.taxNumber}
+                    onChange={(e) => setTaxSettings({ ...taxSettings, taxNumber: e.target.value })}
+                    style={inputStyle}
+                    placeholder="123-456-789"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+                  <div>
+                    <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                      {lang === 'sw' ? 'Bei Zinaingiza Kodi' : 'Prices Include Tax'}
+                    </div>
+                    <div style={{ fontSize: '13px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                      {lang === 'sw' ? 'Bei zilizowekwa tayari zina kodi' : 'Entered prices already include tax'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setTaxSettings({ ...taxSettings, priceIncludesTax: !taxSettings.priceIncludesTax })}
+                    style={{
+                      ...toggleStyle,
+                      background: taxSettings.priceIncludesTax ? '#6366f1' : '#cbd5e1'
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: '3px', left: taxSettings.priceIncludesTax ? '31px' : '3px', width: '22px', height: '22px',
+                      borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }} />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={handleSaveTax}
+            disabled={saving}
+            style={{
+              marginTop: '24px',
+              width: '100%',
+              padding: '14px',
+              background: saving ? '#94a3b8' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: saving ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {saving ? (lang === 'sw' ? 'Inahifadhi...' : 'Saving...') : (lang === 'sw' ? 'Hifadhi Kodi' : 'Save Tax Settings')}
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'receipt' && (
+        <div style={cardStyle}>
+          <h3 style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icons.Printer size={20} /> {lang === 'sw' ? 'Mipangilio ya Risiti' : 'Receipt Settings'}
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                {lang === 'sw' ? 'Kichwa cha Risiti' : 'Receipt Title'}
+              </label>
+              <input
+                type="text"
+                value={receiptSettings.receiptTitle}
+                onChange={(e) => setReceiptSettings({ ...receiptSettings, receiptTitle: e.target.value })}
+                style={inputStyle}
+                placeholder={currentShop?.shop_name || 'Receipt'}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                  {lang === 'sw' ? 'Onyesha Kichwa' : 'Show Header'}
+                </div>
+              </div>
+              <button
+                onClick={() => setReceiptSettings({ ...receiptSettings, showHeader: !receiptSettings.showHeader })}
+                style={{
+                  ...toggleStyle,
+                  background: receiptSettings.showHeader ? '#6366f1' : '#cbd5e1'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px', left: receiptSettings.showHeader ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+
+            {receiptSettings.showHeader && (
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {lang === 'sw' ? 'Ujumbe wa Kichwa' : 'Header Text'}
+                </label>
+                <input
+                  type="text"
+                  value={receiptSettings.headerText}
+                  onChange={(e) => setReceiptSettings({ ...receiptSettings, headerText: e.target.value })}
+                  style={inputStyle}
+                  placeholder="Thank you for your purchase!"
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                  {lang === 'sw' ? 'Onyesha Kodi' : 'Show Tax'}
+                </div>
+              </div>
+              <button
+                onClick={() => setReceiptSettings({ ...receiptSettings, showTax: !receiptSettings.showTax })}
+                style={{
+                  ...toggleStyle,
+                  background: receiptSettings.showTax ? '#6366f1' : '#cbd5e1'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px', left: receiptSettings.showTax ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: isDarkMode ? '#334155' : '#f8fafc', borderRadius: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: isDarkMode ? '#f1f5f9' : '#0f172a', marginBottom: '4px' }}>
+                  {lang === 'sw' ? 'Onyesha Barcode' : 'Show Barcode'}
+                </div>
+              </div>
+              <button
+                onClick={() => setReceiptSettings({ ...receiptSettings, showBarcode: !receiptSettings.showBarcode })}
+                style={{
+                  ...toggleStyle,
+                  background: receiptSettings.showBarcode ? '#6366f1' : '#cbd5e1'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px', left: receiptSettings.showBarcode ? '31px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveReceipt}
+            disabled={saving}
+            style={{
+              marginTop: '24px',
+              width: '100%',
+              padding: '14px',
+              background: saving ? '#94a3b8' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: saving ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {saving ? (lang === 'sw' ? 'Inahifadhi...' : 'Saving...') : (lang === 'sw' ? 'Hifadhi Risiti' : 'Save Receipt Settings')}
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'staff' && (
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+            <Icons.Users size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
+            <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+              {lang === 'sw' ? 'Wafanyakazi' : 'Staff Management'}
+            </h3>
+            <p style={{ margin: 0, color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>
+              {lang === 'sw' ? 'Kitu hiki kitakuja hivi karibuni' : 'Coming soon'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'help' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={cardStyle}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icons.Zap size={20} /> {lang === 'sw' ? 'Hatua za Haraka' : 'Quick Actions'}
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+              {[
+                { icon: Icons.ShoppingCart, label: lang === 'sw' ? 'Anza Kuuza' : 'Start Selling', action: 'pos', color: '#10b981' },
+                { icon: Icons.Box, label: lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Product', action: 'products', color: '#6366f1' },
+                { icon: Icons.Users, label: lang === 'sw' ? 'Ongeza Mteja' : 'Add Customer', action: 'customers', color: '#ec4899' },
+                { icon: Icons.BarChart, label: lang === 'sw' ? 'Tazama Ripoti' : 'View Reports', action: 'reports', color: '#f59e0b' },
+              ].map((sc, i) => {
+                const Icon = sc.icon;
+                return (
+                  <button key={i} onClick={() => onNavigate && onNavigate(sc.action)} style={{
+                    padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                    background: `${sc.color}15`, color: sc.color,
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    fontWeight: '600', fontSize: '14px', transition: 'all 0.2s'
+                  }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 8px 16px ${sc.color}30`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <Icon size={20} /> {sc.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icons.Help size={20} /> {lang === 'sw' ? 'Msaada' : 'Help'}
+            </h3>
+            <p style={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px', lineHeight: '1.6' }}>
+              {lang === 'sw' 
+                ? 'Kwa msaada, wasiliana nasi kupitia:'
+                : 'For help, contact us via:'}
+            </p>
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <a href="mailto:support@kasitrade.co.tz" style={{
+                padding: '12px 16px', background: isDarkMode ? '#334155' : '#f1f5f9',
+                borderRadius: '10px', color: isDarkMode ? '#f1f5f9' : '#0f172a',
+                textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px',
+                fontSize: '14px'
+              }}>
+                <Icons.Mail size={18} /> support@kasitrade.co.tz
+              </a>
+              <a href="tel:+255123456789" style={{
+                padding: '12px 16px', background: isDarkMode ? '#334155' : '#f1f5f9',
+                borderRadius: '10px', color: isDarkMode ? '#f1f5f9' : '#0f172a',
+                textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px',
+                fontSize: '14px'
+              }}>
+                <Icons.Phone size={18} /> +255 123 456 789
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddShopModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: isDarkMode ? '#1e293b' : '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>+ {lang === 'sw' ? 'Duka Jipya' : 'New Shop'}</h2>
+              <button onClick={() => setShowAddShopModal(false)} style={{ background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+                <Icons.X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleAddShop} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <input type="text" placeholder={lang === 'sw' ? 'Jina la Duka' : 'Shop Name'} required value={newShopForm.shop_name} onChange={(e) => setNewShopForm({...newShopForm, shop_name: e.target.value})} style={inputStyle} />
+              <select value={newShopForm.shop_type} onChange={(e) => setNewShopForm({...newShopForm, shop_type: e.target.value})} style={inputStyle}>
+                <option value="duka">{lang === 'sw' ? 'Duka' : 'Retail Shop'}</option>
+                <option value="microfinance">Microfinance</option>
+                <option value="restaurant">{lang === 'sw' ? 'Hotel/Restaurant' : 'Hotel/Restaurant'}</option>
+              </select>
+              <input type="text" placeholder={lang === 'sw' ? 'Mkoa' : 'Region'} value={newShopForm.region} onChange={(e) => setNewShopForm({...newShopForm, region: e.target.value})} style={inputStyle} />
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="button" onClick={() => setShowAddShopModal(false)} style={{ flex: 1, padding: '12px', background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: isDarkMode ? '#f1f5f9' : '#475569' }}>
+                  {lang === 'sw' ? 'Ghairi' : 'Cancel'}
+                </button>
+                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>
+                  {lang === 'sw' ? 'Hifadhi' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showToast && (
+        <div style={{ position: 'fixed', top: '30px', right: '30px', background: '#10b981', color: '#fff', padding: '14px 24px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(16, 185, 129, 0.4)', zIndex: 2000, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Icons.CheckCircle size={20} /> {toastMessage}
+        </div>
+      )}
     </div>
   );
 };
 
-export default Auth;
+export default Settings;

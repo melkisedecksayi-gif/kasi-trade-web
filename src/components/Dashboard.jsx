@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './layout/Sidebar';
 import POS from './POS';
 import Products from './Products';
@@ -16,22 +16,37 @@ const Dashboard = ({ supabase }) => {
   const [userProfile, setUserProfile] = useState(null);
   const [shops, setShops] = useState([]);
   const [currentShop, setCurrentShop] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth < 768 ? false : true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
   const userMenuRef = useRef(null);
 
   const [stats, setStats] = useState({ totalSales: 0, todaySales: 0, todayProfit: 0, totalProducts: 0, totalCustomers: 0, lowStock: 0 });
 
-  const isMobile = window.innerWidth < 768;
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setIsSidebarOpen(false);
+      } else {
+        setIsSidebarOpen(true);
+      }
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-  const loadUserProfile = async () => {
+  const loadUserProfile = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (profile) setUserProfile(profile);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -71,7 +86,7 @@ const Dashboard = ({ supabase }) => {
       const interval = setInterval(loadUserProfile, 1000);
       return () => clearInterval(interval);
     }
-  }, [activePage]);
+  }, [activePage, loadUserProfile]);
 
   useEffect(() => {
     if (!currentShop?.id) return;
@@ -127,22 +142,22 @@ const Dashboard = ({ supabase }) => {
         setActivePage={setActivePage} 
         lang={lang} 
         isSidebarOpen={isSidebarOpen} 
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+        setIsSidebarOpen={setIsSidebarOpen}
         isDarkMode={isDarkMode} 
       />
 
       <div style={{ 
-        marginLeft: isMobile ? '0' : (isSidebarOpen ? '260px' : '0'), 
+        marginLeft: isMobile ? '0' : '0', 
         flex: 1, 
         padding: isMobile ? '16px' : '32px', 
-        transition: 'margin-left 0.3s ease', 
+        transition: 'margin-left 0.3s ease, padding 0.3s ease', 
         display: 'flex', 
         flexDirection: 'column',
         width: '100%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        minWidth: 0
       }}>
         
-        {/* TOPBAR */}
         <div style={{ 
           background: isDarkMode ? '#1e293b' : '#fff', 
           borderRadius: '16px', 
@@ -158,13 +173,12 @@ const Dashboard = ({ supabase }) => {
           gap: '12px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }} ref={userMenuRef}>
-            {/* Hamburger Button */}
             <button 
               onClick={() => setIsSidebarOpen(true)}
               style={{
                 background: isDarkMode ? '#334155' : '#f1f5f9',
                 border: 'none',
-                width: '40px', height: '40px',
+                width: '44px', height: '44px',
                 borderRadius: '10px',
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -172,7 +186,7 @@ const Dashboard = ({ supabase }) => {
                 flexShrink: 0
               }}
             >
-              <Icons.Menu size={20} />
+              <Icons.Menu size={22} />
             </button>
 
             <button 
@@ -180,7 +194,7 @@ const Dashboard = ({ supabase }) => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
+                gap: isMobile ? '8px' : '12px',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
@@ -189,50 +203,53 @@ const Dashboard = ({ supabase }) => {
               }}
             >
               <div style={{
-                width: '40px',
-                height: '40px',
+                width: isMobile ? '36px' : '44px',
+                height: isMobile ? '36px' : '44px',
                 borderRadius: '50%',
                 overflow: 'hidden',
                 border: `2px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`,
                 background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#fff', fontWeight: '700',
-                fontSize: '16px',
+                fontSize: isMobile ? '14px' : '16px',
                 flexShrink: 0
               }}>
                 {getUserAvatar() ? (
                   <img src={getUserAvatar()} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : getUserInitial()}
               </div>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '11px', color: isDarkMode ? '#94a3b8' : '#64748b', marginBottom: '2px' }}>
-                  {lang === 'sw' ? 'Karibu,' : 'Welcome,'}
+              {!isMobile && (
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '11px', color: isDarkMode ? '#94a3b8' : '#64748b', marginBottom: '2px' }}>
+                    {lang === 'sw' ? 'Karibu,' : 'Welcome,'}
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {userProfile?.full_name || userProfile?.business_name || 'User'}
+                    <Icons.ChevronDown size={14} />
+                  </div>
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {userProfile?.full_name || userProfile?.business_name || 'User'}
-                  <Icons.ChevronDown size={14} />
-                </div>
-              </div>
+              )}
             </button>
 
             {showUserMenu && (
               <div style={{
                 position: 'absolute',
-                top: '60px',
+                top: '70px',
                 left: '16px',
-                right: '16px',
+                right: isMobile ? '16px' : 'auto',
                 background: isDarkMode ? '#1e293b' : '#fff',
                 borderRadius: '12px',
                 border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
                 boxShadow: '0 12px 32px rgba(0,0,0,0.15)',
                 padding: '8px',
+                minWidth: isMobile ? 'auto' : '240px',
                 zIndex: 1000
               }}>
                 <button onClick={() => { setActivePage('profile'); setShowUserMenu(false); }} style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: isDarkMode ? '#f1f5f9' : '#0f172a', fontSize: '14px', fontWeight: '500', textAlign: 'left' }}>
                   <Icons.User size={18} /> {lang === 'sw' ? 'Wasifu Wangu' : 'My Profile'}
                 </button>
                 <button onClick={() => { setActivePage('settings'); setShowUserMenu(false); }} style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: isDarkMode ? '#f1f5f9' : '#0f172a', fontSize: '14px', fontWeight: '500', textAlign: 'left' }}>
-                  <Icons.Building size={18} /> {lang === 'sw' ? 'Wasifu wa Kampuni' : 'Company Profile'}
+                  <Icons.Building size={18} /> {lang === 'sw' ? 'Mipangilio' : 'Settings'}
                 </button>
                 <div style={{ height: '1px', background: isDarkMode ? '#334155' : '#e2e8f0', margin: '8px 0' }}></div>
                 <button onClick={handleLogout} style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: '#ef4444', fontSize: '14px', fontWeight: '500', textAlign: 'left' }}>
@@ -243,11 +260,13 @@ const Dashboard = ({ supabase }) => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button onClick={() => handleLanguageChange('sw')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: lang === 'sw' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', border: `2px solid ${lang === 'sw' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`, borderRadius: '10px', cursor: 'pointer', opacity: lang === 'sw' ? 1 : 0.7 }}>
-              <span style={{ fontSize: '16px' }}>🇹</span>
+            <button onClick={() => handleLanguageChange('sw')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: isMobile ? '6px 10px' : '8px 16px', background: lang === 'sw' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', border: `2px solid ${lang === 'sw' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`, borderRadius: '10px', cursor: 'pointer', opacity: lang === 'sw' ? 1 : 0.7 }}>
+              <span style={{ fontSize: isMobile ? '16px' : '20px' }}>🇹🇿</span>
+              {!isMobile && <span style={{ fontSize: '13px', fontWeight: lang === 'sw' ? '700' : '500', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>SW</span>}
             </button>
-            <button onClick={() => handleLanguageChange('en')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: lang === 'en' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', border: `2px solid ${lang === 'en' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`, borderRadius: '10px', cursor: 'pointer', opacity: lang === 'en' ? 1 : 0.7 }}>
-              <span style={{ fontSize: '16px' }}>🇺</span>
+            <button onClick={() => handleLanguageChange('en')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: isMobile ? '6px 10px' : '8px 16px', background: lang === 'en' ? 'rgba(99, 102, 241, 0.1)' : 'transparent', border: `2px solid ${lang === 'en' ? '#6366f1' : (isDarkMode ? '#475569' : '#e2e8f0')}`, borderRadius: '10px', cursor: 'pointer', opacity: lang === 'en' ? 1 : 0.7 }}>
+              <span style={{ fontSize: isMobile ? '16px' : '20px' }}>🇺🇸</span>
+              {!isMobile && <span style={{ fontSize: '13px', fontWeight: lang === 'en' ? '700' : '500', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>EN</span>}
             </button>
           </div>
         </div>
@@ -270,7 +289,7 @@ const Dashboard = ({ supabase }) => {
                 })}
               </div>
 
-              <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', borderRadius: '16px', padding: isMobile ? '24px' : '32px', color: '#fff', boxShadow: '0 12px 32px rgba(99, 102, 241, 0.3)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', borderRadius: '16px', padding: isMobile ? '20px' : '32px', color: '#fff', boxShadow: '0 12px 32px rgba(99, 102, 241, 0.3)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: '-50%', right: '-20%', width: '300px', height: '300px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }}></div>
                 <div style={{ position: 'relative', zIndex: 1 }}>
                   <h2 style={{ margin: '0 0 8px', fontSize: isMobile ? '18px' : '24px', fontWeight: '700' }}>{lang === 'sw' ? 'Karibu KasiTRADE!' : 'Welcome to KasiTRADE!'}</h2>
@@ -298,7 +317,7 @@ const Dashboard = ({ supabase }) => {
           {activePage === 'profile' && <Profile lang={lang} supabase={supabase} isDarkMode={isDarkMode} onBack={() => setActivePage('dashboard')} onProfileUpdate={loadUserProfile} />}
         </div>
         
-        {!isMobile && <Footer lang={lang} isDarkMode={isDarkMode} />}
+        <Footer lang={lang} isDarkMode={isDarkMode} />
       </div>
     </div>
   );
