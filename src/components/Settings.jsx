@@ -6,7 +6,7 @@ const Settings = ({
   setLang, 
   supabase, 
   currentShop, 
-  shops, 
+  shops = [], 
   setShops, 
   isDarkMode = false, 
   setIsDarkMode,
@@ -16,7 +16,6 @@ const Settings = ({
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  // ✅ Hakikisha shops ni array
   const safeShops = Array.isArray(shops) ? shops : [];
 
   const triggerToast = (msg) => {
@@ -59,7 +58,6 @@ const Settings = ({
         {lang === 'sw' ? 'Mipangilio' : 'Settings'}
       </h2>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
         {tabs.map(tab => {
           const Icon = tab.icon;
@@ -87,11 +85,9 @@ const Settings = ({
         })}
       </div>
 
-      {/* General Tab */}
       {activeTab === 'general' && (
         <div style={{ background: bgColor, padding: '24px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
           
-          {/* Language */}
           <h3 style={{ color: textColor, marginBottom: '16px', fontSize: '18px', fontWeight: '700' }}>
             🌍 {lang === 'sw' ? 'Lugha' : 'Language'}
           </h3>
@@ -128,12 +124,11 @@ const Settings = ({
             </button>
           </div>
 
-          {/* Dark Mode */}
           <div style={{ paddingTop: '24px', borderTop: `1px solid ${borderColor}`, marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h4 style={{ color: textColor, margin: '0 0 4px', fontSize: '16px', fontWeight: '600' }}>
-                  {isDarkMode ? '🌙' : '☀️'} {lang === 'sw' ? 'Dark Mode' : 'Dark Mode'}
+                  {isDarkMode ? '🌙' : '☀️'} Dark Mode
                 </h4>
                 <p style={{ color: subTextColor, margin: 0, fontSize: '14px' }}>
                   {lang === 'sw' ? 'Badilisha muonekano wa mfumo' : 'Change system appearance'}
@@ -167,7 +162,6 @@ const Settings = ({
             </div>
           </div>
 
-          {/* Shop Info */}
           <div style={{ paddingTop: '24px', borderTop: `1px solid ${borderColor}` }}>
             <h4 style={{ color: textColor, margin: '0 0 12px', fontSize: '16px', fontWeight: '600' }}>
               🏪 {lang === 'sw' ? 'Duka Lako' : 'Your Shop'}
@@ -193,7 +187,6 @@ const Settings = ({
             )}
           </div>
 
-          {/* All Shops List */}
           {safeShops.length > 1 && (
             <div style={{ paddingTop: '24px', borderTop: `1px solid ${borderColor}`, marginTop: '24px' }}>
               <h4 style={{ color: textColor, margin: '0 0 12px', fontSize: '16px', fontWeight: '600' }}>
@@ -241,7 +234,6 @@ const Settings = ({
         </div>
       )}
 
-      {/* Help Tab */}
       {activeTab === 'help' && (
         <div style={{ background: bgColor, padding: '24px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
           <h3 style={{ color: textColor, marginBottom: '16px', fontSize: '18px', fontWeight: '700' }}>
@@ -275,7 +267,6 @@ const Settings = ({
             </div>
           </div>
 
-          {/* Quick Actions */}
           <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: `1px solid ${borderColor}` }}>
             <h4 style={{ color: textColor, margin: '0 0 12px', fontSize: '16px', fontWeight: '600' }}>
               ⚡ {lang === 'sw' ? 'Hatua za Haraka' : 'Quick Actions'}
@@ -346,7 +337,6 @@ const Settings = ({
         </div>
       )}
 
-      {/* Toast Notification */}
       {showToast && (
         <div style={{
           position: 'fixed',
