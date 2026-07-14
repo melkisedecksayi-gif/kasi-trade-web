@@ -1,497 +1,197 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
+import Skeleton from './Skeleton';
 
-const Profile = ({ lang = 'sw', supabase, isDarkMode = false, onBack, onProfileUpdate }) => {
-  const [user, setUser] = useState(null);
+const Profile = ({ lang, supabase, currentShop, isDarkMode, setActivePage, session, theme, avatarUrl: parentAvatarUrl, setAvatarUrl: updateParentAvatar }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
 
-  const [editForm, setEditForm] = useState({
-    full_name: '',
-    phone: '',
-    gender: '',
-    address: '',
-    business_name: ''
-  });
+  const [form, setForm] = useState({ full_name: '', phone: '', business_name: '', region: '', district: '', ward: '' });
+  const isSw = lang === 'sw';
+  const localTheme = { cardBg: isDarkMode ? '#1e293b' : '#ffffff', text: isDarkMode ? '#f1f5f9' : '#0f172a', textMuted: isDarkMode ? '#94a3b8' : '#475569', border: isDarkMode ? '#334155' : '#e2e8f0', hoverBg: isDarkMode ? '#334155' : '#f1f5f9' }; const th = theme || localTheme;
 
-  const [passwordForm, setPasswordForm] = useState({
-    newPassword: '',
-    confirmPassword: ''
-  });
+  const showToast = (msg, err) => { setToast({ msg, err }); setTimeout(() => setToast(null), 3000); };
 
-  const triggerToast = (msg) => {
-    setToastMessage(msg);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+  useEffect(() => { if (session?.user) fetchProfile(); }, [session]);
+
+  const fetchProfile = async () => {
+    setLoading(true);
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+      if (data) {
+        setProfile(data);
+        setAvatarUrl(data.avatar_url);
+        if (data.avatar_url) updateParentAvatar(data.avatar_url);
+        setForm({ full_name: data.full_name || '', phone: data.phone || '', business_name: data.business_name || '', region: data.region || '', district: data.district || '', ward: data.ward || '' });
+      }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
-        
-        if (user) {
-          setUser(user);
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-          
-          if (profileError && profileError.code !== 'PGRST116') {
-            throw profileError;
-          }
-          
-          if (profileData) {
-            setProfile(profileData);
-            setEditForm({
-              full_name: profileData.full_name || '',
-              phone: profileData.phone || '',
-              gender: profileData.gender || '',
-              address: profileData.address || '',
-              business_name: profileData.business_name || ''
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Error loading profile:', err);
-        triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [supabase, lang]);
+  const handleSave = async () => {
+    try {
+      const { error } = await supabase.from('profiles').update(form).eq('id', session.user.id);
+      if (error) throw error;
+      setProfile({ ...profile, ...form });
+      setEditing(false);
+      showToast(isSw ? 'Wasifu umesasishwa' : 'Profile updated');
+    } catch (e) { showToast(e.message, true); }
+  };
 
-  const handlePhotoUpload = async (e) => {
+  const handleUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !user) {
-      triggerToast(lang === 'sw' ? 'Hakuna picha iliyochaguliwa' : 'No file selected');
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      triggerToast(lang === 'sw' ? 'Picha ni kubwa sana! Max 2MB' : 'Photo too large! Max 2MB');
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      triggerToast(lang === 'sw' ? 'Tafadhali chagua picha tu' : 'Please select an image only');
-      return;
-    }
-
-    setUploadingPhoto(true);
+    if (!file) return;
+    if (file.size > 2097152) { showToast(isSw ? 'Picha ni kubwa sana (max 2MB)' : 'Image too large (max 2MB)', true); return; }
+    setUploading(true);
     try {
       const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const base64 = reader.result;
-          
-          const { error } = await supabase
-            .from('profiles')
-            .update({ avatar_url: base64 })
-            .eq('id', user.id);
-
-          if (error) throw error;
-          
-          setProfile({ ...profile, avatar_url: base64 });
-          
-          if (onProfileUpdate) {
-            await onProfileUpdate();
-          }
-          
-          triggerToast(lang === 'sw' ? '✅ Picha imebadilishwa!' : '✅ Photo updated!');
-        } catch (err) {
-          console.error('Error:', err);
-          triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
-        } finally {
-          setUploadingPhoto(false);
-        }
-      };
-      
-      reader.onerror = () => {
-        triggerToast(lang === 'sw' ? 'Hitilafu ya kusoma faili' : 'Error reading file');
-        setUploadingPhoto(false);
-      };
-      
-      reader.readAsDataURL(file);
-    } catch (err) {
-      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
-      setUploadingPhoto(false);
-    }
-  };
-
-  const handleEditProfile = async (e) => {
-    e.preventDefault();
-    if (!user) return;
-
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update(editForm)
-        .eq('id', user.id);
-
-      if (error) throw error;
-      
-      setProfile({ ...profile, ...editForm });
-      setShowEditModal(false);
-      if (onProfileUpdate) await onProfileUpdate();
-      triggerToast(lang === 'sw' ? '✅ Taarifa zimesasishwa!' : '✅ Profile updated!');
-    } catch (err) {
-      triggerToast(lang === 'sw' ? 'Hitilafu: ' + err.message : 'Error: ' + err.message);
-    }
-  };
-
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      triggerToast(lang === 'sw' ? '❌ Nenosiri hazifanani!' : '❌ Passwords do not match!');
-      return;
-    }
-    if (passwordForm.newPassword.length < 6) {
-      triggerToast(lang === 'sw' ? '❌ Nenosiri iwe na herufi 6+' : '❌ Password must be 6+ characters');
-      return;
-    }
-
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwordForm.newPassword
+      const dataUrl = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
       });
 
-      if (error) throw error;
-      
-      setShowPasswordModal(false);
-      setPasswordForm({ newPassword: '', confirmPassword: '' });
-      triggerToast(lang === 'sw' ? '✅ Nenosiri limebadilishwa!' : '✅ Password changed!');
-    } catch (err) {
-      triggerToast(lang === 'sw' ? '❌ Hitilafu: ' + err.message : '❌ Error: ' + err.message);
-    }
-  };
+      const { error: upErr } = await supabase.from('profiles').update({ avatar_url: dataUrl }).eq('id', session.user.id);
+      if (upErr) throw upErr;
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '---';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('sw-TZ', { year: 'numeric', month: '2-digit', day: '2-digit' }) + 
-           ' ' + date.toLocaleTimeString('sw-TZ', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const inputStyle = {
-    width: '100%', padding: '12px',
-    border: `1px solid ${isDarkMode ? '#475569' : '#e2e8f0'}`,
-    borderRadius: '10px', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-    background: isDarkMode ? '#334155' : '#fff', color: isDarkMode ? '#f1f5f9' : '#0f172a'
-  };
-
-  const cardStyle = {
-    background: isDarkMode ? '#1e293b' : '#fff',
-    padding: '32px',
-    borderRadius: '16px',
-    border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+      setAvatarUrl(dataUrl);
+      if (profile) setProfile({ ...profile, avatar_url: dataUrl });
+      updateParentAvatar(dataUrl);
+      showToast(isSw ? 'Picha imepakiwa' : 'Photo uploaded');
+    } catch (e) { showToast(e.message || 'Upload failed', true); }
+    finally { setUploading(false); }
   };
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '60px', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-        <Icons.User size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-        <p>{lang === 'sw' ? 'Inapakia...' : 'Loading...'}</p>
+      <div style={{ maxWidth: '560px', margin: '0 auto', padding: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+          <Skeleton width="80px" height="80px" borderRadius="50%" />
+          <div style={{ flex: 1 }}>
+            <Skeleton width="60%" height="20px" />
+            <Skeleton width="40%" height="14px" style={{ marginTop: '8px' }} />
+          </div>
+        </div>
+        <Skeleton height="120px" borderRadius="12px" />
+        <Skeleton height="120px" borderRadius="12px" style={{ marginTop: '14px' }} />
       </div>
     );
   }
 
+  const initials = (profile?.full_name || session?.user?.email || 'U').charAt(0).toUpperCase();
+
   return (
-    <div style={{ position: 'relative', zIndex: 10 }}>
-      <div style={{ marginBottom: '24px' }}>
-        <button 
-          onClick={onBack}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#6366f1',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 0'
-          }}
-        >
-          <Icons.ArrowLeft size={16} /> {lang === 'sw' ? 'Rudi' : 'Back'}
-        </button>
+    <div style={{ maxWidth: '560px', margin: '0 auto' }}>
+      {toast && (
+        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: toast.err ? '#ef4444' : '#10b981', color: '#fff', padding: '10px 18px', borderRadius: '10px', fontWeight: '600', fontSize: '13px' }}>{toast.msg}</div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <button onClick={() => setActivePage?.('dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: th.text, fontSize: '20px' }}>←</button>
+        <h2 style={{ fontSize: '20px', fontWeight: '800', color: th.text, margin: 0 }}>{isSw ? 'Wasifu' : 'Profile'}</h2>
       </div>
 
-      <div style={cardStyle}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '40px' }}>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{
-              width: '180px',
-              height: '180px',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              border: `4px solid ${isDarkMode ? '#334155' : '#f1f5f9'}`,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '16px'
-            }}>
-              {profile?.avatar_url ? (
-                <img 
-                  src={profile.avatar_url} 
-                  alt="Profile" 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <div style={{ color: '#fff', fontSize: '64px', fontWeight: '700' }}>
-                  {(profile?.full_name || profile?.business_name || 'U').charAt(0).toUpperCase()}
-                </div>
-              )}
+      {/* Avatar Section */}
+      <div style={{ background: th.cardBg, border: `1px solid ${th.border}`, borderRadius: '16px', padding: '28px', textAlign: 'center', marginBottom: '14px' }}>
+        <input type="file" ref={fileRef} onChange={handleUpload} accept="image/*" style={{ display: 'none' }} />
+        <div style={{ position: 'relative', display: 'inline-block', marginBottom: '14px' }}>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: `3px solid ${th.border}` }} onError={() => setAvatarUrl(null)} />
+          ) : (
+            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: '800', color: '#fff' }}>
+              {initials}
             </div>
-            
-            <label 
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 20px',
-                background: uploadingPhoto ? '#94a3b8' : '#6366f1',
-                color: '#fff',
-                borderRadius: '10px',
-                cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: '600',
-                transition: 'all 0.2s',
-                boxShadow: uploadingPhoto ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.3)'
-              }}
-            >
-              <Icons.Camera size={16} />
-              {uploadingPhoto 
-                ? (lang === 'sw' ? '⏳ Inapakiwa...' : '⏳ Uploading...') 
-                : (lang === 'sw' ? '📷 Chagua Picha' : '📷 Select Picture')}
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handlePhotoUpload}
-                style={{ display: 'none' }}
-                disabled={uploadingPhoto}
-              />
-            </label>
-          </div>
-
-          <div>
-            <h2 style={{ margin: '0 0 24px', fontSize: '24px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
-              {profile?.full_name || profile?.business_name || 'User'}
-            </h2>
-            <p style={{ margin: '0 0 24px', color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '14px' }}>
-              ({profile?.business_name || '---'})
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {[
-                { label: lang === 'sw' ? 'Barua pepe' : 'Email', value: user?.email || '---', icon: Icons.Mail },
-                { label: lang === 'sw' ? 'Namba ya Simu' : 'Phone number', value: profile?.phone || '---', icon: Icons.Phone },
-                { label: lang === 'sw' ? 'Jinsia' : 'Gender', value: profile?.gender || '---', icon: Icons.User },
-                { label: lang === 'sw' ? 'Anwani' : 'Address', value: profile?.address || '---', icon: Icons.Home },
-                { label: lang === 'sw' ? 'Kampuni' : 'Company', value: profile?.business_name || '---', icon: Icons.Building },
-                { label: lang === 'sw' ? 'Tarehe ya kujiunga' : 'Created date', value: formatDate(user?.created_at), icon: Icons.Calendar },
-              ].map((item, i) => {
-                const Icon = item.icon;
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ 
-                      width: '120px', 
-                      fontSize: '14px', 
-                      fontWeight: '600', 
-                      color: isDarkMode ? '#cbd5e1' : '#475569',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <Icon size={16} /> {item.label}
-                    </div>
-                    <div style={{ color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: '14px' }}>:</div>
-                    <div style={{ 
-                      flex: 1, 
-                      fontSize: '14px', 
-                      color: isDarkMode ? '#f1f5f9' : '#0f172a',
-                      fontWeight: '500'
-                    }}>
-                      {item.value}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ marginTop: '32px', display: 'flex', gap: '12px' }}>
-              <button 
-                onClick={() => setShowEditModal(true)}
-                style={{
-                  padding: '12px 24px',
-                  background: '#6366f1',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontWeight: '600',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Icons.Edit size={16} /> {lang === 'sw' ? 'Hariri' : 'Edit'}
-              </button>
-              <button 
-                onClick={() => setShowPasswordModal(true)}
-                style={{
-                  padding: '12px 24px',
-                  background: isDarkMode ? '#334155' : '#64748b',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontWeight: '600',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Icons.Lock size={16} /> {lang === 'sw' ? 'Badilisha Nenosiri' : 'Change password'}
-              </button>
-            </div>
-          </div>
+          )}
+          <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{
+            position: 'absolute', bottom: 0, right: 0, width: '28px', height: '28px', borderRadius: '50%',
+            border: `2px solid ${th.cardBg}`, background: '#6366f1', color: '#fff', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px'
+          }}>
+            {uploading ? '...' : <Icons.Plus size={12} color="#fff" />}
+          </button>
+        </div>
+        <h3 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: '700', color: th.text }}>{profile?.full_name || session?.user?.email}</h3>
+        <p style={{ margin: 0, fontSize: '12px', color: th.textMuted }}>{session?.user?.email}</p>
+        <div style={{ marginTop: '8px' }}>
+          <span style={{ padding: '3px 10px', borderRadius: '20px', background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontSize: '11px', fontWeight: '600' }}>
+            {profile?.business_name || currentShop?.shop_name || 'KasiTRADE'}
+          </span>
         </div>
       </div>
 
-      {showEditModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: isDarkMode ? '#1e293b' : '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '500px', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
-                {lang === 'sw' ? 'Hariri Wasifu' : 'Edit Profile'}
-              </h2>
-              <button onClick={() => setShowEditModal(false)} style={{ background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
-                <Icons.X size={16} />
-              </button>
+      {/* Details */}
+      <div style={{ background: th.cardBg, border: `1px solid ${th.border}`, borderRadius: '16px', padding: '22px', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: th.text }}>{isSw ? 'Taarifa Binafsi' : 'Personal Info'}</h3>
+          <button onClick={() => setEditing(!editing)} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: editing ? 'rgba(239,68,68,0.1)' : '#6366f1', color: editing ? '#ef4444' : '#fff', fontSize: '11px', fontWeight: '600' }}>
+            {editing ? (isSw ? 'Ghairi' : 'Cancel') : (isSw ? 'Hariri' : 'Edit')}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { k: 'full_name', label: isSw ? 'Jina Kamili' : 'Full Name', icon: <Icons.User size={14} color={th.textMuted} /> },
+            { k: 'phone', label: isSw ? 'Simu' : 'Phone', icon: <Icons.Phone size={14} color={th.textMuted} /> },
+            { k: 'business_name', label: isSw ? 'Jina la Biashara' : 'Business Name', icon: <Icons.Building size={14} color={th.textMuted} /> },
+            { k: 'region', label: isSw ? 'Mkoa' : 'Region', icon: <Icons.Box size={14} color={th.textMuted} /> },
+            { k: 'district', label: isSw ? 'Wilaya' : 'District', icon: <Icons.Box size={14} color={th.textMuted} /> },
+            { k: 'ward', label: isSw ? 'Kata' : 'Ward', icon: <Icons.Box size={14} color={th.textMuted} /> },
+          ].map(f => (
+            <div key={f.k} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: th.hoverBg, borderRadius: '8px' }}>
+              {f.icon}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '10px', color: th.textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{f.label}</div>
+                {editing ? (
+                  <input value={form[f.k] || ''} onChange={e => setForm({ ...form, [f.k]: e.target.value })}
+                    style={{ width: '100%', padding: '4px 0', border: 'none', background: 'transparent', color: th.text, fontSize: '13px', fontWeight: '600', outline: 'none', borderBottom: `1px solid ${th.border}` }}
+                  />
+                ) : (
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: th.text }}>{profile?.[f.k] || form[f.k] || '-'}</div>
+                )}
+              </div>
             </div>
-            <form onSubmit={handleEditProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                  {lang === 'sw' ? 'Jina Kamili' : 'Full Name'}
-                </label>
-                <input type="text" value={editForm.full_name} onChange={(e) => setEditForm({...editForm, full_name: e.target.value})} style={inputStyle} />
+          ))}
+        </div>
+
+        {editing && (
+          <button onClick={handleSave} style={{ marginTop: '14px', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+            {isSw ? 'Hifadhi' : 'Save'}
+          </button>
+        )}
+      </div>
+
+      {/* Shop Info */}
+      {currentShop && (
+        <div style={{ background: th.cardBg, border: `1px solid ${th.border}`, borderRadius: '16px', padding: '22px', marginBottom: '14px' }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '700', color: th.text }}>{isSw ? 'Duka Linalotumika' : 'Active Shop'}</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {[
+              { label: isSw ? 'Jina' : 'Name', value: currentShop.shop_name },
+              { label: isSw ? 'Aina' : 'Type', value: currentShop.business_type },
+              { label: isSw ? 'Tarehe' : 'Created', value: new Date(currentShop.created_at).toLocaleDateString() },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: th.hoverBg, borderRadius: '8px' }}>
+                <span style={{ fontSize: '12px', color: th.textMuted }}>{item.label}</span>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: th.text }}>{item.value}</span>
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                  {lang === 'sw' ? 'Namba ya Simu' : 'Phone'}
-                </label>
-                <input type="tel" value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} style={inputStyle} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                  {lang === 'sw' ? 'Jinsia' : 'Gender'}
-                </label>
-                <select value={editForm.gender} onChange={(e) => setEditForm({...editForm, gender: e.target.value})} style={inputStyle}>
-                  <option value="">{lang === 'sw' ? 'Chagua...' : 'Select...'}</option>
-                  <option value="male">{lang === 'sw' ? 'Mwanaume' : 'Male'}</option>
-                  <option value="female">{lang === 'sw' ? 'Mwanamke' : 'Female'}</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                  {lang === 'sw' ? 'Anwani' : 'Address'}
-                </label>
-                <input type="text" value={editForm.address} onChange={(e) => setEditForm({...editForm, address: e.target.value})} style={inputStyle} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                  {lang === 'sw' ? 'Jina la Biashara' : 'Business Name'}
-                </label>
-                <input type="text" value={editForm.business_name} onChange={(e) => setEditForm({...editForm, business_name: e.target.value})} style={inputStyle} />
-              </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setShowEditModal(false)} style={{ flex: 1, padding: '12px', background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: isDarkMode ? '#f1f5f9' : '#475569' }}>
-                  {lang === 'sw' ? 'Ghairi' : 'Cancel'}
-                </button>
-                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>
-                  {lang === 'sw' ? 'Hifadhi' : 'Save'}
-                </button>
-              </div>
-            </form>
+            ))}
           </div>
         </div>
       )}
 
-      {showPasswordModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: isDarkMode ? '#1e293b' : '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 48px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
-                {lang === 'sw' ? 'Badilisha Nenosiri' : 'Change Password'}
-              </h2>
-              <button onClick={() => setShowPasswordModal(false)} style={{ background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
-                <Icons.X size={16} />
-              </button>
-            </div>
-            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                  {lang === 'sw' ? 'Nenosiri Jipya' : 'New Password'}
-                </label>
-                <input type="password" required value={passwordForm.newPassword} onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})} style={inputStyle} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                  {lang === 'sw' ? 'Thibitisha Nenosiri' : 'Confirm Password'}
-                </label>
-                <input type="password" required value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})} style={inputStyle} />
-              </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setShowPasswordModal(false)} style={{ flex: 1, padding: '12px', background: isDarkMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', color: isDarkMode ? '#f1f5f9' : '#475569' }}>
-                  {lang === 'sw' ? 'Ghairi' : 'Cancel'}
-                </button>
-                <button type="submit" style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>
-                  {lang === 'sw' ? 'Badilisha' : 'Change'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showToast && (
-        <div style={{ 
-          position: 'fixed', 
-          top: '30px', 
-          right: '30px', 
-          background: toastMessage.includes('❌') || toastMessage.includes('Error') || toastMessage.includes('Hitilafu') ? '#ef4444' : '#10b981', 
-          color: '#fff', 
-          padding: '14px 24px', 
-          borderRadius: '12px', 
-          boxShadow: '0 10px 30px rgba(0,0,0,0.2)', 
-          zIndex: 2000, 
-          fontWeight: '600', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px' 
-        }}>
-          {toastMessage}
-        </div>
-      )}
+      {/* Go to Settings */}
+      <button onClick={() => setActivePage?.('settings')} style={{
+        width: '100%', padding: '12px', borderRadius: '10px', border: `1px solid ${th.border}`,
+        background: th.cardBg, color: th.text, cursor: 'pointer', fontWeight: '600', fontSize: '13px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+      }}>
+        <Icons.Settings size={14} color={th.textMuted} /> {isSw ? 'Mipangilio' : 'Settings'}
+      </button>
     </div>
   );
 };

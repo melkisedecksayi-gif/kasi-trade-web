@@ -1,10 +1,11 @@
 import React from 'react';
+import CI from './ColoredIcons';
 
 const ConfirmModal = ({ isOpen, onConfirm, onCancel, title, message, type = 'danger' }) => {
   if (!isOpen) return null;
 
   const isDanger = type === 'danger';
-  const icon = isDanger ? '🗑️' : '⚠️';
+  const icon = isDanger ? <CI.Trash size={48} /> : <CI.Warning size={48} />;
   const confirmText = isDanger ? 'Ndiyo, Futa' : 'Ndiyo, Endelea';
   const confirmColor = isDanger ? '#ef4444' : '#f59e0b';
 

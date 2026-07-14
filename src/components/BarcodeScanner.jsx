@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { THEME } from '../theme';
+import CI from './ColoredIcons';
 
 const BarcodeScanner = ({ onScan, onClose, products, lang }) => {
   const scannerRef = useRef(null);
@@ -23,7 +24,7 @@ const BarcodeScanner = ({ onScan, onClose, products, lang }) => {
       if (navigator.vibrate) navigator.vibrate(50);
       onScan(product);
     } else {
-      setError(lang === 'sw' ? `❌ Bidhaa ya barcode "${decodedText}" haipatikani` : `❌ Product with barcode "${decodedText}" not found`);
+      setError(lang === 'sw' ? `Bidhaa ya barcode "${decodedText}" haipatikani` : `Product with barcode "${decodedText}" not found`);
       if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
     }
   }, [findProductByBarcode, onScan, lang]);
@@ -51,7 +52,7 @@ const BarcodeScanner = ({ onScan, onClose, products, lang }) => {
       }
     ).catch(err => {
       console.error('Scanner error:', err);
-      setError(lang === 'sw' ? '❌ Imeshindwa kufungua kamera. Jaribu ruhusa au tumia namba ya mkono.' : '❌ Failed to open camera. Check permissions or use manual entry.');
+      setError(lang === 'sw' ? 'Imeshindwa kufungua kamera. Jaribu ruhusa au tumia namba ya mkono.' : 'Failed to open camera. Check permissions or use manual entry.');
     });
 
     return () => {
@@ -80,11 +81,11 @@ const BarcodeScanner = ({ onScan, onClose, products, lang }) => {
         maxWidth: '400px', width: '100%', boxShadow: THEME.shadow.lg
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: THEME.space.l }}>
-          <h3 style={{ margin: 0, fontSize: '18px' }}>📷 {lang === 'sw' ? 'Scan Barcode' : 'Scan Barcode'}</h3>
+          <h3 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: 8 }}><CI.Camera size={20} /> {lang === 'sw' ? 'Scan Barcode' : 'Scan Barcode'}</h3>
           <button onClick={onClose} style={{
             background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer',
             color: '#64748b', padding: THEME.space.xs
-          }}>✕</button>
+          }}>×</button>
         </div>
 
         {/* Scanner Viewfinder */}
@@ -96,11 +97,13 @@ const BarcodeScanner = ({ onScan, onClose, products, lang }) => {
         {/* Instructions */}
         <p style={{ 
           fontSize: '13px', color: '#64748b', textAlign: 'center', 
-          margin: `0 0 ${THEME.space.m}` 
+          margin: `0 0 ${THEME.space.m}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4
         }}>
+          <CI.Location size={14} />
           {lang === 'sw' 
-            ? '🎯 Elekeza kamera kwenye barcode ya bidhaa' 
-            : '🎯 Point camera at product barcode'}
+            ? 'Elekeza kamera kwenye barcode ya bidhaa' 
+            : 'Point camera at product barcode'}
         </p>
 
         {/* Error Message */}
@@ -108,8 +111,9 @@ const BarcodeScanner = ({ onScan, onClose, products, lang }) => {
           <p style={{
             background: '#fef2f2', color: '#dc2626', padding: THEME.space.m,
             borderRadius: THEME.radius.sm, fontSize: '13px', marginBottom: THEME.space.m,
-            textAlign: 'center'
+            textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
           }}>
+            <CI.Warning size={16} />
             {error}
           </p>
         )}

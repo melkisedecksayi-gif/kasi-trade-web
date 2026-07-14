@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { translations } from '../translations';
 import { THEME, getThemeColors } from '../theme';
 import Toast from './Toast';
+import CI from './ColoredIcons';
 
 const UpdatePassword = ({ supabase, onPasswordUpdated }) => {
   const [lang, setLang] = useState(() => localStorage.getItem('lang') || 'sw');
@@ -72,8 +73,8 @@ const UpdatePassword = ({ supabase, onPasswordUpdated }) => {
       
       showToast(
         lang === 'sw' 
-          ? '✅ Password imebadilishwa! Sasa unaweza kuingia.'
-          : '✅ Password updated! You can now sign in.',
+          ? 'Password imebadilishwa! Sasa unaweza kuingia.'
+          : 'Password updated! You can now sign in.',
         'success'
       );
       
@@ -116,7 +117,7 @@ const UpdatePassword = ({ supabase, onPasswordUpdated }) => {
           boxShadow: THEME.shadow.sm, zIndex: 10
         }}
       >
-        {lang === 'sw' ? '🇹🇿' : '🇺🇸'}
+        {lang === 'sw' ? 'SW' : 'EN'}
       </button>
 
       {/* THEME TOGGLE */}
@@ -131,7 +132,7 @@ const UpdatePassword = ({ supabase, onPasswordUpdated }) => {
           boxShadow: THEME.shadow.sm, zIndex: 10
         }}
       >
-        {theme === 'dark' ? '☀️' : '🌙'}
+        {theme === 'dark' ? '\u2600' : '\u263D'}
       </button>
 
       <div style={{ 
@@ -145,7 +146,7 @@ const UpdatePassword = ({ supabase, onPasswordUpdated }) => {
         boxSizing: 'border-box'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔐</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}><CI.Lock size={48} /></div>
           <h2 style={{ margin: '0 0 8px', color: colors.text, fontSize: '22px', fontWeight: '700' }}>
             {updateText.title || (lang === 'sw' ? 'Weka Password Mpya' : 'Set New Password')}
           </h2>
@@ -219,8 +220,8 @@ const UpdatePassword = ({ supabase, onPasswordUpdated }) => {
               }}
             >
               {loading 
-                ? (lang === 'sw' ? '⏳ Inabadilisha...' : '⏳ Updating...') 
-                : (updateText.submit || (lang === 'sw' ? '✅ Badilisha Password' : '✅ Update Password'))}
+                ? (lang === 'sw' ? 'Inabadilisha...' : 'Updating...') 
+                : (updateText.submit || (lang === 'sw' ? 'Badilisha Password' : 'Update Password'))}
             </button>
           </form>
         )}

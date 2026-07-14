@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { translations } from '../translations';
+import CI from './ColoredIcons';
 
 // ✅ Default fallback labels
 const DEFAULT_RECEIPT_LABELS = {
@@ -62,10 +63,10 @@ const ReceiptTemplates = ({ isOpen, onClose, receiptData, lang }) => {
   const safeReceiptData = receiptData || { items: [], total: 0, receipt: 'N/A', date: new Date(), method: '' };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', boxSizing: 'border-box', overflow: 'auto' }}>
-      <div style={{ background: '#fff', borderRadius: '12px', padding: '25px', maxWidth: '950px', width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', boxSizing: 'border-box', overflow: 'auto', animation: 'fadeIn 0.2s ease' }}>
+      <div style={{ background: '#fff', borderRadius: '12px', padding: '25px', maxWidth: '950px', width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', animation: 'fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         <h2 style={{ margin: '0 0 20px', color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>
-          {lang === 'sw' ? '⚙️ Mipangilio ya Risiti' : '⚙️ Receipt Settings'}
+          {lang === 'sw' ? <><CI.Settings size={18} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Mipangilio ya Risiti</> : <><CI.Settings size={18} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Receipt Settings</>}
         </h2>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '25px' }}>
@@ -85,7 +86,7 @@ const ReceiptTemplates = ({ isOpen, onClose, receiptData, lang }) => {
                 <img src={logo} alt="Logo" style={{ maxWidth: '80px', borderRadius: '6px', border: '1px solid #e2e8f0' }} />
                 {/* ✅ NEW: Remove Logo Button */}
                 <button onClick={handleRemoveLogo} style={{ padding: '6px 12px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                  {lang === 'sw' ? '🗑️ Ondoa' : '🗑️ Remove'}
+                  {lang === 'sw' ? <><CI.Trash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Ondoa</> : <><CI.Trash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Remove</>}
                 </button>
               </div>
             )}
@@ -103,7 +104,7 @@ const ReceiptTemplates = ({ isOpen, onClose, receiptData, lang }) => {
             <div style={{ textAlign: 'center', marginBottom: '10px', borderBottom: template === 'thermal' ? '1px dashed #000' : '2px solid #3b82f6', paddingBottom: '8px' }}>
               <h1 style={{ margin: '0 0 4px', fontSize: template === 'thermal' ? '13px' : '18px' }}>KasiTRADE Web</h1>
               <p style={{ margin: 0, fontSize: template === 'thermal' ? '9px' : '11px', color: '#64748b' }}>{lang === 'sw' ? 'Mfumo wa Kisasa wa Mauzo' : 'Modern Sales System'}</p>
-              <p style={{ margin: '3px 0 0', fontSize: template === 'thermal' ? '9px' : '11px' }}>📞 +255 622 995 734</p>
+              <p style={{ margin: '3px 0 0', fontSize: template === 'thermal' ? '9px' : '11px' }}><CI.Phone size={template === 'thermal' ? 10 : 12} style={{ marginRight: 2, verticalAlign: 'middle' }} /> +255 622 995 734</p>
             </div>
             <div style={{ marginBottom: '10px', fontSize: template === 'thermal' ? '9px' : '11px' }}>
               <p style={{ margin: '0 0 3px' }}><strong>{t.number}:</strong> #{safeReceiptData.receipt || 'N/A'}</p>
@@ -139,7 +140,7 @@ const ReceiptTemplates = ({ isOpen, onClose, receiptData, lang }) => {
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', background: '#f1f5f9', color: '#0f172a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{lang === 'sw' ? 'Ghairi' : 'Cancel'}</button>
           <button onClick={handleSave} style={{ padding: '10px 20px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{lang === 'sw' ? 'Hifadhi' : 'Save'}</button>
-          <button onClick={handlePrint} style={{ padding: '10px 20px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ {lang === 'sw' ? 'Chapisha' : 'Print'}</button>
+          <button onClick={handlePrint} style={{ padding: '10px 20px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}><CI.Printer size={16} /> {lang === 'sw' ? 'Chapisha' : 'Print'}</button>
         </div>
       </div>
       <style>{`@media print { body * { visibility: hidden; } #receipt-preview-container, #receipt-preview-container * { visibility: visible; } #receipt-preview-container { position: absolute; left: 0; top: 0; width: 100%; background: none; box-shadow: none; padding: 0; } #receipt-preview { box-shadow: none; border: ${template === 'thermal' ? 'none' : current.border}; max-width: 100%; } }`}</style>

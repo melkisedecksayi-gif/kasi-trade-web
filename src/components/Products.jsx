@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import Toast from './Toast';
+import { SkeletonList } from './Skeleton';
+import CSVImport from './CSVImport';
+import { printReport } from '../utils/print';
 
 // Categories data
 const Categories = {
@@ -116,7 +119,7 @@ const Categories = {
   }
 };
 
-const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
+const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -127,6 +130,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [toast, setToast] = useState(null);
+  const [showCSVImport, setShowCSVImport] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -196,6 +200,10 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!currentShop?.id) {
+      showToast(lang === 'sw' ? 'Duka halijasajiliwa. Tafadhali wasiliana na support.' : 'Shop not registered. Please contact support.', 'error');
+      return;
+    }
     if (!formData.name || !formData.buy_price || !formData.sell_price) {
       showToast(lang === 'sw' ? 'Tafadhali jaza taarifa zote' : 'Please fill all fields', 'error');
       return;
@@ -310,14 +318,15 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
     return { label: lang === 'sw' ? 'Inapatikana' : 'In Stock', color: '#10b981', bg: '#d1fae5' };
   };
 
-  const theme = {
+  const localTheme = {
     bg: isDarkMode ? '#0f172a' : '#f8fafc',
     cardBg: isDarkMode ? '#1e293b' : '#ffffff',
     text: isDarkMode ? '#f1f5f9' : '#0f172a',
-    textMuted: isDarkMode ? '#94a3b8' : '#64748b',
+    textMuted: isDarkMode ? '#94a3b8' : '#475569',
     border: isDarkMode ? '#334155' : '#e2e8f0',
     hoverBg: isDarkMode ? '#334155' : '#f1f5f9'
   };
+  const th = theme || localTheme;
 
   return (
     <div style={{ padding: 0, minHeight: '100vh' }}>
@@ -326,7 +335,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
       <div style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h2 style={{ margin: '0 0 8px', fontSize: '28px', fontWeight: '800', color: theme.text, display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: '28px', fontWeight: '800', color: th.text, display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Icons.Box size={28} />
               {lang === 'sw' ? 'Bidhaa' : 'Products'}
               <span style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', padding: '4px 12px', borderRadius: '20px', fontSize: '14px', fontWeight: '700' }}>
@@ -334,30 +343,83 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
               </span>
             </h2>
           </div>
-          <button
-            onClick={openAddModal}
-            style={{
-              padding: '12px 24px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '14px'
-            }}
-          >
-            <Icons.Plus size={18} />
-            {lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Product'}
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={openAddModal}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px'
+              }}
+            >
+              <Icons.Plus size={18} />
+              {lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Product'}
+            </button>
+            <button
+              onClick={() => setShowCSVImport(!showCSVImport)}
+              style={{
+                padding: '12px 24px',
+                background: 'transparent',
+                color: th.text,
+                border: `2px solid ${th.border}`,
+                borderRadius: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px'
+              }}
+            >
+              <Icons.Mail size={18} />
+              {lang === 'sw' ? 'Ingiza CSV' : 'Import CSV'}
+            </button>
+            <button
+              onClick={() => {
+                printReport({
+                  title: lang === 'sw' ? 'Ripoti ya Bidhaa' : 'Product Report',
+                  headers: [lang === 'sw' ? 'Jina' : 'Name', lang === 'sw' ? 'Kategoria' : 'Category', lang === 'sw' ? 'Bei ya Kununua' : 'Buy Price', lang === 'sw' ? 'Bei ya Kuuza' : 'Sell Price', lang === 'sw' ? 'Hesabu' : 'Stock'],
+                  rows: products.map(p => [p.name, p.category || '-', p.buy_price?.toLocaleString() || '0', p.sell_price?.toLocaleString() || '0', p.stock?.toString() || '0']),
+                });
+              }}
+              style={{
+                padding: '12px 24px', background: 'transparent', color: th.text,
+                border: `2px solid ${th.border}`, borderRadius: '12px', fontWeight: '600',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 12H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-3"/><rect width="10" height="8" x="7" y="13" rx="1"/>
+              </svg>
+              {lang === 'sw' ? 'Chapisha' : 'Print'}
+            </button>
+          </div>
         </div>
+
+        {showCSVImport && (
+          <div style={{ marginBottom: '24px' }}>
+            <CSVImport
+              supabase={supabase} currentShop={currentShop} lang={lang}
+              type="products" isDarkMode={isDarkMode}
+              onComplete={(count) => {
+                showToast(lang === 'sw' ? `${count} bidhaa zimeingizwa!` : `${count} products imported!`);
+                fetchProducts(); setShowCSVImport(false);
+              }}
+            />
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
           <div style={{ flex: 1, minWidth: '250px', position: 'relative' }}>
-            <Icons.Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+            <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', display: 'flex' }}><Icons.Search size={18} color={th.textMuted} /></div>
             <input
               type="text"
               placeholder={lang === 'sw' ? 'Tafuta bidhaa...' : 'Search...'}
@@ -366,11 +428,11 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
               style={{
                 width: '100%',
                 padding: '12px 12px 12px 44px',
-                border: `2px solid ${theme.border}`,
+                border: `2px solid ${th.border}`,
                 borderRadius: '12px',
                 fontSize: '14px',
-                background: theme.cardBg,
-                color: theme.text,
+                background: th.cardBg,
+                color: th.text,
                 boxSizing: 'border-box'
               }}
             />
@@ -380,11 +442,11 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
             onChange={(e) => setFilterStock(e.target.value)}
             style={{
               padding: '12px 16px',
-              border: `2px solid ${theme.border}`,
+              border: `2px solid ${th.border}`,
               borderRadius: '12px',
               fontSize: '14px',
-              background: theme.cardBg,
-              color: theme.text,
+              background: th.cardBg,
+              color: th.text,
               cursor: 'pointer'
             }}
           >
@@ -432,13 +494,11 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '80px 20px', color: theme.textMuted }}>
-          <p>{lang === 'sw' ? 'Inapakia...' : 'Loading...'}</p>
-        </div>
+        <SkeletonList count={6} />
       ) : filteredProducts.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 20px' }}>
           <Icons.Box size={64} style={{ opacity: 0.3, marginBottom: '16px' }} />
-          <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: theme.text }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: th.text }}>
             {lang === 'sw' ? 'Hakuna bidhaa' : 'No products'}
           </h3>
           {!searchQuery && (
@@ -472,9 +532,9 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
               <div
                 key={product.id}
                 style={{
-                  background: theme.cardBg,
+                  background: th.cardBg,
                   borderRadius: '12px',
-                  border: `2px solid ${selectedProducts.includes(product.id) ? '#6366f1' : theme.border}`,
+                  border: `2px solid ${selectedProducts.includes(product.id) ? '#6366f1' : th.border}`,
                   padding: '16px',
                   display: 'flex',
                   alignItems: 'center',
@@ -505,8 +565,8 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                   {categoryInfo.svg}
                 </div>
 
-                <div style={{ flex: 1, minWidth: '200px' }}>
-                  <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: '700', color: theme.text }}>
+                <div style={{ flex: 1, minWidth: '160px' }}>
+                  <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: '700', color: th.text }}>
                     {product.name}
                   </h4>
                   <p style={{ margin: 0, fontSize: '13px', color: categoryInfo.color, fontWeight: '600' }}>
@@ -516,15 +576,15 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
 
                 <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '11px', color: theme.textMuted }}>
+                    <div style={{ fontSize: '11px', color: th.textMuted }}>
                       {lang === 'sw' ? 'Kununua' : 'Buy'}
                     </div>
-                    <div style={{ fontSize: '14px', fontWeight: '600', color: theme.text }}>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: th.text }}>
                       {formatCurrency(product.buy_price)}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '11px', color: theme.textMuted }}>
+                    <div style={{ fontSize: '11px', color: th.textMuted }}>
                       {lang === 'sw' ? 'Kuuza' : 'Sell'}
                     </div>
                     <div style={{ fontSize: '14px', fontWeight: '700', color: '#10b981' }}>
@@ -602,6 +662,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
             bottom: 0,
             background: 'rgba(0,0,0,0.6)',
             backdropFilter: 'blur(8px)',
+            animation: 'fadeIn 0.2s ease',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -611,9 +672,10 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
         >
           <div
             style={{
-              background: theme.cardBg,
+              background: th.cardBg,
               borderRadius: '20px',
               padding: '32px',
+              animation: 'fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
               width: '100%',
               maxWidth: '600px',
               maxHeight: '90vh',
@@ -621,7 +683,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: theme.text }}>
+              <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: th.text }}>
                 {editingProduct
                   ? lang === 'sw' ? 'Hariri Bidhaa' : 'Edit Product'
                   : lang === 'sw' ? 'Ongeza Bidhaa' : 'Add Product'}
@@ -635,13 +697,13 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                   width: '36px',
                   height: '36px',
                   borderRadius: '10px',
-                  background: theme.hoverBg,
+                  background: th.hoverBg,
                   border: 'none',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: theme.text
+                  color: th.text
                 }}
               >
                 <Icons.X size={20} />
@@ -650,7 +712,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: '600', color: theme.text }}>
+                <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: '600', color: th.text }}>
                   {lang === 'sw' ? 'Kategoria' : 'Category'}
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '10px' }}>
@@ -662,8 +724,8 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                       style={{
                         padding: '14px 8px',
                         borderRadius: '12px',
-                        border: `2px solid ${formData.category === key ? cat.color : theme.border}`,
-                        background: formData.category === key ? cat.bg : theme.hoverBg,
+                        border: `2px solid ${formData.category === key ? cat.color : th.border}`,
+                        background: formData.category === key ? cat.bg : th.hoverBg,
                         cursor: 'pointer',
                         display: 'flex',
                         flexDirection: 'column',
@@ -684,7 +746,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                       >
                         {cat.svg}
                       </div>
-                      <span style={{ fontSize: '11px', fontWeight: '600', color: formData.category === key ? cat.color : theme.text }}>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: formData.category === key ? cat.color : th.text }}>
                         {cat.name[lang]}
                       </span>
                     </button>
@@ -693,7 +755,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: theme.text }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: th.text }}>
                   {lang === 'sw' ? 'Jina la Bidhaa' : 'Product Name'} *
                 </label>
                 <input
@@ -704,19 +766,19 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                   style={{
                     width: '100%',
                     padding: '12px 16px',
-                    border: `2px solid ${theme.border}`,
+                    border: `2px solid ${th.border}`,
                     borderRadius: '10px',
                     fontSize: '14px',
-                    background: theme.bg,
-                    color: theme.text,
+                    background: th.bg,
+                    color: th.text,
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: theme.text }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: th.text }}>
                     {lang === 'sw' ? 'Bei Kununua' : 'Buy Price'} *
                   </label>
                   <input
@@ -729,17 +791,17 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                     style={{
                       width: '100%',
                       padding: '12px 16px',
-                      border: `2px solid ${theme.border}`,
+                      border: `2px solid ${th.border}`,
                       borderRadius: '10px',
                       fontSize: '14px',
-                      background: theme.bg,
-                      color: theme.text,
+                      background: th.bg,
+                      color: th.text,
                       boxSizing: 'border-box'
                     }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: theme.text }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: th.text }}>
                     {lang === 'sw' ? 'Bei Kuuza' : 'Sell Price'} *
                   </label>
                   <input
@@ -752,11 +814,11 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                     style={{
                       width: '100%',
                       padding: '12px 16px',
-                      border: `2px solid ${theme.border}`,
+                      border: `2px solid ${th.border}`,
                       borderRadius: '10px',
                       fontSize: '14px',
-                      background: theme.bg,
-                      color: theme.text,
+                      background: th.bg,
+                      color: th.text,
                       boxSizing: 'border-box'
                     }}
                   />
@@ -764,7 +826,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: theme.text }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: th.text }}>
                   Stock
                 </label>
                 <input
@@ -775,11 +837,11 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                   style={{
                     width: '100%',
                     padding: '12px 16px',
-                    border: `2px solid ${theme.border}`,
+                    border: `2px solid ${th.border}`,
                     borderRadius: '10px',
                     fontSize: '14px',
-                    background: theme.bg,
-                    color: theme.text,
+                    background: th.bg,
+                    color: th.text,
                     boxSizing: 'border-box'
                   }}
                 />
@@ -795,8 +857,8 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                   style={{
                     flex: 1,
                     padding: '14px',
-                    background: theme.hoverBg,
-                    color: theme.text,
+                    background: th.hoverBg,
+                    color: th.text,
                     border: 'none',
                     borderRadius: '12px',
                     fontWeight: '600',
@@ -842,14 +904,16 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1001,
-            padding: '20px'
+            padding: '20px',
+            animation: 'fadeIn 0.2s ease'
           }}
         >
           <div
             style={{
-              background: theme.cardBg,
+              background: th.cardBg,
               borderRadius: '20px',
               padding: '32px',
+              animation: 'fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
               width: '100%',
               maxWidth: '400px',
               textAlign: 'center'
@@ -869,10 +933,10 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
             >
               <Icons.Trash size={32} style={{ color: '#ef4444' }} />
             </div>
-            <h3 style={{ margin: '0 0 12px', fontSize: '20px', fontWeight: '700', color: theme.text }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: '20px', fontWeight: '700', color: th.text }}>
               {lang === 'sw' ? 'Futa Bidhaa?' : 'Delete?'}
             </h3>
-            <p style={{ margin: '0 0 24px', color: theme.textMuted, fontSize: '14px' }}>
+            <p style={{ margin: '0 0 24px', color: th.textMuted, fontSize: '14px' }}>
               {lang === 'sw'
                 ? `Futa "${productToDelete.name}"?`
                 : `Delete "${productToDelete.name}"?`}
@@ -886,8 +950,8 @@ const Products = ({ lang, supabase, currentShop, isDarkMode }) => {
                 style={{
                   flex: 1,
                   padding: '12px',
-                  background: theme.hoverBg,
-                  color: theme.text,
+                  background: th.hoverBg,
+                  color: th.text,
                   border: 'none',
                   borderRadius: '10px',
                   fontWeight: '600',

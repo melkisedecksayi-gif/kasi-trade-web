@@ -1,25 +1,27 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "KasiTRADE",
+  "name": "KasiTRADE - Mfumo wa POS na Uendeshaji Biashara",
+  "description": "Dhibiti mauzo, bidhaa, wateja, hesabu na ripoti zote sehemu moja",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "Logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     },
     {
-      "src": "logo192.png",
+      "src": "Logo.png",
       "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "any",
+  "theme_color": "#6366f1",
+  "background_color": "#0f172a",
+  "categories": ["business", "finance", "productivity"],
+  "lang": "sw"
 }

@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { REGIONS, DISTRICTS_BY_REGION } from '../data/tanzaniaLocations';
+import CI from '../components/ColoredIcons';
+import { sendSMS } from '../services/smsService';
 
 // ==========================================
 // TOAST NOTIFICATION COMPONENT
@@ -17,6 +20,12 @@ const Toast = ({ message, type = 'success', onClose }) => {
 
   const bg = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#f59e0b';
 
+  const Icon = () => {
+    if (type === 'success') return <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px', lineHeight: '1' }}>{'\u2713'}</span>;
+    if (type === 'error') return <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px', lineHeight: '1' }}>{'\u2715'}</span>;
+    return '!';
+  };
+
   return (
     <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 10000 }}>
       <div style={{
@@ -26,7 +35,7 @@ const Toast = ({ message, type = 'success', onClose }) => {
         opacity: visible ? 1 : 0, transition: 'all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
       }}>
         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', flexShrink: 0 }}>
-          {type === 'success' ? '✓' : type === 'error' ? '✕' : '!'}
+          <Icon />
         </div>
         <div style={{ flex: 1, paddingTop: '4px' }}>
           <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a', lineHeight: '1.4' }}>{message}</div>
@@ -42,7 +51,7 @@ const Toast = ({ message, type = 'success', onClose }) => {
 // ==========================================
 // MAIN AUTH COMPONENT
 // ==========================================
-const Auth = ({ supabase, onAuthSuccess }) => {
+const Auth = ({ supabase, onAuthSuccess, theme }) => {
   const [mode, setMode] = useState('login'); // login, register-step-1, register-step-2, forgot-password
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -76,37 +85,9 @@ const Auth = ({ supabase, onAuthSuccess }) => {
     setCountry('Tanzania'); setRegion(''); setDistrict(''); setWard('');
   };
 
-  const regions = ["Dar es Salaam", "Arusha", "Mwanza", "Dodoma", "Mbeya", "Morogoro", "Tanga", "Kilimanjaro", "Kagera", "Tabora", "Rukwa", "Mtwara", "Mara", "Pwani", "Lindi", "Iringa", "Kigoma", "Shinyanga", "Ruvuma", "Singida", "Manyara", "Geita", "Katavi", "Simiyu", "Songwe", "Njombe", "Zanzibar"];
+  const regions = REGIONS;
   
-  const districts = {
-    "Dar es Salaam": ["Kinondoni", "Ilala", "Temeke", "Kigamboni", "Ubungo"],
-    "Arusha": ["Arusha City", "Arusha Rural", "Meru", "Monduli", "Karatu"],
-    "Mwanza": ["Ilemela", "Nyamagana", "Kwimba", "Magu", "Sengerema"],
-    "Dodoma": ["Dodoma Urban", "Dodoma Rural", "Chamwino", "Bahi", "Kondoa"],
-    "Mbeya": ["Mbeya Urban", "Mbeya Rural", "Rungwe", "Kyela", "Tukuyu"],
-    "Morogoro": ["Morogoro Urban", "Morogoro Rural", "Kilosa", "Mvomero", "Ulanga"],
-    "Tanga": ["Tanga City", "Muheza", "Korogwe", "Pangani", "Handeni"],
-    "Kilimanjaro": ["Moshi Urban", "Moshi Rural", "Hai", "Siha", "Rombo"],
-    "Kagera": ["Bukoba Urban", "Bukoba Rural", "Muleba", "Biharamulo", "Ngara"],
-    "Tabora": ["Tabora Urban", "Tabora Rural", "Sikonge", "Urambo", "Uyui"],
-    "Rukwa": ["Sumbawanga Urban", "Sumbawanga Rural", "Nkasi", "Kalambo"],
-    "Mtwara": ["Mtwara Urban", "Mtwara Rural", "Tandahimba", "Masasi", "Newala"],
-    "Mara": ["Musoma Urban", "Musoma Rural", "Tarime", "Serengeti", "Bunda"],
-    "Pwani": ["Kibaha", "Bagamoyo", "Mkuranga", "Rufiji", "Mafia"],
-    "Lindi": ["Lindi Urban", "Lindi Rural", "Nachingwea", "Kilwa", "Liwale"],
-    "Iringa": ["Iringa Urban", "Iringa Rural", "Mufindi", "Kilolo", "Ludewa"],
-    "Kigoma": ["Kigoma Urban", "Kigoma Rural", "Kasulu", "Kibondo", "Uvinza"],
-    "Shinyanga": ["Shinyanga Urban", "Shinyanga Rural", "Kahama", "Kishapu", "Maswa"],
-    "Ruvuma": ["Songea Urban", "Songea Rural", "Tunduru", "Namtumbo", "Nyasa"],
-    "Singida": ["Singida Urban", "Singida Rural", "Manyoni", "Iramba", "Ikungi"],
-    "Manyara": ["Babati", "Hanang", "Mbulu", "Kiteto", "Simanjiro"],
-    "Geita": ["Geita Town", "Chato", "Mbogwe", "Bukombe"],
-    "Katavi": ["Mpanda", "Mlele", "Nsimbo"],
-    "Simiyu": ["Bariadi", "Busega", "Itilima", "Maswa", "Meatu"],
-    "Songwe": ["Tunduma", "Mbozi", "Momba", "Songwe"],
-    "Njombe": ["Njombe Urban", "Njombe Rural", "Makambako", "Ludewa", "Makete"],
-    "Zanzibar": ["Mjini Magharibi", "Kaskazini A", "Kaskazini B", "Kusini", "Magharibi A"]
-  }[region] || [];
+  const districts = DISTRICTS_BY_REGION[region] || [];
 
   const getPasswordColor = () => passwordStrength <= 2 ? '#ef4444' : passwordStrength <= 3 ? '#f59e0b' : '#10b981';
 
@@ -121,7 +102,7 @@ const Auth = ({ supabase, onAuthSuccess }) => {
       if (error) throw error;
       onAuthSuccess && onAuthSuccess();
     } catch (err) {
-      showToast(`❌ ${err.message}`, 'error');
+      showToast(err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -134,11 +115,11 @@ const Auth = ({ supabase, onAuthSuccess }) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
       if (error) throw error;
-      showToast(lang === 'sw' ? '✅ Tumepokea ombi lako. Angalia email yako.' : '✅ Request received. Check your email.', 'success');
+      showToast(lang === 'sw' ? 'Tumepokea ombi lako. Angalia email yako.' : 'Request received. Check your email.', 'success');
       setMode('login');
       setEmail('');
     } catch (err) {
-      showToast(`❌ ${err.message}`, 'error');
+      showToast(err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -173,18 +154,26 @@ const Auth = ({ supabase, onAuthSuccess }) => {
         throw new Error(msg);
       }
 
-      if (data?.user) {
-        try {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await supabase.from('profiles').update({ phone, business_type: businessType, business_name: businessName, country, region, district, ward }).eq('id', data.user.id);
-        } catch (profileErr) {
-          console.warn('Profile update warning:', profileErr);
+        if (data?.user) {
+          try {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await supabase.from('profiles').update({ phone, business_type: businessType, business_name: businessName, country, region, district, ward }).eq('id', data.user.id);
+          } catch (profileErr) {
+            console.warn('Profile update warning:', profileErr);
+          }
+
+          if (phone) {
+            const welcomeMsg = lang === 'sw'
+              ? `Hongera ${businessName}! Karibu kwenye familia ya KasiTRADE. Mfumo wetu wa POS utakusaidia kukuza biashara yako. Tuko pamoja!`
+              : `Congratulations ${businessName}! Welcome to the KasiTRADE family. Our POS system will help you grow your business. We are with you!`;
+            sendSMS({ to: phone, message: welcomeMsg }).catch(() => {});
+          }
+
+          showToast(lang === 'sw' ? 'Usajili umekamilika! Angalia email yako.' : 'Registration complete! Check your email.', 'success');
+          setTimeout(() => { setMode('login'); resetForm(); }, 3000);
         }
-        showToast(lang === 'sw' ? '✅ Usajili umekamilika! Angalia email yako.' : '✅ Registration complete! Check your email.', 'success');
-        setTimeout(() => { setMode('login'); resetForm(); }, 3000);
-      }
     } catch (err) {
-      showToast(`❌ ${err.message || 'Hitilafu imetokea'}`, 'error');
+      showToast(err.message || 'Hitilafu imetokea', 'error');
     } finally {
       setLoading(false);
     }
@@ -211,12 +200,12 @@ const Auth = ({ supabase, onAuthSuccess }) => {
         
         {/* Logo & Lang Toggle */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <img src="/logo.png" alt="KasiTrade" style={{ width: '180px', height: 'auto', display: 'block', margin: '0 auto' }} onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<h2 style="color:#667eea;margin:0;">KasiTrade</h2>'; }} />
+          <img src="/Logo.png" alt="KasiTrade" style={{ width: '180px', height: 'auto', display: 'block', margin: '0 auto' }} onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<h2 style="color:#667eea;margin:0;">KasiTrade</h2>'; }} />
         </div>
         
         <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
-          <button type="button" onClick={toggleLang} style={{ background: '#f1f5f9', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} title={lang === 'sw' ? 'Switch to English' : 'Badilisha Kiswahili'}>
-            {lang === 'sw' ? '🇹🇿' : '🇺🇸'}
+          <button type="button" onClick={toggleLang} style={{ background: '#f1f5f9', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', color: '#667eea', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', letterSpacing: '0.5px' }} title={lang === 'sw' ? 'Switch to English' : 'Badilisha Kiswahili'}>
+            {lang === 'sw' ? 'SW' : 'EN'}
           </button>
         </div>
 
@@ -234,8 +223,8 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                 {lang === 'sw' ? 'Umesahau nenosiri?' : 'Forgot password?'}
               </button>
               
-              <button type="submit" disabled={loading} style={{ padding: '16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
-                {loading ? (lang === 'sw' ? '⏳ Inasubiri...' : '⏳ Loading...') : (lang === 'sw' ? '🔓 Ingia' : '🔓 Sign In')}
+              <button type="submit" disabled={loading} style={{ padding: '16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                {loading ? <><CI.Clock size={18} />{lang === 'sw' ? 'Inasubiri...' : 'Loading...'}</> : <><CI.Unlock size={18} />{lang === 'sw' ? 'Ingia' : 'Sign In'}</>}
               </button>
             </form>
             <div style={{ textAlign: 'center', marginTop: '24px' }}>
@@ -257,8 +246,8 @@ const Auth = ({ supabase, onAuthSuccess }) => {
             </h2>
             <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <input type="email" placeholder={lang === 'sw' ? 'Barua pepe yako' : 'Your email'} value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }} />
-              <button type="submit" disabled={loading} style={{ padding: '16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>
-                {loading ? (lang === 'sw' ? '⏳ Inatuma...' : '⏳ Sending...') : (lang === 'sw' ? '📧 Tuma Link' : '📧 Send Link')}
+              <button type="submit" disabled={loading} style={{ padding: '16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                {loading ? <><CI.Clock size={18} />{lang === 'sw' ? 'Inatuma...' : 'Sending...'}</> : <><CI.Mail size={18} />{lang === 'sw' ? 'Tuma Link' : 'Send Link'}</>}
               </button>
               <button type="button" onClick={() => setMode('login')} style={{ padding: '14px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '12px', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}>
                 {lang === 'sw' ? '← Rudi' : '← Back to Login'}
@@ -327,25 +316,25 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                   {lang === 'sw' ? 'Aina ya Biashara' : 'Business Type'}
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <button type="button" onClick={() => setBusinessType('duka')} style={{ padding: '16px', border: `2px solid ${businessType === 'duka' ? '#0047AB' : '#e2e8f0'}`, borderRadius: '12px', background: businessType === 'duka' ? '#f0f7ff' : '#fff', cursor: 'pointer', fontWeight: '600', color: businessType === 'duka' ? '#0047AB' : '#64748b' }}>
-                    🛒 {lang === 'sw' ? 'Duka' : 'Shop'}
+                  <button type="button" onClick={() => setBusinessType('duka')} style={{ padding: '16px', border: `2px solid ${businessType === 'duka' ? '#0047AB' : '#e2e8f0'}`, borderRadius: '12px', background: businessType === 'duka' ? '#f0f7ff' : '#fff', cursor: 'pointer', fontWeight: '600', color: businessType === 'duka' ? '#0047AB' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <CI.Cart size={18} /> {lang === 'sw' ? 'Duka' : 'Shop'}
                   </button>
-                  <button type="button" onClick={() => setBusinessType('microfinance')} style={{ padding: '16px', border: `2px solid ${businessType === 'microfinance' ? '#0047AB' : '#e2e8f0'}`, borderRadius: '12px', background: businessType === 'microfinance' ? '#f0f7ff' : '#fff', cursor: 'pointer', fontWeight: '600', color: businessType === 'microfinance' ? '#0047AB' : '#64748b' }}>
-                    💰 Microfinance
+                  <button type="button" onClick={() => setBusinessType('microfinance')} style={{ padding: '16px', border: `2px solid ${businessType === 'microfinance' ? '#0047AB' : '#e2e8f0'}`, borderRadius: '12px', background: businessType === 'microfinance' ? '#f0f7ff' : '#fff', cursor: 'pointer', fontWeight: '600', color: businessType === 'microfinance' ? '#0047AB' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <CI.Money size={18} /> Microfinance
                   </button>
                 </div>
               </div>
 
               <input type="text" placeholder={lang === 'sw' ? 'Jina la duka/biashara' : 'Business Name'} value={businessName} onChange={e => setBusinessName(e.target.value)} style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }} />
 
-              <h4 style={{ margin: '8px 0 8px', color: '#1e293b', fontSize: '15px', fontWeight: '600' }}>
-                📍 {lang === 'sw' ? 'Mahali Linapatikana' : 'Location'}
+              <h4 style={{ margin: '8px 0 8px', color: '#1e293b', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CI.Location size={18} /> {lang === 'sw' ? 'Mahali Linapatikana' : 'Location'}
               </h4>
 
               <select value={country} onChange={e => setCountry(e.target.value)} style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', width: '100%', background: '#fff', fontSize: '15px' }}>
-                <option value="Tanzania">🇹🇿 Tanzania</option>
-                <option value="Kenya">🇰 Kenya</option>
-                <option value="Uganda">🇺 Uganda</option>
+                <option value="Tanzania">Tanzania</option>
+                <option value="Kenya">Kenya</option>
+                <option value="Uganda">Uganda</option>
               </select>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -365,8 +354,8 @@ const Auth = ({ supabase, onAuthSuccess }) => {
                 <button type="button" onClick={() => setMode('register-step-1')} style={{ flex: 1, padding: '14px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
                   {lang === 'sw' ? '← Rudi' : '← Back'}
                 </button>
-                <button type="submit" disabled={loading} style={{ flex: 2, padding: '14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  {loading ? (lang === 'sw' ? '⏳ Inasubiri...' : '⏳ Loading...') : (lang === 'sw' ? '✨ Kamilisha Usajili' : '✨ Complete Registration')}
+                <button type="submit" disabled={loading} style={{ flex: 2, padding: '14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  {loading ? <><CI.Clock size={18} />{lang === 'sw' ? 'Inasubiri...' : 'Loading...'}</> : <><CI.Star size={18} />{lang === 'sw' ? 'Kamilisha Usajili' : 'Complete Registration'}</>}
                 </button>
               </div>
             </form>

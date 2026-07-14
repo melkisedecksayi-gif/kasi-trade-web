@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
+import CI from './ColoredIcons';
+import { SkeletonList } from './Skeleton';
 
 const Reports = ({ lang, supabase, currentShop, isDarkMode }) => {
   const [transactions, setTransactions] = useState([]);
@@ -67,7 +69,7 @@ const Reports = ({ lang, supabase, currentShop, isDarkMode }) => {
     bg: isDarkMode ? '#0f172a' : '#f8fafc',
     cardBg: isDarkMode ? '#1e293b' : '#ffffff',
     text: isDarkMode ? '#f1f5f9' : '#0f172a',
-    textMuted: isDarkMode ? '#94a3b8' : '#64748b',
+    textMuted: isDarkMode ? '#94a3b8' : '#475569',
     border: isDarkMode ? '#334155' : '#e2e8f0'
   };
 
@@ -194,12 +196,8 @@ const Reports = ({ lang, supabase, currentShop, isDarkMode }) => {
       </h3>
 
       {loading ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '60px',
-          color: theme.textMuted
-        }}>
-          <p>{lang === 'sw' ? 'Inapakia...' : 'Loading...'}</p>
+        <div style={{ padding: '20px 0' }}>
+          <SkeletonList count={4} />
         </div>
       ) : transactions.length === 0 ? (
         <div style={{
@@ -256,7 +254,7 @@ const Reports = ({ lang, supabase, currentShop, isDarkMode }) => {
                     background: theme.bg,
                     borderRadius: '6px'
                   }}>
-                    💳 {transaction.payment_method}
+                    <CI.CreditCard size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} /> {transaction.payment_method}
                   </div>
                 )}
               </div>

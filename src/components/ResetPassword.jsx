@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import CI from './ColoredIcons';
 
 const ResetPassword = ({ supabase, onLogin }) => {
   const [password, setPassword] = useState('');
@@ -14,11 +15,11 @@ const ResetPassword = ({ supabase, onLogin }) => {
         // ✅ Safi: Handle error na data kwa usahihi
         const { data, error } = await supabase.auth.getSession();
         if (error || !data?.session) {
-          setError('❌ Link ya recovery haijapatikana au imeisha muda. Tafadhali omba tena.');
+          setError('Link ya recovery haijapatikana au imeisha muda. Tafadhali omba tena.');
         }
       } catch (err) {
         console.error('Session check error:', err);
-        setError('❌ Hitilafu ya kuangalia session. Jaribu tena.');
+        setError('Hitilafu ya kuangalia session. Jaribu tena.');
       } finally {
         setChecking(false); // ✅ MPYA: Mwisho wa loading
       }
@@ -31,11 +32,11 @@ const ResetPassword = ({ supabase, onLogin }) => {
     
     // Validation
     if (password !== confirm) {
-      setError('❌ Password mpya hazilingani.');
+      setError('Password mpya hazilingani.');
       return;
     }
     if (password.length < 6) {
-      setError('❌ Password lazima iwe na angalau herufi 6.');
+      setError('Password lazima iwe na angalau herufi 6.');
       return;
     }
 
@@ -47,11 +48,11 @@ const ResetPassword = ({ supabase, onLogin }) => {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       
-      setMessage('✅ Password imerekebishwa! Unaelekezwa kwenye login...');
+      setMessage('Password imerekebishwa! Unaelekezwa kwenye login...');
       setTimeout(() => onLogin?.(), 2500); // ✅ Safi: onLogin inaweza kuwa undefined
     } catch (err) {
       console.error('Password update error:', err);
-      setError('❌ ' + (err.message || 'Hitilafu imepatikana. Jaribu tena.'));
+      setError(err.message || 'Hitilafu imepatikana. Jaribu tena.');
     } finally {
       setLoading(false);
     }
@@ -61,30 +62,40 @@ const ResetPassword = ({ supabase, onLogin }) => {
   if (checking) {
     return (
       <div style={{ maxWidth: '400px', margin: '60px auto', padding: '30px', textAlign: 'center', background: '#fff', borderRadius: '12px' }}>
-        <p>🔄 Inaangalia link ya recovery...</p>
+        <p style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <CI.Refresh size={18} />
+          Inaangalia link ya recovery...
+        </p>
       </div>
     );
   }
 
   return (
     <div style={{ maxWidth: '400px', margin: '60px auto', padding: '30px', background: '#fff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-      <h2 style={{ textAlign: 'center', marginBottom: '20px', color: '#0f172a' }}>🔄 Weka Password Mpya</h2>
+      <h2 style={{ textAlign: 'center', marginBottom: '20px', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <CI.Refresh size={22} />
+        Weka Password Mpya
+      </h2>
       
       {error && (
         <div style={{ background: '#fef2f2', color: '#dc2626', padding: '12px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px' }}>
-          {error}
-          {/* ✅ MPYA: Button ya kujaribu tena */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CI.Warning size={16} />
+            {error}
+          </div>
           <button 
             onClick={() => window.location.reload()} 
-            style={{ display: 'block', marginTop: '8px', background: 'none', border: 'none', color: '#dc2626', textDecoration: 'underline', cursor: 'pointer', fontSize: '13px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: '8px', background: 'none', border: 'none', color: '#dc2626', textDecoration: 'underline', cursor: 'pointer', fontSize: '13px' }}
           >
-            🔄 Jaribu tena
+            <CI.Refresh size={14} />
+            Jaribu tena
           </button>
         </div>
       )}
       
       {message && (
-        <p style={{ color: '#16a34a', textAlign: 'center', marginBottom: '15px', fontSize: '14px', background: '#f0fdf4', padding: '12px', borderRadius: '8px' }}>
+        <p style={{ color: '#16a34a', textAlign: 'center', marginBottom: '15px', fontSize: '14px', background: '#f0fdf4', padding: '12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <CI.Shield size={16} />
           {message}
         </p>
       )}
