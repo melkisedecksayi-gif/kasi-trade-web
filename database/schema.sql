@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS customers (
   region TEXT,
   district TEXT,
   notes TEXT,
+  birthday DATE,
+  balance NUMERIC DEFAULT 0,
   total_purchases NUMERIC DEFAULT 0,
   visit_count INTEGER DEFAULT 0,
   last_visit TIMESTAMPTZ,
@@ -96,6 +98,8 @@ CREATE POLICY "Users can manage shop customers" ON customers
 
 CREATE INDEX IF NOT EXISTS idx_customers_shop ON customers(shop_id);
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+CREATE INDEX IF NOT EXISTS idx_customers_birthday ON customers(birthday);
+CREATE INDEX IF NOT EXISTS idx_customers_balance ON customers(balance);
 
 
 -- [4] TRANSACTIONS TABLE

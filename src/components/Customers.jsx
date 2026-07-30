@@ -3,7 +3,7 @@ import { Icons } from './Icons';
 import Toast from './Toast';
 import { SkeletonList } from './Skeleton';
 import CSVImport from './CSVImport';
-import { sendSMS } from '../services/smsService';
+import { sendSMS, sendBulkSMS, generateCustomerSMS } from '../services/smsService';
 
 const StatCard = ({ icon, label, value, color, gradient, theme, lang }) => {
   const th = theme || {};
@@ -70,6 +70,12 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [toast, setToast] = useState(null);
   const [stats, setStats] = useState({ total: 0, thisMonth: 0, thisWeek: 0 });
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [showSmsModal, setShowSmsModal] = useState(false);
+  const [smsTemplate, setSmsTemplate] = useState('promotion');
+  const [smsCustomMsg, setSmsCustomMsg] = useState('');
+  const [smsDiscount, setSmsDiscount] = useState('10');
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsProgress, setSmsProgress] = useState({ sent: 0, total: 0, failed: 0 });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -78,7 +84,9 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     address: '',
     region: '',
     district: '',
-    notes: ''
+    notes: '',
+    birthday: '',
+    balance: ''
   });
 
   const showToast = (message, type = 'success') => {
@@ -138,7 +146,9 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       address: '',
       region: '',
       district: '',
-      notes: ''
+      notes: '',
+      birthday: '',
+      balance: ''
     });
     setEditingCustomer(null);
   };
@@ -157,7 +167,9 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       address: customer.address || '',
       region: customer.region || '',
       district: customer.district || '',
-      notes: customer.notes || ''
+      notes: customer.notes || '',
+      birthday: customer.birthday || '',
+      balance: customer.balance ? String(customer.balance) : ''
     });
     setShowModal(true);
   };
@@ -177,7 +189,9 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       address: formData.address.trim() || null,
       region: formData.region.trim() || null,
       district: formData.district.trim() || null,
-      notes: formData.notes.trim() || null
+      notes: formData.notes.trim() || null,
+      birthday: formData.birthday || null,
+      balance: formData.balance ? Number(formData.balance) : 0
     };
 
     try {
@@ -274,6 +288,63 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     }
   };
 
+  const handleBulkSms = async () => {
+    const targets = selectedCustomers.length > 0
+      ? customers.filter(c => selectedCustomers.includes(c.id) && c.phone)
+      : customers.filter(c => c.phone);
+
+    if (targets.length === 0) {
+      showToast(lang === 'sw' ? 'Hakuna wateja wenye namba ya simu' : 'No customers with phone numbers', 'error');
+      return;
+    }
+
+    setSmsSending(true);
+    setSmsProgress({ sent: 0, total: targets.length, failed: 0 });
+
+    let msg = smsCustomMsg;
+    if (!msg) {
+      const data = {
+        shopName: currentShop?.shop_name || 'KasiTRADE',
+        discount: smsDiscount,
+        customerName: '',
+      };
+      if (smsTemplate === 'reminder') {
+        data.customerName = targets[0]?.name || '';
+      }
+      msg = smsTemplate === 'custom' ? (smsCustomMsg || '') : generateCustomerSMS(smsTemplate, data, lang);
+    }
+
+    if (!msg) {
+      showToast(lang === 'sw' ? 'Ingiza ujumbe' : 'Enter a message', 'error');
+      setSmsSending(false);
+      return;
+    }
+
+    const recipients = targets.map(c => c.phone);
+    const results = await sendBulkSMS({ recipients, message: msg });
+
+    let sent = 0;
+    let failed = 0;
+    results.forEach(r => {
+      if (r.success) sent++; else failed++;
+    });
+
+    setSmsProgress({ sent, total: targets.length, failed });
+
+    try {
+      await supabase.from('sms_logs').insert(results.filter(r => r.success).map(r => ({
+        shop_id: currentShop.id,
+        recipient: r.recipient,
+        message: msg,
+        type: 'customer_sms',
+        status: 'sent',
+        provider_response: null,
+      })));
+    } catch (e) {}
+
+    setSmsSending(false);
+  };
+
   const filteredCustomers = customers.filter(c => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -366,6 +437,31 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
               <Icons.Mail size={18} />
               {lang === 'sw' ? 'Ingiza CSV' : 'Import CSV'}
             </button>
+            <button
+              onClick={() => {
+                setSmsTemplate('promotion');
+                setSmsCustomMsg('');
+                setSmsDiscount('10');
+                setSmsProgress({ sent: 0, total: 0, failed: 0 });
+                setShowSmsModal(true);
+              }}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px'
+              }}
+            >
+              <Icons.Mail size={18} />
+              {lang === 'sw' ? 'Tuma SMS' : 'Send SMS'}
+            </button>
           </div>
         </div>
 
@@ -442,24 +538,50 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
             <span style={{ fontWeight: '600' }}>
               {selectedCustomers.length} {lang === 'sw' ? 'wamechaguliwa' : 'selected'}
             </span>
-            <button
-              onClick={handleBulkDelete}
-              style={{
-                padding: '8px 16px',
-                background: '#ef4444',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Icons.Trash size={16} />
-              {lang === 'sw' ? 'Futa Wote' : 'Delete All'}
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  setSmsTemplate('promotion');
+                  setSmsCustomMsg('');
+                  setSmsDiscount('10');
+                  setSmsProgress({ sent: 0, total: 0, failed: 0 });
+                  setShowSmsModal(true);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Icons.Mail size={16} />
+                {lang === 'sw' ? 'Tuma SMS' : 'Send SMS'}
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                style={{
+                  padding: '8px 16px',
+                  background: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Icons.Trash size={16} />
+                {lang === 'sw' ? 'Futa Wote' : 'Delete All'}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -919,6 +1041,39 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                 />
               </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: th.text }}>
+                    {lang === 'sw' ? 'Siku ya Kuzaliwa' : 'Birthday'}
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.birthday}
+                    onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
+                    style={{
+                      width: '100%', padding: '12px 16px', border: `2px solid ${th.border}`,
+                      borderRadius: '10px', fontSize: '14px', background: th.bg, color: th.text, boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: th.text }}>
+                    {lang === 'sw' ? 'Deni (TSh)' : 'Balance (TSh)'}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.balance}
+                    onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
+                    placeholder="0"
+                    style={{
+                      width: '100%', padding: '12px 16px', border: `2px solid ${th.border}`,
+                      borderRadius: '10px', fontSize: '14px', background: th.bg, color: th.text, boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button
                   type="button"
@@ -958,6 +1113,136 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk SMS Modal */}
+      {showSmsModal && (
+        <div className="modal-overlay" onClick={() => { if (!smsSending) setShowSmsModal(false); }}>
+          <div className="modal modal-lg" onClick={e => e.stopPropagation()} style={{ padding: '28px', maxWidth: '520px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">{lang === 'sw' ? 'Tuma SMS kwa Wateja' : 'Send SMS to Customers'}</h3>
+              {!smsSending && (
+                <button className="modal-close" onClick={() => setShowSmsModal(false)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              )}
+            </div>
+
+            {smsSending || smsProgress.sent > 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                {smsSending ? (
+                  <>
+                    <div style={{ width: '72px', height: '72px', borderRadius: '50%', margin: '0 auto 20px', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #6366f1' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: '3px solid #6366f1', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                    </div>
+                    <h4 style={{ fontSize: '17px', fontWeight: 700, color: th.text, margin: '0 0 6px' }}>
+                      {lang === 'sw' ? 'Inatuma SMS...' : 'Sending SMS...'}
+                    </h4>
+                    <p style={{ fontSize: '13px', color: th.textMuted }}>
+                      {smsProgress.sent}/{smsProgress.total} {lang === 'sw' ? 'zimetumwa' : 'sent'}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ width: '72px', height: '72px', borderRadius: '50%', margin: '0 auto 20px', background: smsProgress.failed > 0 ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `3px solid ${smsProgress.failed > 0 ? '#f59e0b' : '#10b981'}` }}>
+                      {smsProgress.failed > 0 ? (
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      ) : (
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                      )}
+                    </div>
+                    <h4 style={{ fontSize: '17px', fontWeight: 700, color: th.text, margin: '0 0 6px' }}>
+                      {smsProgress.failed > 0
+                        ? (lang === 'sw' ? `${smsProgress.sent} zimefaulu, ${smsProgress.failed} zimeshindwa` : `${smsProgress.sent} sent, ${smsProgress.failed} failed`)
+                        : (lang === 'sw' ? `SMS zote ${smsProgress.sent} zimetumwa!` : `All ${smsProgress.sent} SMS sent!`)}
+                    </h4>
+                    <button onClick={() => { setShowSmsModal(false); setSmsProgress({ sent: 0, total: 0, failed: 0 }); }}
+                      style={{ marginTop: '20px', padding: '10px 40px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', fontWeight: 700, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>OK</button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="modal-body">
+                  <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', marginBottom: '14px' }}>
+                    <p style={{ margin: 0, fontSize: '13px', color: th.text }}>
+                      {selectedCustomers.length > 0
+                        ? (lang === 'sw' ? `Wateja ${selectedCustomers.length} wamechaguliwa` : `${selectedCustomers.length} customers selected`)
+                        : (lang === 'sw' ? `Wateja wote (${customers.filter(c => c.phone).length} wenye simu)` : `All customers (${customers.filter(c => c.phone).length} with phone)`)}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col" style={{ gap: '4px', marginBottom: '14px' }}>
+                    <label className="text-small" style={{ fontWeight: 600, color: th.text }}>
+                      {lang === 'sw' ? 'Aina ya Ujumbe' : 'Message Type'}
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                      {[
+                        { key: 'promotion', sw: 'Ofa/Punguzo', en: 'Promotion' },
+                        { key: 'reminder', sw: 'Kumbusho', en: 'Reminder' },
+                        { key: 'birthday', sw: 'Siku ya Kuzaliwa', en: 'Birthday' },
+                        { key: 'custom', sw: 'Weka Mwenyewe', en: 'Custom' },
+                      ].map(t => (
+                        <button
+                          key={t.key}
+                          type="button"
+                          onClick={() => setSmsTemplate(t.key)}
+                          style={{
+                            padding: '10px', borderRadius: '8px', border: `2px solid ${smsTemplate === t.key ? '#6366f1' : th.border}`,
+                            background: smsTemplate === t.key ? 'rgba(99,102,241,0.1)' : 'transparent',
+                            color: smsTemplate === t.key ? '#6366f1' : th.textMuted,
+                            fontWeight: 600, fontSize: '13px', cursor: 'pointer'
+                          }}
+                        >{lang === 'sw' ? t.sw : t.en}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {smsTemplate === 'promotion' && (
+                    <div className="flex flex-col" style={{ gap: '4px', marginBottom: '14px' }}>
+                      <label className="text-small" style={{ fontWeight: 600, color: th.text }}>
+                        {lang === 'sw' ? 'Asilimia ya Punguzo' : 'Discount Percentage'}
+                      </label>
+                      <input type="number" value={smsDiscount} onChange={e => setSmsDiscount(e.target.value)} min="1" max="99"
+                        className="input" placeholder="10" style={{ width: '100px' }} />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col" style={{ gap: '4px' }}>
+                    <label className="text-small" style={{ fontWeight: 600, color: th.text }}>
+                      {lang === 'sw' ? 'Mfano wa Ujumbe' : 'Message Preview'}
+                    </label>
+                    <div style={{
+                      padding: '14px', borderRadius: '10px', background: isDarkMode ? '#0f172a' : '#f8fafc',
+                      border: `1px solid ${th.border}`, fontSize: '12px', color: th.text,
+                      whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: '120px', overflowY: 'auto'
+                    }}>
+                      {smsTemplate === 'custom' ? (
+                        <textarea value={smsCustomMsg} onChange={e => setSmsCustomMsg(e.target.value)}
+                          placeholder={lang === 'sw' ? 'Andika ujumbe wako hapa...' : 'Write your message here...'}
+                          rows={4} style={{ width: '100%', background: 'transparent', border: 'none', color: th.text, fontSize: '12px', resize: 'vertical', fontFamily: 'inherit', outline: 'none' }} />
+                      ) : (
+                        generateCustomerSMS(smsTemplate, {
+                          shopName: currentShop?.shop_name || 'KasiTRADE',
+                          discount: smsDiscount,
+                          customerName: (selectedCustomers.length === 1 ? customers.find(c => c.id === selectedCustomers[0])?.name : '') || (lang === 'sw' ? 'Mteja' : 'Customer'),
+                        }, lang)
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setShowSmsModal(false)}>
+                    {lang === 'sw' ? 'Ghairi' : 'Cancel'}
+                  </button>
+                  <button className="btn btn-primary" onClick={handleBulkSms}>
+                    <Icons.Mail size={16} /> {lang === 'sw' ? 'Tuma SMS' : 'Send SMS'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

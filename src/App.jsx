@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient';
 import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
-import { sendSMS, generateReportSMS } from './services/smsService';
+import { sendSMS, generateReportSMS, sendBulkSMS } from './services/smsService';
 import Landing from './components/Landing';
 import Auth from './components/Auth';
 import UpdatePassword from './components/UpdatePassword';
@@ -83,6 +83,7 @@ function App() {
 
     let autoCloseInterval;
     let lowStockInterval;
+    let birthdayInterval;
 
     const checkAutoClose = async () => {
       try {
@@ -220,14 +221,69 @@ function App() {
       } catch (e) { console.warn('Low stock SMS error:', e); }
     };
 
+    const checkBirthdays = async () => {
+      try {
+        const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (!settings || !settings.is_enabled) return;
+
+        const today = new Date();
+        const todayMonth = today.getMonth() + 1;
+        const todayDay = today.getDate();
+        const todayStr = today.toISOString().split('T')[0];
+        const alertKey = `birthday_${currentShop.id}_${todayStr}`;
+        if (autoSentRef.current[alertKey]) return;
+
+        const { data: bdayCustomers } = await supabase.from('customers')
+          .select('id, name, phone')
+          .eq('shop_id', currentShop.id)
+          .filter('birthday', 'not.is', null)
+          .limit(50);
+
+        if (!bdayCustomers || bdayCustomers.length === 0) return;
+
+        const todayBirthdays = bdayCustomers.filter(c => {
+          if (!c.birthday) return false;
+          const bday = new Date(c.birthday);
+          return (bday.getMonth() + 1) === todayMonth && bday.getDate() === todayDay;
+        });
+
+        if (todayBirthdays.length === 0) return;
+
+        const msg = lang === 'sw'
+          ? `${currentShop?.shop_name || 'KasiTRADE'}\n\nHeri ya kuzaliwa! Tunakutakia siku njema yenye baraka. Tembelea duka letu kwa ofa maalum ya siku yako ya kuzaliwa. Karibu!`
+          : `${currentShop?.shop_name || 'KasiTRADE'}\n\nHappy Birthday! Wishing you a blessed day. Visit our shop for a special birthday offer. Welcome!`;
+
+        const recipients = todayBirthdays.map(c => c.phone).filter(Boolean);
+        if (recipients.length === 0) return;
+
+        const results = await sendBulkSMS({ recipients, message: msg });
+
+        const logs = results.map(r => ({
+          shop_id: currentShop.id,
+          recipient: r.recipient,
+          message: msg,
+          type: 'birthday',
+          status: r.success ? 'sent' : 'failed',
+          provider_response: r.success ? null : (r.error?.slice(0, 500) || ''),
+        }));
+        if (logs.length > 0) {
+          await supabase.from('sms_logs').insert(logs);
+        }
+        autoSentRef.current[alertKey] = true;
+      } catch (e) { console.warn('Birthday SMS error:', e); }
+    };
+
     autoCloseInterval = setInterval(checkAutoClose, 60000);
     lowStockInterval = setInterval(checkLowStock, 300000);
+    birthdayInterval = setInterval(checkBirthdays, 3600000);
     checkAutoClose();
     checkLowStock();
+    checkBirthdays();
 
     return () => {
       clearInterval(autoCloseInterval);
       clearInterval(lowStockInterval);
+      clearInterval(birthdayInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop?.id, lang]);
