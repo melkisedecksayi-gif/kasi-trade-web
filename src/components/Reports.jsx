@@ -1056,6 +1056,22 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
 
   if (loading) return <Skeleton isDarkMode={isDarkMode} />;
 
+  const smsPreviewData = (() => {
+    if (!transactions?.length) return null;
+    const r = transactions.reduce((s, tx) => s + (Number(tx.total_amount) || 0), 0);
+    const p = transactions.reduce((s, tx) => s + (Number(tx.profit) || 0), 0);
+    const items = transactions.reduce((s, tx) => s + (Number(tx.items_count) || 0), 0);
+    return {
+      shopName: currentShop?.shop_name || '',
+      totalRevenue: r,
+      totalProfit: p,
+      totalTransactions: transactions.length,
+      avgOrderValue: transactions.length > 0 ? r / transactions.length : 0,
+      productsSold: items,
+      topProducts: topProductsData.map(p => ({ name: p.name, total: p.total, quantity: p.quantity })),
+    };
+  })();
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -1545,14 +1561,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
                     fontSize: '12px', color: th.text, fontFamily: "'Inter', monospace",
                     whiteSpace: 'pre-wrap', lineHeight: 1.7, maxHeight: '200px', overflowY: 'auto'
                   }}>
-                    {generateReportSMS({
-                      totalRevenue: kpis[0].value,
-                      totalProfit: kpis[1].value,
-                      totalTransactions: kpis[2].value,
-                      avgOrderValue: kpis[3].value,
-                      productsSold: kpis[4].value,
-                      topProducts: topProductsData.map(p => ({ name: p.name, total: p.total }))
-                    }, lang)}
+                    {smsPreviewData ? generateReportSMS(smsPreviewData, lang) : (lang === 'sw' ? 'Hakuna data ya leo' : 'No data for today')}
                   </div>
                 </div>
               </div>
