@@ -204,7 +204,7 @@ export const generateReportSMS = (data, lang = 'sw') => {
   msg += isSw ? 'RIPOTI YA MAUZO\n' : 'SALES REPORT\n';
   if (data.shopName) msg += `${data.shopName}\n`;
   msg += `${isSw ? 'Tarehe' : 'Date'}: ${date}\n`;
-  msg += `${'\u2500'.repeat(20)}\n\n`;
+  msg += `${'-'.repeat(20)}\n\n`;
 
   msg += `${isSw ? 'MUHTASARI WA LEO' : 'DAILY SUMMARY'}\n`;
   msg += `${isSw ? '  Mauzo Yote' : '  Total Sales'}: ${fmt(data.totalRevenue)}\n`;
@@ -245,9 +245,9 @@ export const generateReportSMS = (data, lang = 'sw') => {
   if (data.topProducts && data.topProducts.length > 0) {
     msg += `\n${isSw ? 'BIDHAA KUU ZA LEO' : 'TODAYS TOP PRODUCTS'}\n`;
     data.topProducts.slice(0, 10).forEach((p, i) => {
-      const icon = i === 0 ? '\u{1F947} ' : i === 1 ? '\u{1F948} ' : i === 2 ? '\u{1F949} ' : `${i + 1}. `;
+      const prefix = `${i + 1}. `;
       const qty = p.quantity ? ` (${p.quantity})` : '';
-      msg += `${icon}${p.name}${qty} - ${fmt(p.total)}\n`;
+      msg += `${prefix}${p.name}${qty} - ${fmt(p.total)}\n`;
     });
   }
 
@@ -260,7 +260,7 @@ export const generateReportSMS = (data, lang = 'sw') => {
     }
   }
 
-  msg += `\n${'\u2500'.repeat(20)}\n`;
+  msg += `\n${'-'.repeat(20)}\n`;
   msg += isSw ? 'Asante kwa kutumia KasiTRADE!' : 'Thank you for using KasiTRADE!';
 
   return msg;
