@@ -1512,7 +1512,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
                 {smsResult.success ? (lang === 'sw' ? 'Ripoti Imetumwa kwa Mafanikio!' : 'Report Sent Successfully!') : (lang === 'sw' ? 'Imeshindwa Kutuma' : 'Failed to Send')}
               </h4>
               {smsResult.success ? (
-                <p style={{ margin: '0 0 4px', fontSize: '13px', color: th.textSecondary || '#64748b' }}>
+                <p style={{ margin: '0 0 4px', fontSize: '13px', color: th.textMuted }}>
                   {lang === 'sw' ? 'Ripoti imetumwa kwa SMS kwenye namba uliyoweka.' : 'Report has been sent via SMS to the provided number.'}
                 </p>
               ) : (
@@ -1599,7 +1599,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
                 {eodResult.success ? t.reportSent : t.failed}
               </h4>
               {eodResult.success ? (
-                <p style={{ margin: '0 0 4px', fontSize: '13px', color: th.textSecondary || '#64748b' }}>
+                <p style={{ margin: '0 0 4px', fontSize: '13px', color: th.textMuted }}>
                   {lang === 'sw' ? 'Ripoti ya mauzo ya leo imetumwa kwa SMS.' : 'Today\'s sales report has been sent via SMS.'}
                 </p>
               ) : (
