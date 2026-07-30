@@ -63,18 +63,6 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
     opacity: loading ? 0.7 : 1,
   };
 
-  const btnSecondary = {
-    width: '100%',
-    padding: '14px',
-    background: isDarkMode ? '#334155' : '#f1f5f9',
-    color: th.text || '#0f172a',
-    border: `1px solid ${th.border || '#e2e8f0'}`,
-    borderRadius: '12px',
-    fontWeight: '600',
-    fontSize: '14px',
-    cursor: 'pointer',
-  };
-
   const inputStyle = {
     width: '100%',
     padding: '14px',

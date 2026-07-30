@@ -15,12 +15,22 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [customerPhone, setCustomerPhone] = useState('');
   const [notify, setNotify] = useState(null);
+  const [customerSmsEnabled, setCustomerSmsEnabled] = useState(false);
   const isSw = lang === 'sw';
   const th = theme || {};
 
   useEffect(() => {
     if (currentShop?.id) fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop]);
+
+  useEffect(() => {
+    if (currentShop?.id) {
+      supabase.from('sms_settings').select('customer_sms_enabled').eq('shop_id', currentShop.id).maybeSingle().then(({ data }) => {
+        setCustomerSmsEnabled(data?.customer_sms_enabled || false);
+      }).catch(() => {});
+    }
+  }, [currentShop?.id, supabase]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -81,7 +91,7 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       const soldTotal = total;
       setCart([]); setShowCheckout(false); setCustomerPhone(''); fetchProducts();
 
-      if (phone) {
+      if (phone && customerSmsEnabled) {
         const itemsList = soldItems.map(i => `${i.quantity}x ${i.name} TSh ${(i.sell_price * i.quantity).toLocaleString()}`).join(', ');
         const smsMsg = `${isSw ? 'Asante kwa ununuzi wako!' : 'Thank you for your purchase!'}\n${currentShop?.shop_name || 'KasiTRADE'}\n${itemsList}\n${isSw ? 'Jumla' : 'Total'}: TSh ${soldTotal.toLocaleString()}\n${isSw ? 'Karibu tena!' : 'Welcome again!'}`;
         sendSMS({ to: phone, message: smsMsg }).catch(() => {});
@@ -95,7 +105,7 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     }
   };
 
-  const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredProducts = products.filter(p => p.name?.toLowerCase()?.includes(searchQuery.toLowerCase()));
 
   const formatCurrency = (amount) => new Intl.NumberFormat('sw-TZ', { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 }).format(amount || 0);
 

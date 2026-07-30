@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   district TEXT,
   ward TEXT,
   avatar_url TEXT,
+  login_otp_enabled BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -377,6 +378,10 @@ CREATE TABLE IF NOT EXISTS sms_settings (
   is_enabled BOOLEAN DEFAULT false,
   auto_close_enabled BOOLEAN DEFAULT false,
   auto_close_time TIME DEFAULT '22:00',
+  phone TEXT,
+  customer_sms_enabled BOOLEAN DEFAULT false,
+  low_stock_enabled BOOLEAN DEFAULT false,
+  low_stock_threshold INT DEFAULT 10,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -408,6 +413,85 @@ ALTER TABLE sms_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their shop sms_logs"
   ON sms_logs FOR ALL
   USING (EXISTS (SELECT 1 FROM shops WHERE shops.id = sms_logs.shop_id AND shops.owner_id = auth.uid()));
+
+
+-- [14.5] OTP CODES TABLE (for login verification)
+CREATE TABLE IF NOT EXISTS otp_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'login',
+  used BOOLEAN DEFAULT false,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_otp_codes_user_purpose ON otp_codes(user_id, purpose, used);
+CREATE INDEX IF NOT EXISTS idx_otp_codes_expires ON otp_codes(expires_at);
+
+ALTER TABLE otp_codes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own OTP codes" ON otp_codes
+  FOR SELECT USING (user_id = auth.uid());
+
+
+-- [14.6] OTP DATABASE FUNCTIONS (run with elevated privileges via SECURITY DEFINER)
+
+-- Generate and store OTP code
+CREATE OR REPLACE FUNCTION generate_otp(
+  p_user_id UUID,
+  p_purpose TEXT DEFAULT 'login',
+  p_expiry_minutes INT DEFAULT 5
+) RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_code TEXT;
+BEGIN
+  v_code := LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
+
+  UPDATE otp_codes SET used = true
+  WHERE user_id = p_user_id AND purpose = p_purpose AND used = false;
+
+  INSERT INTO otp_codes (user_id, code, purpose, expires_at)
+  VALUES (p_user_id, v_code, p_purpose, NOW() + (p_expiry_minutes || ' minutes')::INTERVAL);
+
+  RETURN v_code;
+END;
+$$;
+
+-- Verify OTP code
+CREATE OR REPLACE FUNCTION verify_otp(
+  p_user_id UUID,
+  p_code TEXT,
+  p_purpose TEXT DEFAULT 'login'
+) RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_id UUID;
+BEGIN
+  SELECT id INTO v_id FROM otp_codes
+  WHERE user_id = p_user_id
+    AND code = p_code
+    AND purpose = p_purpose
+    AND used = false
+    AND expires_at > NOW()
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  IF v_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  UPDATE otp_codes SET used = true WHERE id = v_id;
+  RETURN true;
+END;
+$$;
 
 
 DO $$

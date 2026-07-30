@@ -90,6 +90,7 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     if (currentShop?.id) {
       fetchCustomers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop, supabase]);
 
   const fetchCustomers = async () => {
@@ -277,11 +278,11 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
-      c.name?.toLowerCase().includes(q) ||
-      c.phone?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q) ||
-      c.region?.toLowerCase().includes(q) ||
-      c.district?.toLowerCase().includes(q)
+      c.name?.toLowerCase()?.includes(q) ||
+      c.phone?.toLowerCase()?.includes(q) ||
+      c.email?.toLowerCase()?.includes(q) ||
+      c.region?.toLowerCase()?.includes(q) ||
+      c.district?.toLowerCase()?.includes(q)
     );
   });
 

@@ -149,6 +149,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     if (currentShop?.id) {
       fetchProducts();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop, supabase]);
 
   const fetchProducts = async () => {
@@ -291,8 +292,8 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   };
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = p.name?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+      p.category?.toLowerCase()?.includes(searchQuery.toLowerCase());
     const matchesStock = filterStock === 'all' ||
       (filterStock === 'low' && p.stock < 10) ||
       (filterStock === 'out' && p.stock === 0) ||

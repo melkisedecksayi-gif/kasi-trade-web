@@ -86,6 +86,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     if (currentShop?.id) {
       fetchExpenses();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop, supabase]);
 
   const fetchExpenses = async () => {
@@ -215,8 +216,8 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter(e => {
-      const matchesSearch = e.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (e.notes && e.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesSearch = e.description?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+        e.notes?.toLowerCase()?.includes(searchQuery.toLowerCase());
       const matchesCategory = filterCategory === 'all' || e.category === filterCategory;
       const matchesDateFrom = !dateRange.from || e.expense_date >= dateRange.from;
       const matchesDateTo = !dateRange.to || e.expense_date <= dateRange.to;
@@ -231,7 +232,6 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
 
     const thisMonthExpenses = expenses.filter(e => e.expense_date >= monthStart && e.expense_date <= monthEnd);
     const totalMonth = thisMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const today = now.getDate();
     const dailyAverage = today > 0 ? totalMonth / today : 0;
 

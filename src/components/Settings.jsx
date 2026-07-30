@@ -11,7 +11,10 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
     is_enabled: false,
     auto_close_enabled: false,
     auto_close_time: '22:00',
-    phone: currentShop?.phone || ''
+    phone: currentShop?.phone || '',
+    customer_sms_enabled: false,
+    low_stock_enabled: false,
+    low_stock_threshold: 10
   });
   const [smsSaving, setSmsSaving] = useState(false);
   const [smsLoaded, setSmsLoaded] = useState(false);
@@ -27,7 +30,10 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
           is_enabled: data?.is_enabled || false,
           auto_close_enabled: data?.auto_close_enabled || false,
           auto_close_time: data?.auto_close_time || '22:00',
-          phone: currentShop?.phone || prev.phone || ''
+          phone: currentShop?.phone || prev.phone || '',
+          customer_sms_enabled: data?.customer_sms_enabled || false,
+          low_stock_enabled: data?.low_stock_enabled || false,
+          low_stock_threshold: data?.low_stock_threshold || 10
         }));
       } catch (e) { console.warn('SMS settings fetch:', e); }
       finally { setSmsLoaded(true); }
@@ -42,7 +48,10 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
       const saveData = {
         is_enabled: smsSettings.is_enabled,
         auto_close_enabled: smsSettings.auto_close_enabled,
-        auto_close_time: smsSettings.auto_close_time
+        auto_close_time: smsSettings.auto_close_time,
+        customer_sms_enabled: smsSettings.customer_sms_enabled,
+        low_stock_enabled: smsSettings.low_stock_enabled,
+        low_stock_threshold: smsSettings.low_stock_threshold
       };
       const { data: existing } = await supabase.from('sms_settings').select('id').eq('shop_id', currentShop.id).maybeSingle();
       if (existing) {
@@ -262,6 +271,43 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
                     style={{
                       padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
                       background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '120px'
+                    }} />
+                </div>
+              )}
+
+              <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Risiti kwa SMS' : 'SMS Receipt'}</span>
+                  <div className="text-micro" style={{ color: tTextMuted, marginTop: '2px' }}>{isSw ? 'Tuma risiti kwa mteja baada ya mauzo' : 'Send receipt to customer after sale'}</div>
+                </div>
+                <button onClick={() => setSmsSettings({ ...smsSettings, customer_sms_enabled: !smsSettings.customer_sms_enabled })} style={{
+                  width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                  background: smsSettings.customer_sms_enabled ? '#6366f1' : '#cbd5e1', position: 'relative', transition: 'background 0.2s'
+                }}>
+                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: smsSettings.customer_sms_enabled ? '23px' : '3px', transition: 'left 0.2s' }} />
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Tahadhari Stock' : 'Low Stock Alert'}</span>
+                  <div className="text-micro" style={{ color: tTextMuted, marginTop: '2px' }}>{isSw ? 'Tuma SMS bidhaa zinapokaribia kuisha' : 'Send SMS when products are running low'}</div>
+                </div>
+                <button onClick={() => setSmsSettings({ ...smsSettings, low_stock_enabled: !smsSettings.low_stock_enabled })} style={{
+                  width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                  background: smsSettings.low_stock_enabled ? '#6366f1' : '#cbd5e1', position: 'relative', transition: 'background 0.2s'
+                }}>
+                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: smsSettings.low_stock_enabled ? '23px' : '3px', transition: 'left 0.2s' }} />
+                </button>
+              </div>
+
+              {smsSettings.low_stock_enabled && (
+                <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Kiwango cha Tahadhari' : 'Alert Threshold'}</span>
+                  <input type="number" min="1" max="999" value={smsSettings.low_stock_threshold} onChange={e => setSmsSettings({ ...smsSettings, low_stock_threshold: parseInt(e.target.value) || 0 })}
+                    style={{
+                      padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
+                      background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '80px', textAlign: 'center'
                     }} />
                 </div>
               )}

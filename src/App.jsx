@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
+import { sendSMS, generateReportSMS } from './services/smsService';
 import Landing from './components/Landing';
 import Auth from './components/Auth';
 import UpdatePassword from './components/UpdatePassword';
@@ -36,6 +37,7 @@ function App() {
   const [currentShop, setCurrentShop] = useState(null);
   const [shops, setShops] = useState([]);
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const autoSentRef = useRef({});
 
   const { subscription, loading: subLoading, canAccess, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
 
@@ -63,6 +65,7 @@ function App() {
 
   useEffect(() => {
     if (session?.user) { fetchShops(); fetchAvatar(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   const fetchAvatar = async () => {
@@ -75,6 +78,160 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
+
+  useEffect(() => {
+    if (!currentShop?.id) return;
+
+    let autoCloseInterval;
+    let lowStockInterval;
+
+    const checkAutoClose = async () => {
+      try {
+        const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (!settings || !settings.is_enabled || !settings.auto_close_enabled) return;
+
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const closeTime = settings.auto_close_time || '22:00';
+        if (currentTime < closeTime) return;
+
+        const today = now.toISOString().split('T')[0];
+        const sentKey = `close_${currentShop.id}_${today}`;
+        if (autoSentRef.current[sentKey]) return;
+
+        const { data: existingLog } = await supabase.from('sms_logs')
+          .select('id').eq('shop_id', currentShop.id).eq('type', 'auto_close')
+          .gte('created_at', today).maybeSingle();
+        if (existingLog) { autoSentRef.current[sentKey] = true; return; }
+
+        let phone = settings.phone || currentShop?.phone || '';
+        if (!phone) {
+          const { data: profile } = await supabase.from('profiles').select('phone').eq('id', currentShop.owner_id).maybeSingle();
+          phone = profile?.phone || '';
+        }
+        if (!phone) return;
+
+        const { data: todayTx } = await supabase.from('transactions')
+          .select('total_amount, profit, items_count, payment_method, discount, customer_id').eq('shop_id', currentShop.id).gte('created_at', today);
+        const totalRevenue = (todayTx || []).reduce((s, tx) => s + (tx.total_amount || 0), 0);
+        const totalProfit = (todayTx || []).reduce((s, tx) => s + (tx.profit || 0), 0);
+        const totalTx = (todayTx || []).length;
+        const productsSold = (todayTx || []).reduce((s, tx) => s + (tx.items_count || 0), 0);
+
+        const paymentBreakdown = {};
+        const uniqueCustomers = new Set();
+        let highestSale = 0;
+        let lowestSale = Infinity;
+        let totalDiscount = 0;
+        (todayTx || []).forEach(tx => {
+          const pm = tx.payment_method || 'cash';
+          paymentBreakdown[pm] = (paymentBreakdown[pm] || 0) + (tx.total_amount || 0);
+          if (tx.customer_id) uniqueCustomers.add(tx.customer_id);
+          if (tx.total_amount > highestSale) highestSale = tx.total_amount;
+          if (tx.total_amount < lowestSale && tx.total_amount > 0) lowestSale = tx.total_amount;
+          totalDiscount += tx.discount || 0;
+        });
+        if (lowestSale === Infinity) lowestSale = 0;
+
+        let topProducts = [];
+        try {
+          const { data: txIds } = await supabase.from('transactions').select('id').eq('shop_id', currentShop.id).gte('created_at', today);
+          if (txIds && txIds.length > 0) {
+            const ids = txIds.map(t => t.id);
+            const { data: items } = await supabase.from('transaction_items').select('product_name, quantity, total_price, buy_price').in('transaction_id', ids);
+            const productMap = {};
+            (items || []).forEach(item => {
+              const name = item.product_name || 'Unknown';
+              if (!productMap[name]) productMap[name] = { name, total: 0, quantity: 0 };
+              productMap[name].total += item.total_price || 0;
+              productMap[name].quantity += item.quantity || 0;
+            });
+            topProducts = Object.values(productMap).sort((a, b) => b.total - a.total).slice(0, 5);
+          }
+        } catch (e) {}
+
+        let totalExpenses = 0;
+        try {
+          const { data: expData } = await supabase.from('expenses').select('amount').eq('shop_id', currentShop.id).gte('expense_date', today);
+          totalExpenses = (expData || []).reduce((s, e) => s + (e.amount || 0), 0);
+        } catch (e) {}
+
+        const reportData = {
+          shopName: currentShop?.shop_name || '',
+          date: today,
+          totalRevenue,
+          totalProfit,
+          totalExpenses,
+          netProfit: totalProfit - totalExpenses,
+          totalTransactions: totalTx,
+          avgOrderValue: totalTx > 0 ? totalRevenue / totalTx : 0,
+          productsSold,
+          customerCount: uniqueCustomers.size,
+          paymentBreakdown,
+          topProducts,
+          salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
+        };
+        const message = generateReportSMS(reportData, lang);
+        const result = await sendSMS({ to: phone, message });
+
+        await supabase.from('sms_logs').insert({
+          shop_id: currentShop.id, recipient: phone, message, type: 'auto_close',
+          status: result.success ? 'sent' : 'failed',
+          provider_response: result.success ? JSON.stringify(result.data).slice(0, 500) : (result.error?.slice(0, 500) || '')
+        });
+        autoSentRef.current[sentKey] = true;
+      } catch (e) { console.warn('Auto close SMS error:', e); }
+    };
+
+    const checkLowStock = async () => {
+      try {
+        const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (!settings || !settings.is_enabled || !settings.low_stock_enabled) return;
+
+        const threshold = settings.low_stock_threshold || 10;
+        const today = new Date().toISOString().split('T')[0];
+        const alertKey = `stock_${currentShop.id}_${today}`;
+        if (autoSentRef.current[alertKey]) return;
+
+        const { data: lowProducts } = await supabase.from('products')
+          .select('name, stock').eq('shop_id', currentShop.id).lt('stock', threshold).limit(10);
+
+        if (!lowProducts || lowProducts.length === 0) return;
+
+        let phone = settings.phone || currentShop?.phone || '';
+        if (!phone) {
+          const { data: profile } = await supabase.from('profiles').select('phone').eq('id', currentShop.owner_id).maybeSingle();
+          phone = profile?.phone || '';
+        }
+        if (!phone) return;
+
+        const productList = lowProducts.map(p => `${p.name} (${p.stock})`).join(', ');
+        const msg = lang === 'sw'
+          ? `TAHADHARI STOCK\n\nBidhaa zifuatazo ziko chini ya ${threshold}:\n${productList}\n\n${currentShop?.shop_name || 'KasiTRADE'}`
+          : `LOW STOCK ALERT\n\nProducts below ${threshold}:\n${productList}\n\n${currentShop?.shop_name || 'KasiTRADE'}`;
+
+        const result = await sendSMS({ to: phone, message: msg });
+
+        await supabase.from('sms_logs').insert({
+          shop_id: currentShop.id, recipient: phone, message: msg, type: 'low_stock',
+          status: result.success ? 'sent' : 'failed',
+          provider_response: result.success ? JSON.stringify(result.data).slice(0, 500) : (result.error?.slice(0, 500) || '')
+        });
+        autoSentRef.current[alertKey] = true;
+      } catch (e) { console.warn('Low stock SMS error:', e); }
+    };
+
+    autoCloseInterval = setInterval(checkAutoClose, 60000);
+    lowStockInterval = setInterval(checkLowStock, 300000);
+    checkAutoClose();
+    checkLowStock();
+
+    return () => {
+      clearInterval(autoCloseInterval);
+      clearInterval(lowStockInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentShop?.id, lang]);
 
   const fetchShops = async () => {
     try {

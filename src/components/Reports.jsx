@@ -191,11 +191,6 @@ const formatNumber = (num) => {
   return new Intl.NumberFormat('en-US').format(num || 0);
 };
 
-const formatDate = (dateStr) => {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-};
-
 const formatDateTime = (dateStr) => {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
@@ -421,7 +416,6 @@ const CategoryPieSVG = ({ data, isDarkMode }) => {
 
   const total = data.reduce((sum, d) => sum + (d.value || 0), 0);
   const textColor = isDarkMode ? '#f1f5f9' : '#0f172a';
-  const cardBorder = isDarkMode ? '#334155' : '#e2e8f0';
 
   const slices = [];
   let currentAngle = -Math.PI / 2;
@@ -884,16 +878,50 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
     setSmsSending(true);
     setSmsResult(null);
     try {
+      const { start, end } = getDateRange(activeTab, customStart, customEnd);
       const { data: settings } = await supabase.from('sms_settings').select('api_key').eq('shop_id', currentShop.id).maybeSingle();
       const apiKey = settings?.api_key || undefined;
 
+      const paymentBreakdown = {};
+      const uniqueCustomers = new Set();
+      let totalDiscount = 0;
+      let highestSale = 0;
+      let lowestSale = Infinity;
+      let totalRevenue = 0;
+      let totalProfit = 0;
+      let productsSold = 0;
+      transactions.forEach(tx => {
+        totalRevenue += Number(tx.total_amount) || 0;
+        totalProfit += Number(tx.profit) || 0;
+        productsSold += Number(tx.items_count) || 0;
+        const pm = tx.payment_method || 'cash';
+        paymentBreakdown[pm] = (paymentBreakdown[pm] || 0) + (Number(tx.total_amount) || 0);
+        if (tx.customer_id) uniqueCustomers.add(tx.customer_id);
+        if (Number(tx.total_amount) > highestSale) highestSale = Number(tx.total_amount);
+        if (Number(tx.total_amount) < lowestSale && Number(tx.total_amount) > 0) lowestSale = Number(tx.total_amount);
+        totalDiscount += Number(tx.discount) || 0;
+      });
+      if (lowestSale === Infinity) lowestSale = 0;
+
+      let totalExpenses = 0;
+      try {
+        const { data: expData } = await supabase.from('expenses').select('amount').eq('shop_id', currentShop.id).gte('expense_date', start.toISOString().split('T')[0]).lte('expense_date', end.toISOString().split('T')[0]);
+        totalExpenses = (expData || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      } catch (e) {}
+
       const reportData = {
-        totalRevenue: kpis[0].value,
-        totalProfit: kpis[1].value,
-        totalTransactions: kpis[2].value,
-        avgOrderValue: kpis[3].value,
-        productsSold: kpis[4].value,
-        topProducts: topProductsData.map(p => ({ name: p.name, total: p.total }))
+        shopName: currentShop?.shop_name || '',
+        totalRevenue,
+        totalProfit,
+        totalTransactions: transactions.length,
+        avgOrderValue: transactions.length > 0 ? totalRevenue / transactions.length : 0,
+        productsSold,
+        totalExpenses,
+        netProfit: totalProfit - totalExpenses,
+        customerCount: uniqueCustomers.size,
+        paymentBreakdown,
+        topProducts: topProductsData.map(p => ({ name: p.name, total: p.total, quantity: p.quantity })),
+        salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
       };
       const message = generateReportSMS(reportData, lang);
       const result = await sendSMS({ to: smsPhone, message, apiKey });
@@ -938,16 +966,62 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       const totalTx = todayTx.length;
       const productsSold = todayTx.reduce((sum, tx) => sum + (Number(tx.items_count) || 0), 0);
 
+      const paymentBreakdown = {};
+      const uniqueCustomers = new Set();
+      let totalDiscount = 0;
+      let highestSale = 0;
+      let lowestSale = Infinity;
+      todayTx.forEach(tx => {
+        const pm = tx.payment_method || 'cash';
+        paymentBreakdown[pm] = (paymentBreakdown[pm] || 0) + (Number(tx.total_amount) || 0);
+        if (tx.customer_id) uniqueCustomers.add(tx.customer_id);
+        if (Number(tx.total_amount) > highestSale) highestSale = Number(tx.total_amount);
+        if (Number(tx.total_amount) < lowestSale && Number(tx.total_amount) > 0) lowestSale = Number(tx.total_amount);
+        totalDiscount += Number(tx.discount) || 0;
+      });
+      if (lowestSale === Infinity) lowestSale = 0;
+
+      let topProducts = [];
+      let totalExpenses = 0;
+      try {
+        const today = start.toISOString().split('T')[0];
+        const txIds = todayTx.map(t => t.id);
+        const [{ data: items }, { data: expData }] = await Promise.all(
+          txIds.length > 0 ? [
+            supabase.from('transaction_items').select('product_name, quantity, total_price').in('transaction_id', txIds),
+            supabase.from('expenses').select('amount').eq('shop_id', currentShop.id).gte('expense_date', today),
+          ] : [
+            Promise.resolve({ data: [] }),
+            supabase.from('expenses').select('amount').eq('shop_id', currentShop.id).gte('expense_date', today),
+          ]
+        );
+        const productMap = {};
+        (items || []).forEach(item => {
+          const name = item.product_name || 'Unknown';
+          if (!productMap[name]) productMap[name] = { name, total: 0, quantity: 0 };
+          productMap[name].total += item.total_price || 0;
+          productMap[name].quantity += item.quantity || 0;
+        });
+        topProducts = Object.values(productMap).sort((a, b) => b.total - a.total).slice(0, 5);
+        totalExpenses = (expData || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      } catch (e) {}
+
       const { data: settings } = await supabase.from('sms_settings').select('api_key').eq('shop_id', currentShop.id).maybeSingle();
       const apiKey = settings?.api_key || undefined;
 
       const reportData = {
+        shopName: currentShop?.shop_name || '',
         totalRevenue,
         totalProfit,
+        totalExpenses,
+        netProfit: totalProfit - totalExpenses,
         totalTransactions: totalTx,
         avgOrderValue: totalTx > 0 ? totalRevenue / totalTx : 0,
         productsSold,
-        topProducts: []
+        customerCount: uniqueCustomers.size,
+        paymentBreakdown,
+        topProducts,
+        salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
       };
       const message = generateReportSMS(reportData, lang);
       const result = await sendSMS({ to: eodPhone, message, apiKey });
@@ -1423,23 +1497,32 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
           {smsResult ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <div style={{
-                width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 16px',
+                width: '72px', height: '72px', borderRadius: '50%', margin: '0 auto 20px',
                 background: smsResult.success ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: `2px solid ${smsResult.success ? '#10b981' : '#ef4444'}`
+                border: `3px solid ${smsResult.success ? '#10b981' : '#ef4444'}`
               }}>
                 {smsResult.success ? (
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 ) : (
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                 )}
               </div>
-              <h4 className="text-h4 mb-sm">
-                {smsResult.success ? (lang === 'sw' ? 'Ripoti Imetumwa!' : 'Report Sent!') : (lang === 'sw' ? 'Imeshindwa' : 'Failed')}
+              <h4 style={{ fontSize: '17px', fontWeight: 700, color: th.text, margin: '0 0 6px' }}>
+                {smsResult.success ? (lang === 'sw' ? 'Ripoti Imetumwa kwa Mafanikio!' : 'Report Sent Successfully!') : (lang === 'sw' ? 'Imeshindwa Kutuma' : 'Failed to Send')}
               </h4>
-              {!smsResult.success && <p className="text-small">{smsResult.error}</p>}
-              <button className="btn btn-primary mt-lg" onClick={() => { setShowSmsModal(false); setSmsResult(null); }}
-                style={{ padding: '10px 32px', borderRadius: '10px' }}>OK</button>
+              {smsResult.success ? (
+                <p style={{ margin: '0 0 4px', fontSize: '13px', color: th.textSecondary || '#64748b' }}>
+                  {lang === 'sw' ? 'Ripoti imetumwa kwa SMS kwenye namba uliyoweka.' : 'Report has been sent via SMS to the provided number.'}
+                </p>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#ef4444', margin: '0 0 4px' }}>{smsResult.error}</p>
+              )}
+              <button
+                className="btn btn-primary"
+                onClick={() => { setShowSmsModal(false); setSmsResult(null); }}
+                style={{ marginTop: '20px', padding: '10px 40px', borderRadius: '10px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}
+              >OK</button>
             </div>
           ) : (
             <>
@@ -1501,23 +1584,31 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
           {eodResult ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <div style={{
-                width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 16px',
+                width: '72px', height: '72px', borderRadius: '50%', margin: '0 auto 20px',
                 background: eodResult.success ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: `2px solid ${eodResult.success ? '#10b981' : '#ef4444'}`
+                border: `3px solid ${eodResult.success ? '#10b981' : '#ef4444'}`
               }}>
                 {eodResult.success ? (
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 ) : (
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                 )}
               </div>
-              <h4 style={{ fontSize: '16px', fontWeight: 700, color: th.text, margin: '0 0 8px' }}>
+              <h4 style={{ fontSize: '17px', fontWeight: 700, color: th.text, margin: '0 0 6px' }}>
                 {eodResult.success ? t.reportSent : t.failed}
               </h4>
-              {!eodResult.success && <p style={{ fontSize: '13px', color: '#ef4444' }}>{eodResult.error}</p>}
-              <button onClick={() => { setShowEodModal(false); setEodResult(null); }}
-                style={{ marginTop: '16px', padding: '10px 32px', borderRadius: '10px', border: 'none', background: '#6366f1', color: '#fff', fontWeight: 700, fontSize: '14px', cursor: 'pointer' }}>OK</button>
+              {eodResult.success ? (
+                <p style={{ margin: '0 0 4px', fontSize: '13px', color: th.textSecondary || '#64748b' }}>
+                  {lang === 'sw' ? 'Ripoti ya mauzo ya leo imetumwa kwa SMS.' : 'Today\'s sales report has been sent via SMS.'}
+                </p>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#ef4444', margin: '0 0 4px' }}>{eodResult.error}</p>
+              )}
+              <button
+                onClick={() => { setShowEodModal(false); setEodResult(null); }}
+                style={{ marginTop: '20px', padding: '10px 40px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', fontWeight: 700, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}
+              >OK</button>
             </div>
           ) : (
             <>

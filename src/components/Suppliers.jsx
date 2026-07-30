@@ -58,6 +58,7 @@ const Suppliers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     if (currentShop?.id) {
       fetchSuppliers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop, supabase]);
 
   const fetchSuppliers = async () => {
@@ -208,11 +209,11 @@ const Suppliers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
 
   const filteredSuppliers = suppliers.filter(s => {
     const matchesSearch =
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.products_supplied?.toLowerCase().includes(searchQuery.toLowerCase());
+      s.name?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+      s.company?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+      s.phone?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+      s.email?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+      s.products_supplied?.toLowerCase()?.includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === 'all' || s.status === filterStatus;
     return matchesSearch && matchesStatus;
   });

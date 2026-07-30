@@ -17,7 +17,7 @@ const Profile = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sessi
 
   const showToast = (msg, err) => { setToast({ msg, err }); setTimeout(() => setToast(null), 3000); };
 
-  useEffect(() => { if (session?.user) fetchProfile(); }, [session]);
+  useEffect(() => { if (session?.user) fetchProfile(); }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -35,7 +35,7 @@ const Profile = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sessi
 
   const handleSave = async () => {
     try {
-      const { error } = await supabase.from('profiles').update(form).eq('id', session.user.id);
+      const { error } = await supabase.from('profiles').upsert({ id: session.user.id, ...form });
       if (error) throw error;
       setProfile({ ...profile, ...form });
       setEditing(false);
