@@ -208,9 +208,17 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
           setLoading(false);
           return;
         }
-      }
 
-      onAuthSuccess && onAuthSuccess();
+        await supabase.auth.signOut();
+        showToast(
+          lang === 'sw'
+            ? 'Akaunti haina namba ya simu. Wasiliana na support kuongeza namba yako.'
+            : 'Account has no phone number. Contact support to add your phone.',
+          'error'
+        );
+        setLoading(false);
+        return;
+      }
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
