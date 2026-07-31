@@ -209,20 +209,8 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                           <span className="text-micro" style={{ color: product.stock < 10 ? '#ef4444' : '#10b981', fontWeight: 600 }}>
                             {isSw ? 'Hisa:' : 'Stock:'} {product.stock}
                           </span>
-            </div>
-            <div style={{
-              width: '100%', height: '4px', background: '#334155', borderRadius: '2px',
-              marginTop: '20px', overflow: 'hidden'
-            }}>
-              <div style={{
-                height: '100%', background: notify.type === 'success' ? '#10b981' : '#ef4444',
-                borderRadius: '2px', animation: 'shrinkBar 3s linear forwards'
-              }} />
-            </div>
-            <style>{`
-              @keyframes shrinkBar { from { width: 100%; } to { width: 0%; } }
-            `}</style>
-          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center" style={{ gap: '12px', flexShrink: 0 }}>
                       <span style={{ fontWeight: 700, color: '#6366f1', fontSize: '14px', whiteSpace: 'nowrap' }}>
@@ -600,6 +588,18 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                 </button>
               )}
             </div>
+            <div style={{
+              width: '100%', height: '4px', background: '#334155', borderRadius: '2px',
+              marginTop: '20px', overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%', background: notify.type === 'success' ? '#10b981' : '#ef4444',
+                borderRadius: '2px', animation: 'shrinkBar 3s linear forwards'
+              }} />
+            </div>
+            <style>{`
+              @keyframes shrinkBar { from { width: 100%; } to { width: 0%; } }
+            `}</style>
           </div>
         </div>
       )}
