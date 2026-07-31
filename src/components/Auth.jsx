@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { REGIONS, DISTRICTS_BY_REGION } from '../data/tanzaniaLocations';
 import CI from '../components/ColoredIcons';
 import { sendWelcomeSMS, sendOTPSMS } from '../services/smsService';
+import { sendWelcomeEmail } from '../services/emailService';
 
 const Toast = ({ message, type = 'success', onClose }) => {
   const [visible, setVisible] = useState(false);
@@ -284,6 +285,8 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
           const name = businessName || '';
           sendWelcomeSMS({ phone, businessName: name, lang }).catch(() => {});
         }
+
+        sendWelcomeEmail({ email, businessName, shopName: businessName || '', lang }).catch(() => {});
 
         showToast(lang === 'sw' ? 'Usajili umekamilika! Angalia email yako.' : 'Registration complete! Check your email.', 'success');
         setTimeout(() => { setMode('login'); resetForm(); }, 3000);

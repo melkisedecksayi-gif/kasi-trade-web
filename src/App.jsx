@@ -4,6 +4,7 @@ import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
 import { sendSMS, generateReportSMS, sendBulkSMS } from './services/smsService';
+import { sendReportEmail, sendLowStockEmail, sendBirthdayEmail } from './services/emailService';
 import Landing from './components/Landing';
 import Auth from './components/Auth';
 import UpdatePassword from './components/UpdatePassword';
@@ -88,7 +89,7 @@ function App() {
     const checkAutoClose = async () => {
       try {
         const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
-        if (!settings || !settings.is_enabled || !settings.auto_close_enabled) return;
+        if (!settings) return;
 
         const now = new Date();
         const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -180,13 +181,32 @@ function App() {
           provider_response: result.success ? JSON.stringify(result.data).slice(0, 500) : (result.error?.slice(0, 500) || '')
         });
         autoSentRef.current[sentKey] = true;
+
+        const { data: emailCfg } = await supabase.from('email_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (emailCfg && emailCfg.report_email && emailCfg.report_template_id) {
+          sendReportEmail({
+            email: emailCfg.report_email,
+            reportData,
+            shopName: currentShop?.shop_name || '',
+            lang,
+            publicKey: emailCfg.public_key,
+            serviceId: emailCfg.service_id,
+            templateId: emailCfg.report_template_id,
+          }).then(r => {
+            supabase.from('email_logs').insert({
+              shop_id: currentShop.id, recipient: emailCfg.report_email, subject: 'Daily Report',
+              type: 'auto_close', status: r.success ? 'sent' : 'failed',
+              provider_response: r.success ? JSON.stringify(r.data).slice(0, 500) : (r.error?.slice(0, 500) || '')
+            });
+          }).catch(() => {});
+        }
       } catch (e) { console.warn('Auto close SMS error:', e); }
     };
 
     const checkLowStock = async () => {
       try {
         const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
-        if (!settings || !settings.is_enabled || !settings.low_stock_enabled) return;
+        if (!settings) return;
 
         const threshold = settings.low_stock_threshold || 10;
         const today = new Date().toISOString().split('T')[0];
@@ -218,14 +238,33 @@ function App() {
           provider_response: result.success ? JSON.stringify(result.data).slice(0, 500) : (result.error?.slice(0, 500) || '')
         });
         autoSentRef.current[alertKey] = true;
+
+        const { data: emailCfg } = await supabase.from('email_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (emailCfg && emailCfg.report_email && emailCfg.low_stock_template_id) {
+          sendLowStockEmail({
+            email: emailCfg.report_email,
+            products: lowProducts,
+            threshold: emailCfg.low_stock_threshold || threshold,
+            shopName: currentShop?.shop_name || '',
+            lang,
+            publicKey: emailCfg.public_key,
+            serviceId: emailCfg.service_id,
+            templateId: emailCfg.low_stock_template_id,
+          }).then(r => {
+            supabase.from('email_logs').insert({
+              shop_id: currentShop.id, recipient: emailCfg.report_email, subject: 'Low Stock Alert',
+              type: 'low_stock', status: r.success ? 'sent' : 'failed',
+              provider_response: r.success ? JSON.stringify(r.data).slice(0, 500) : (r.error?.slice(0, 500) || '')
+            });
+          }).catch(() => {});
+        }
       } catch (e) { console.warn('Low stock SMS error:', e); }
     };
 
     const checkBirthdays = async () => {
       try {
         const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
-        if (!settings || !settings.is_enabled) return;
-
+        if (!settings) return;
         const today = new Date();
         const todayMonth = today.getMonth() + 1;
         const todayDay = today.getDate();
@@ -270,6 +309,28 @@ function App() {
           await supabase.from('sms_logs').insert(logs);
         }
         autoSentRef.current[alertKey] = true;
+
+        const { data: emailCfg } = await supabase.from('email_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (emailCfg && emailCfg.report_template_id) {
+          const emailRecipients = todayBirthdays.filter(c => c.email).map(c => ({ name: c.name, email: c.email }));
+          for (const r of emailRecipients) {
+            sendBirthdayEmail({
+              email: r.email,
+              customerName: r.name,
+              shopName: currentShop?.shop_name || '',
+              lang,
+              publicKey: emailCfg.public_key,
+              serviceId: emailCfg.service_id,
+              templateId: emailCfg.report_template_id,
+            }).then(result => {
+              supabase.from('email_logs').insert({
+                shop_id: currentShop.id, recipient: r.email, subject: 'Birthday',
+                type: 'birthday', status: result.success ? 'sent' : 'failed',
+                provider_response: result.success ? null : (result.error?.slice(0, 500) || '')
+              });
+            }).catch(() => {});
+          }
+        }
       } catch (e) { console.warn('Birthday SMS error:', e); }
     };
 

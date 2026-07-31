@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, session, onLogout, setIsDarkMode, setLang, shops, setShops, onShopChange, theme }) => {
   const [toast, setToast] = useState(null);
@@ -8,16 +9,24 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
   const [newShopType, setNewShopType] = useState('duka');
   const [deletingId, setDeletingId] = useState(null);
   const [smsSettings, setSmsSettings] = useState({
-    is_enabled: false,
-    auto_close_enabled: false,
-    auto_close_time: '22:00',
     phone: currentShop?.phone || '',
-    customer_sms_enabled: false,
-    low_stock_enabled: false,
+    auto_close_time: '22:00',
     low_stock_threshold: 10
   });
   const [smsSaving, setSmsSaving] = useState(false);
   const [smsLoaded, setSmsLoaded] = useState(false);
+  const [emailSettings, setEmailSettings] = useState({
+    public_key: 'ZxWOL0OzGhy06G6f5',
+    service_id: 'service_wb6ens2',
+    receipt_template_id: 'template_6pllxba',
+    report_template_id: 'template_d9272ji',
+    low_stock_template_id: 'template_d9272ji',
+    report_email: currentShop?.email || '',
+    auto_close_time: '22:00',
+    low_stock_threshold: 10
+  });
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailLoaded, setEmailLoaded] = useState(false);
   const isSw = lang === 'sw';
   const th = theme || {};
 
@@ -27,12 +36,8 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
       try {
         const { data } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
         setSmsSettings(prev => ({
-          is_enabled: data?.is_enabled || false,
-          auto_close_enabled: data?.auto_close_enabled || false,
           auto_close_time: data?.auto_close_time || '22:00',
           phone: currentShop?.phone || prev.phone || '',
-          customer_sms_enabled: data?.customer_sms_enabled || false,
-          low_stock_enabled: data?.low_stock_enabled || false,
           low_stock_threshold: data?.low_stock_threshold || 10
         }));
       } catch (e) { console.warn('SMS settings fetch:', e); }
@@ -41,16 +46,58 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
     fetchSmsSettings();
   }, [currentShop?.id, currentShop?.phone, supabase]);
 
+  useEffect(() => {
+    if (!currentShop?.id) return;
+    const fetchEmailSettings = async () => {
+      try {
+        const { data } = await supabase.from('email_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        setEmailSettings(prev => ({
+          public_key: data?.public_key || '',
+          service_id: data?.service_id || '',
+          receipt_template_id: data?.receipt_template_id || '',
+          report_template_id: data?.report_template_id || '',
+          low_stock_template_id: data?.low_stock_template_id || '',
+          report_email: data?.report_email || currentShop?.email || prev.report_email || '',
+          auto_close_time: data?.auto_close_time || '22:00',
+          low_stock_threshold: data?.low_stock_threshold || 10
+        }));
+      } catch (e) { console.warn('Email settings fetch:', e); }
+      finally { setEmailLoaded(true); }
+    };
+    fetchEmailSettings();
+  }, [currentShop?.id, currentShop?.email, supabase]);
+
+  const handleSaveEmailSettings = async () => {
+    if (!currentShop?.id) return;
+    setEmailSaving(true);
+    try {
+      const saveData = {
+        public_key: emailSettings.public_key,
+        service_id: emailSettings.service_id,
+        receipt_template_id: emailSettings.receipt_template_id,
+        report_template_id: emailSettings.report_template_id,
+        low_stock_template_id: emailSettings.low_stock_template_id,
+        auto_close_time: emailSettings.auto_close_time,
+        report_email: emailSettings.report_email,
+        low_stock_threshold: emailSettings.low_stock_threshold
+      };
+      const { data: existing } = await supabase.from('email_settings').select('id').eq('shop_id', currentShop.id).maybeSingle();
+      if (existing) {
+        await supabase.from('email_settings').update(saveData).eq('shop_id', currentShop.id);
+      } else {
+        await supabase.from('email_settings').insert({ shop_id: currentShop.id, ...saveData });
+      }
+      showToast(isSw ? 'Mipangilio ya Email imehifadhiwa!' : 'Email settings saved!');
+    } catch (e) { showToast(e.message); }
+    finally { setEmailSaving(false); }
+  };
+
   const handleSaveSmsSettings = async () => {
     if (!currentShop?.id) return;
     setSmsSaving(true);
     try {
       const saveData = {
-        is_enabled: smsSettings.is_enabled,
-        auto_close_enabled: smsSettings.auto_close_enabled,
         auto_close_time: smsSettings.auto_close_time,
-        customer_sms_enabled: smsSettings.customer_sms_enabled,
-        low_stock_enabled: smsSettings.low_stock_enabled,
         low_stock_threshold: smsSettings.low_stock_threshold
       };
       const { data: existing } = await supabase.from('sms_settings').select('id').eq('shop_id', currentShop.id).maybeSingle();
@@ -100,6 +147,11 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
   const tTextMuted = th.textSecondary || (isDarkMode ? '#94a3b8' : '#475569');
   const tBorder = th.border || (isDarkMode ? '#334155' : '#e2e8f0');
   const tHoverBg = th.surfaceHover || (isDarkMode ? '#334155' : '#f1f5f9');
+
+  useEscapeKey(() => {
+    if (showAddShop) setShowAddShop(false);
+    else if (deletingId) setDeletingId(null);
+  });
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -222,24 +274,11 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
 
         {/* SMS Settings */}
         <div className="card card-xl" style={{ padding: '22px', borderRadius: '16px' }}>
-          <h3 className="text-h4 mb-lg">{isSw ? 'Mipangilio ya SMS (Meseji)' : 'SMS Settings (Meseji)'}</h3>
+          <h3 className="text-h4 mb-lg">{isSw ? 'Mipangilio ya SMS (Meseji)' : 'SMS Settings'}</h3>
           {!smsLoaded ? (
             <div style={{ fontSize: '13px', color: tTextMuted }}>{isSw ? 'Inapakia...' : 'Loading...'}</div>
           ) : (
             <div className="flex flex-col" style={{ gap: '10px' }}>
-              <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Washa SMS' : 'Enable SMS'}</span>
-                  <div className="text-micro" style={{ color: tTextMuted, marginTop: '2px' }}>{isSw ? 'Wezesha utumaji wa SMS' : 'Enable SMS sending'}</div>
-                </div>
-                <button onClick={() => setSmsSettings({ ...smsSettings, is_enabled: !smsSettings.is_enabled })} style={{
-                  width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
-                  background: smsSettings.is_enabled ? '#6366f1' : '#cbd5e1', position: 'relative', transition: 'background 0.2s'
-                }}>
-                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: smsSettings.is_enabled ? '23px' : '3px', transition: 'left 0.2s' }} />
-                </button>
-              </div>
-
               <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
                   {isSw ? 'Namba ya Kupokea SMS' : 'SMS Recipient Phone'}
@@ -247,70 +286,27 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
                 <input type="tel" value={smsSettings.phone} onChange={e => setSmsSettings({ ...smsSettings, phone: e.target.value })}
                   className="input" placeholder="255XXXXXXXXX" style={{ fontSize: '13px' }} />
                 <div className="text-micro" style={{ color: tTextMuted }}>
-                  {isSw ? 'Namba itakayopokea ripoti za kila siku' : 'Phone number that will receive daily reports'}
+                  {isSw ? 'Namba itakayopokea ripoti na tahadhari' : 'Phone to receive reports and alerts'}
                 </div>
               </div>
 
               <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Funga Duka Kiotomatiki' : 'Auto Close Day'}</span>
-                  <div className="text-micro" style={{ color: tTextMuted, marginTop: '2px' }}>{isSw ? 'Tuma ripoti kiotomatiki wakati wa kufunga' : 'Auto-send report at closing time'}</div>
-                </div>
-                <button onClick={() => setSmsSettings({ ...smsSettings, auto_close_enabled: !smsSettings.auto_close_enabled })} style={{
-                  width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
-                  background: smsSettings.auto_close_enabled ? '#6366f1' : '#cbd5e1', position: 'relative', transition: 'background 0.2s'
-                }}>
-                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: smsSettings.auto_close_enabled ? '23px' : '3px', transition: 'left 0.2s' }} />
-                </button>
-              </div>
-
-              {smsSettings.auto_close_enabled && (
-                <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Saa ya Kufunga' : 'Closing Time'}</span>
-                  <input type="time" value={smsSettings.auto_close_time} onChange={e => setSmsSettings({ ...smsSettings, auto_close_time: e.target.value })}
-                    style={{
-                      padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
-                      background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '120px'
-                    }} />
-                </div>
-              )}
-
-              <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Risiti kwa SMS' : 'SMS Receipt'}</span>
-                  <div className="text-micro" style={{ color: tTextMuted, marginTop: '2px' }}>{isSw ? 'Tuma risiti kwa mteja baada ya mauzo' : 'Send receipt to customer after sale'}</div>
-                </div>
-                <button onClick={() => setSmsSettings({ ...smsSettings, customer_sms_enabled: !smsSettings.customer_sms_enabled })} style={{
-                  width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
-                  background: smsSettings.customer_sms_enabled ? '#6366f1' : '#cbd5e1', position: 'relative', transition: 'background 0.2s'
-                }}>
-                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: smsSettings.customer_sms_enabled ? '23px' : '3px', transition: 'left 0.2s' }} />
-                </button>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Saa ya Kufunga (Ripoti)' : 'Closing Time (Report)'}</span>
+                <input type="time" value={smsSettings.auto_close_time} onChange={e => setSmsSettings({ ...smsSettings, auto_close_time: e.target.value })}
+                  style={{
+                    padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
+                    background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '120px'
+                  }} />
               </div>
 
               <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Tahadhari Stock' : 'Low Stock Alert'}</span>
-                  <div className="text-micro" style={{ color: tTextMuted, marginTop: '2px' }}>{isSw ? 'Tuma SMS bidhaa zinapokaribia kuisha' : 'Send SMS when products are running low'}</div>
-                </div>
-                <button onClick={() => setSmsSettings({ ...smsSettings, low_stock_enabled: !smsSettings.low_stock_enabled })} style={{
-                  width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
-                  background: smsSettings.low_stock_enabled ? '#6366f1' : '#cbd5e1', position: 'relative', transition: 'background 0.2s'
-                }}>
-                  <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: smsSettings.low_stock_enabled ? '23px' : '3px', transition: 'left 0.2s' }} />
-                </button>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Kiwango cha Tahadhari Stock' : 'Stock Alert Threshold'}</span>
+                <input type="number" min="1" max="999" value={smsSettings.low_stock_threshold} onChange={e => setSmsSettings({ ...smsSettings, low_stock_threshold: parseInt(e.target.value) || 0 })}
+                  style={{
+                    padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
+                    background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '80px', textAlign: 'center'
+                  }} />
               </div>
-
-              {smsSettings.low_stock_enabled && (
-                <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Kiwango cha Tahadhari' : 'Alert Threshold'}</span>
-                  <input type="number" min="1" max="999" value={smsSettings.low_stock_threshold} onChange={e => setSmsSettings({ ...smsSettings, low_stock_threshold: parseInt(e.target.value) || 0 })}
-                    style={{
-                      padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
-                      background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '80px', textAlign: 'center'
-                    }} />
-                </div>
-              )}
 
               <button onClick={handleSaveSmsSettings} disabled={smsSaving} className="btn btn-primary" style={{
                 width: '100%', padding: '10px', borderRadius: '10px', fontWeight: 700, fontSize: '14px', marginTop: '4px'
@@ -328,6 +324,91 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
             <div className="text-small mb-md">{session.user.email}</div>
           </div>
         )}
+
+        {/* Email Settings */}
+        <div className="card card-xl" style={{ padding: '22px', borderRadius: '16px' }}>
+          <h3 className="text-h4 mb-lg">{isSw ? 'Mipangilio ya Email (Barua Pepe)' : 'Email Settings'}</h3>
+          {!emailLoaded ? (
+            <div style={{ fontSize: '13px', color: tTextMuted }}>{isSw ? 'Inapakia...' : 'Loading...'}</div>
+          ) : (
+            <div className="flex flex-col" style={{ gap: '10px' }}>
+              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
+                  EmailJS Public Key
+                </span>
+                <input type="text" value={emailSettings.public_key} onChange={e => setEmailSettings({ ...emailSettings, public_key: e.target.value })}
+                  className="input" placeholder="your_public_key" style={{ fontSize: '13px' }} />
+              </div>
+
+              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
+                  EmailJS Service ID
+                </span>
+                <input type="text" value={emailSettings.service_id} onChange={e => setEmailSettings({ ...emailSettings, service_id: e.target.value })}
+                  className="input" placeholder="service_xxxxx" style={{ fontSize: '13px' }} />
+              </div>
+
+              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
+                  {isSw ? 'Template ID - Risiti' : 'Receipt Template ID'}
+                </span>
+                <input type="text" value={emailSettings.receipt_template_id} onChange={e => setEmailSettings({ ...emailSettings, receipt_template_id: e.target.value })}
+                  className="input" placeholder="template_xxxxx" style={{ fontSize: '13px' }} />
+              </div>
+
+              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
+                  {isSw ? 'Template ID - Ripoti' : 'Report Template ID'}
+                </span>
+                <input type="text" value={emailSettings.report_template_id} onChange={e => setEmailSettings({ ...emailSettings, report_template_id: e.target.value })}
+                  className="input" placeholder="template_xxxxx" style={{ fontSize: '13px' }} />
+              </div>
+
+              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
+                  {isSw ? 'Template ID - Stock Alert' : 'Low Stock Template ID'}
+                </span>
+                <input type="text" value={emailSettings.low_stock_template_id} onChange={e => setEmailSettings({ ...emailSettings, low_stock_template_id: e.target.value })}
+                  className="input" placeholder="template_xxxxx" style={{ fontSize: '13px' }} />
+              </div>
+
+              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
+                  {isSw ? 'Email ya Kupokea Ripoti' : 'Recipient Email'}
+                </span>
+                <input type="email" value={emailSettings.report_email} onChange={e => setEmailSettings({ ...emailSettings, report_email: e.target.value })}
+                  className="input" placeholder="shop@example.com" style={{ fontSize: '13px' }} />
+                <div className="text-micro" style={{ color: tTextMuted }}>
+                  {isSw ? 'Email itakayopokea ripoti na tahadhari' : 'Email to receive reports and alerts'}
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Saa ya Kufunga (Ripoti)' : 'Closing Time (Report)'}</span>
+                <input type="time" value={emailSettings.auto_close_time} onChange={e => setEmailSettings({ ...emailSettings, auto_close_time: e.target.value })}
+                  style={{
+                    padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
+                    background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '120px'
+                  }} />
+              </div>
+
+              <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Kiwango cha Tahadhari Stock' : 'Stock Alert Threshold'}</span>
+                <input type="number" min="1" max="999" value={emailSettings.low_stock_threshold} onChange={e => setEmailSettings({ ...emailSettings, low_stock_threshold: parseInt(e.target.value) || 0 })}
+                  style={{
+                    padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
+                    background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '80px', textAlign: 'center'
+                  }} />
+              </div>
+
+              <button onClick={handleSaveEmailSettings} disabled={emailSaving} className="btn btn-primary" style={{
+                width: '100%', padding: '10px', borderRadius: '10px', fontWeight: 700, fontSize: '14px', marginTop: '4px'
+              }}>
+                {emailSaving ? (isSw ? 'Inahifadhi...' : 'Saving...') : (isSw ? 'Hifadhi Mipangilio' : 'Save Settings')}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Logout */}
         <button onClick={onLogout} className="btn btn-danger" style={{

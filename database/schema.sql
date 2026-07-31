@@ -562,3 +562,62 @@ ON storage.objects
 FOR SELECT
 TO public
 USING (bucket_id = 'avatars');
+
+
+-- [16] EMAIL SETTINGS (per shop)
+CREATE TABLE IF NOT EXISTS email_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE UNIQUE,
+  is_enabled BOOLEAN DEFAULT false,
+  public_key TEXT DEFAULT '',
+  service_id TEXT DEFAULT '',
+  receipt_template_id TEXT DEFAULT '',
+  report_template_id TEXT DEFAULT '',
+  low_stock_template_id TEXT DEFAULT '',
+  auto_close_enabled BOOLEAN DEFAULT false,
+  auto_close_time TIME DEFAULT '22:00',
+  report_email TEXT,
+  customer_email_enabled BOOLEAN DEFAULT false,
+  low_stock_enabled BOOLEAN DEFAULT false,
+  low_stock_threshold INT DEFAULT 10,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE email_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own shop email_settings"
+  ON email_settings FOR ALL
+  USING (EXISTS (SELECT 1 FROM shops WHERE shops.id = email_settings.shop_id AND shops.owner_id = auth.uid()));
+
+
+-- [17] EMAIL LOGS (outgoing messages)
+CREATE TABLE IF NOT EXISTS email_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  recipient TEXT NOT NULL,
+  subject TEXT DEFAULT '',
+  type TEXT DEFAULT 'report',
+  status TEXT DEFAULT 'sent' CHECK (status IN ('sent', 'failed', 'pending')),
+  provider_response TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_logs_shop_id ON email_logs(shop_id);
+CREATE INDEX IF NOT EXISTS idx_email_logs_created_at ON email_logs(created_at DESC);
+
+ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their shop email_logs"
+  ON email_logs FOR ALL
+  USING (EXISTS (SELECT 1 FROM shops WHERE shops.id = email_logs.shop_id AND shops.owner_id = auth.uid()));
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_email_settings_updated_at') THEN
+    EXECUTE 'CREATE TRIGGER trg_email_settings_updated_at BEFORE UPDATE ON email_settings
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();';
+  END IF;
+END;
+$$;

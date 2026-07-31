@@ -5,6 +5,7 @@ import { getCategoryIcon } from '../data/categoryIcons';
 import { playSaleBeep } from '../utils/sound';
 import { printReceipt } from '../utils/print';
 import { sendSMS } from '../services/smsService';
+import { sendReceiptEmail } from '../services/emailService';
 
 const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [products, setProducts] = useState([]);
@@ -14,8 +15,11 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [showCheckout, setShowCheckout] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [notify, setNotify] = useState(null);
-  const [customerSmsEnabled, setCustomerSmsEnabled] = useState(false);
+  const [discountType, setDiscountType] = useState('none');
+  const [discountValue, setDiscountValue] = useState('');
+  const [emailSettings, setEmailSettings] = useState({});
   const isSw = lang === 'sw';
   const th = theme || {};
 
@@ -26,11 +30,23 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
 
   useEffect(() => {
     if (currentShop?.id) {
-      supabase.from('sms_settings').select('customer_sms_enabled').eq('shop_id', currentShop.id).maybeSingle().then(({ data }) => {
-        setCustomerSmsEnabled(data?.customer_sms_enabled || false);
+      supabase.from('email_settings').select('receipt_template_id, service_id, public_key').eq('shop_id', currentShop.id).maybeSingle().then(({ data }) => {
+        setEmailSettings(data || {});
       }).catch(() => {});
     }
   }, [currentShop?.id, supabase]);
+
+  useEffect(() => {
+    if (!showCheckout && !notify) return;
+    const handleKey = (e) => {
+      if (e.key === 'Escape') {
+        if (showCheckout) setShowCheckout(false);
+        if (notify) setNotify(null);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [showCheckout, notify]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -69,14 +85,26 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const removeFromCart = (productId) => setCart(cart.filter(item => item.id !== productId));
   const getTotal = () => cart.reduce((sum, item) => sum + (item.sell_price * item.quantity), 0);
 
+  const getDiscountAmount = () => {
+    const val = parseFloat(discountValue) || 0;
+    if (val <= 0 || discountType === 'none') return 0;
+    if (discountType === 'percentage') return Math.round(getTotal() * (val / 100));
+    return val;
+  };
+
+  const getFinalTotal = () => Math.max(0, getTotal() - getDiscountAmount());
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     const phone = customerPhone.trim();
+    const discount = getDiscountAmount();
+    const finalTotal = getFinalTotal();
     try {
-      const total = getTotal();
-      const profit = cart.reduce((sum, item) => sum + ((item.sell_price - item.buy_price) * item.quantity), 0);
+      const total = finalTotal;
+      const subtotal = getTotal();
+      const profit = cart.reduce((sum, item) => sum + ((item.sell_price - item.buy_price) * item.quantity), 0) - discount;
       const { error: transactionError } = await supabase.from('transactions').insert([{
-        shop_id: currentShop.id, total_amount: total, profit: profit,
+        shop_id: currentShop.id, total_amount: total, profit: profit, discount: discount,
         payment_method: paymentMethod, items_count: cart.reduce((sum, item) => sum + item.quantity, 0)
       }]).select().single();
       if (transactionError) throw transactionError;
@@ -84,17 +112,30 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       for (const item of cart) {
         await supabase.from('products').update({ stock: item.stock - item.quantity }).eq('id', item.id);
       }
-      const receiptData = { items: [...cart], total: getTotal(), date: new Date().toISOString() };
-      setNotify({ msg: lang === 'sw' ? 'Mauzo Yamefanikiwa!' : 'Sale Completed!', type: 'success', total: getTotal(), receipt: receiptData });
+      const receiptData = { items: [...cart], total: finalTotal, subtotal: subtotal, discount: discount, discountType: discountType, date: new Date().toISOString() };
+      setNotify({ msg: lang === 'sw' ? 'Mauzo Yamefanikiwa!' : 'Sale Completed!', type: 'success', total: finalTotal, receipt: receiptData });
 
       const soldItems = [...cart];
       const soldTotal = total;
-      setCart([]); setShowCheckout(false); setCustomerPhone(''); fetchProducts();
+      setCart([]); setShowCheckout(false); setCustomerPhone(''); setCustomerEmail(''); setDiscountType('none'); setDiscountValue(''); fetchProducts();
 
-      if (phone && customerSmsEnabled) {
+      if (phone) {
         const itemsList = soldItems.map(i => `${i.quantity}x ${i.name} TSh ${(i.sell_price * i.quantity).toLocaleString()}`).join(', ');
         const smsMsg = `${isSw ? 'Asante kwa ununuzi wako!' : 'Thank you for your purchase!'}\n${currentShop?.shop_name || 'KasiTRADE'}\n${itemsList}\n${isSw ? 'Jumla' : 'Total'}: TSh ${soldTotal.toLocaleString()}\n${isSw ? 'Karibu tena!' : 'Welcome again!'}`;
         sendSMS({ to: phone, message: smsMsg }).catch(() => {});
+      }
+
+      const custEmail = customerEmail.trim();
+      if (custEmail && emailSettings?.receipt_template_id) {
+        sendReceiptEmail({
+          email: custEmail,
+          transaction: { items: soldItems, total_amount: soldTotal, payment_method: paymentMethod, created_at: new Date().toISOString() },
+          shopName: currentShop?.shop_name || 'KasiTRADE',
+          lang,
+          publicKey: emailSettings.public_key,
+          serviceId: emailSettings.service_id,
+          templateId: emailSettings.receipt_template_id,
+        }).catch(() => {});
       }
     } catch (err) {
       setNotify({ msg: err.message || (lang === 'sw' ? 'Hitilafu imetokea' : 'Error occurred'), type: 'error', total: 0 });
@@ -168,8 +209,20 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                           <span className="text-micro" style={{ color: product.stock < 10 ? '#ef4444' : '#10b981', fontWeight: 600 }}>
                             {isSw ? 'Hisa:' : 'Stock:'} {product.stock}
                           </span>
-                        </div>
-                      </div>
+            </div>
+            <div style={{
+              width: '100%', height: '4px', background: '#334155', borderRadius: '2px',
+              marginTop: '20px', overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%', background: notify.type === 'success' ? '#10b981' : '#ef4444',
+                borderRadius: '2px', animation: 'shrinkBar 3s linear forwards'
+              }} />
+            </div>
+            <style>{`
+              @keyframes shrinkBar { from { width: 100%; } to { width: 0%; } }
+            `}</style>
+          </div>
                     </div>
                     <div className="flex items-center" style={{ gap: '12px', flexShrink: 0 }}>
                       <span style={{ fontWeight: 700, color: '#6366f1', fontSize: '14px', whiteSpace: 'nowrap' }}>
@@ -287,9 +340,9 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                       background: th.surfaceHover || '#f1f5f9', borderRadius: '8px', padding: '2px'
                     }}>
                       <button onClick={() => updateQuantity(item.id, -1)} style={{
-                        width: '26px', height: '26px', border: 'none', borderRadius: '6px',
+                        width: '34px', height: '34px', border: 'none', borderRadius: '8px',
                         background: 'transparent', color: th.textSecondary || '#64748b',
-                        cursor: 'pointer', fontSize: '15px', fontWeight: 600,
+                        cursor: 'pointer', fontSize: '18px', fontWeight: 600,
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>−</button>
                       <span style={{
@@ -297,9 +350,9 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                         fontWeight: 700, color: th.text || '#f1f5f9'
                       }}>{item.quantity}</span>
                       <button onClick={() => updateQuantity(item.id, 1)} style={{
-                        width: '26px', height: '26px', border: 'none', borderRadius: '6px',
+                        width: '34px', height: '34px', border: 'none', borderRadius: '8px',
                         background: 'transparent', color: '#6366f1',
-                        cursor: 'pointer', fontSize: '15px', fontWeight: 600,
+                        cursor: 'pointer', fontSize: '18px', fontWeight: 600,
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>+</button>
                     </div>
@@ -339,12 +392,56 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                     TSh {getTotal().toLocaleString()}
                   </span>
                 </div>
+
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+                    <button onClick={() => setDiscountType('none')} style={{
+                      padding: '3px 8px', borderRadius: '6px', border: discountType === 'none' ? '1px solid #6366f1' : `1px solid ${th.border || '#334155'}`,
+                      background: discountType === 'none' ? 'rgba(99,102,241,0.1)' : 'transparent',
+                      color: discountType === 'none' ? '#6366f1' : (th.textSecondary || '#64748b'),
+                      fontSize: '11px', fontWeight: 600, cursor: 'pointer'
+                    }}>{isSw ? 'Hakuna' : 'None'}</button>
+                    <button onClick={() => setDiscountType('percentage')} style={{
+                      padding: '3px 8px', borderRadius: '6px', border: discountType === 'percentage' ? '1px solid #6366f1' : `1px solid ${th.border || '#334155'}`,
+                      background: discountType === 'percentage' ? 'rgba(99,102,241,0.1)' : 'transparent',
+                      color: discountType === 'percentage' ? '#6366f1' : (th.textSecondary || '#64748b'),
+                      fontSize: '11px', fontWeight: 600, cursor: 'pointer'
+                    }}>%</button>
+                    <button onClick={() => setDiscountType('amount')} style={{
+                      padding: '3px 8px', borderRadius: '6px', border: discountType === 'amount' ? '1px solid #6366f1' : `1px solid ${th.border || '#334155'}`,
+                      background: discountType === 'amount' ? 'rgba(99,102,241,0.1)' : 'transparent',
+                      color: discountType === 'amount' ? '#6366f1' : (th.textSecondary || '#64748b'),
+                      fontSize: '11px', fontWeight: 600, cursor: 'pointer'
+                    }}>TSh</button>
+                    {discountType !== 'none' && (
+                      <input type="number" min="0" value={discountValue}
+                        onChange={e => setDiscountValue(e.target.value)}
+                        placeholder={discountType === 'percentage' ? '%' : '0'}
+                        style={{
+                          width: '70px', padding: '3px 6px', borderRadius: '6px', border: `1px solid ${th.border || '#334155'}`,
+                          background: isDarkMode ? '#1e293b' : '#fff', color: th.text || '#f1f5f9', fontSize: '12px', textAlign: 'center'
+                        }} />
+                    )}
+                  </div>
+                </div>
+
+                {getDiscountAmount() > 0 && (
+                  <div className="flex justify-between items-center" style={{ marginBottom: '6px' }}>
+                    <span style={{ fontSize: '12px', color: '#ef4444' }}>
+                      {isSw ? 'Punguzo' : 'Discount'}
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#ef4444', fontFamily: "'Inter', sans-serif" }}>
+                      -TSh {getDiscountAmount().toLocaleString()}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center" style={{ marginBottom: '14px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: th.text || '#f1f5f9' }}>
                     {isSw ? 'JUMLA' : 'TOTAL'}
                   </span>
                   <span style={{ fontSize: '22px', fontWeight: 800, color: '#6366f1', letterSpacing: '-0.5px', fontFamily: "'Inter', sans-serif" }}>
-                    TSh {getTotal().toLocaleString()}
+                    TSh {getFinalTotal().toLocaleString()}
                   </span>
                 </div>
                 <button onClick={() => setShowCheckout(true)} style={{
@@ -361,7 +458,7 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  {isSw ? 'Lipa Sasa' : 'Checkout'} — TSh {getTotal().toLocaleString()}
+                  {isSw ? 'Lipa Sasa' : 'Checkout'} — TSh {getFinalTotal().toLocaleString()}
                 </button>
               </div>
             </>
@@ -396,12 +493,48 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
               ))}
             </div>
 
+            <div style={{
+              marginTop: '16px', padding: '14px', borderRadius: '12px',
+              background: isDarkMode ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.04)',
+              border: `1px solid ${th.border || '#334155'}`
+            }}>
+              <div className="flex justify-between items-center" style={{ marginBottom: '4px' }}>
+                <span style={{ fontSize: '11px', color: th.textSecondary || '#64748b' }}>{isSw ? 'Jumla Ndogo' : 'Subtotal'}</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: th.text || '#f1f5f9' }}>TSh {getTotal().toLocaleString()}</span>
+              </div>
+              {getDiscountAmount() > 0 && (
+                <div className="flex justify-between items-center" style={{ marginBottom: '4px' }}>
+                  <span style={{ fontSize: '11px', color: '#ef4444' }}>{isSw ? 'Punguzo' : 'Discount'}</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#ef4444' }}>-TSh {getDiscountAmount().toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center" style={{ marginTop: '6px', paddingTop: '8px', borderTop: `1px solid ${th.border || '#334155'}` }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: th.text || '#f1f5f9' }}>{isSw ? 'JUMLA' : 'TOTAL'}</span>
+                <span style={{ fontSize: '18px', fontWeight: 800, color: '#6366f1' }}>TSh {getFinalTotal().toLocaleString()}</span>
+              </div>
+              <div style={{ marginTop: '8px', maxHeight: '120px', overflowY: 'auto' }}>
+                {cart.map((item, i) => (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: '11px', color: th.textSecondary || '#64748b' }}>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.quantity}x {item.name}</span>
+                    <span style={{ marginLeft: '8px', whiteSpace: 'nowrap' }}>TSh {(item.sell_price * item.quantity).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="flex flex-col" style={{ gap: '4px', marginTop: '12px' }}>
               <label className="text-small" style={{ fontWeight: 600, color: th.text || '#f1f5f9' }}>
                 {isSw ? 'Namba ya Mteja (si lazima)' : 'Customer Phone (optional)'}
               </label>
               <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
                 className="input" placeholder="255XXXXXXXXX" />
+            </div>
+            <div className="flex flex-col" style={{ gap: '4px', marginTop: '8px' }}>
+              <label className="text-small" style={{ fontWeight: 600, color: th.text || '#f1f5f9' }}>
+                {isSw ? 'Email ya Mteja (si lazima)' : 'Customer Email (optional)'}
+              </label>
+              <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)}
+                className="input" placeholder="customer@example.com" />
             </div>
 
             <div className="modal-footer">
@@ -420,8 +553,8 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       {notify && (
         <div className="modal-overlay" style={{ zIndex: 2000 }} onClick={() => setNotify(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{
-            background: '#1e293b', borderRadius: '24px', padding: '36px 44px',
-            textAlign: 'center', maxWidth: '380px', width: '90%',
+            background: '#1e293b', borderRadius: '24px', padding: '36px 44px 24px',
+            textAlign: 'center', maxWidth: '380px', width: '90%', overflow: 'hidden',
             border: `1px solid ${notify.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
             boxShadow: '0 20px 60px rgba(0,0,0,0.5)', animation: 'fadeInScale 0.35s ease'
           }}>
