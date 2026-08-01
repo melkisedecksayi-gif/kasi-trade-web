@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import useEscapeKey from '../hooks/useEscapeKey';
+import getStyles from '../stylePresets';
 
-const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, session, onLogout, setIsDarkMode, setLang, shops, setShops, onShopChange, theme }) => {
+const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, session, onLogout, setIsDarkMode, setLang, shops, setShops, onShopChange }) => {
   const [toast, setToast] = useState(null);
   const [showAddShop, setShowAddShop] = useState(false);
   const [newShopName, setNewShopName] = useState('');
@@ -28,7 +29,7 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailLoaded, setEmailLoaded] = useState(false);
   const isSw = lang === 'sw';
-  const th = theme || {};
+  const s = getStyles(isDarkMode);
 
   useEffect(() => {
     if (!currentShop?.id) return;
@@ -143,10 +144,10 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
     } catch (e) { showToast(e.message); }
   };
 
-  const tText = th.text || (isDarkMode ? '#f1f5f9' : '#0f172a');
-  const tTextMuted = th.textSecondary || (isDarkMode ? '#94a3b8' : '#475569');
-  const tBorder = th.border || (isDarkMode ? '#334155' : '#e2e8f0');
-  const tHoverBg = th.surfaceHover || (isDarkMode ? '#334155' : '#f1f5f9');
+  const tText = s.t.text;
+  const tTextMuted = s.t.textSecondary;
+  const tBorder = s.t.border;
+  const tHoverBg = s.t.surfaceHover;
 
   useEscapeKey(() => {
     if (showAddShop) setShowAddShop(false);

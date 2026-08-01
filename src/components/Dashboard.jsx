@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
+import getStyles from '../stylePresets';
 
-
-const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage, theme }) => {
+const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage }) => {
   const [stats, setStats] = useState({ todaySales: 0, todayProfit: 0, productsCount: 0, customersCount: 0, lowStock: 0 });
   const [loading, setLoading] = useState(true);
-
   const isSw = lang === 'sw';
-  const th = theme || {};
+  const s = getStyles(isDarkMode);
 
   const formatCurrency = (amount) => new Intl.NumberFormat('sw-TZ', { style: 'currency', currency: 'TZS', maximumFractionDigits: 0 }).format(amount || 0);
 
@@ -59,17 +58,15 @@ const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage, the
   return (
     <div style={{ animation: 'fadeIn 0.4s ease' }}>
       {/* Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
         {statCards.map((card, i) => (
           <div key={i} style={{
-            background: th.cardBg || '#1e293b',
-            border: `1px solid ${th.border || '#334155'}`,
-            borderRadius: '16px', padding: '20px 22px',
-            position: 'relative', overflow: 'hidden',
-            transition: 'all 0.25s ease', cursor: 'default'
+            ...s.statCard,
+            cursor: 'default',
+            transition: 'all 0.25s ease',
           }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 12px 28px ${card.bg}`; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = 'none'; }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = s.t.shadow.lg; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = s.t.shadow.sm; }}
           >
             <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '80px', height: '80px', borderRadius: '50%', background: card.gradient, opacity: 0.06 }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
@@ -77,39 +74,34 @@ const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage, the
                 {card.icon}
               </div>
             </div>
-            <div style={{ fontSize: '11px', fontWeight: '600', color: th.textMuted || '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{card.label}</div>
-            <div style={{ fontSize: '22px', fontWeight: '800', color: th.text || '#f1f5f9', lineHeight: 1, letterSpacing: '-0.5px' }}>{card.value}</div>
+            <div style={{ fontSize: '11px', fontWeight: '600', color: s.t.textSecondary, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{card.label}</div>
+            <div style={{ fontSize: '22px', fontWeight: '800', color: s.t.text, lineHeight: 1, letterSpacing: '-0.5px' }}>{card.value}</div>
           </div>
         ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px', marginBottom: '24px' }}>
         {/* Welcome Card */}
-        <div style={{
-          background: th.cardBg || '#1e293b',
-          border: `1px solid ${th.border || '#334155'}`,
-          borderRadius: '16px', padding: '24px 26px',
-          display: 'flex', alignItems: 'center', gap: '18px'
-        }}>
+        <div style={{ ...s.card, padding: '24px 26px', display: 'flex', alignItems: 'center', gap: '18px' }}>
           <div style={{
             width: '52px', height: '52px', borderRadius: '14px',
             background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            boxShadow: '0 8px 24px rgba(99,102,241,0.25)'
+            boxShadow: s.t.shadow.glowMd
           }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '15px', fontWeight: '700', color: th.text || '#f1f5f9', marginBottom: '4px' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: s.t.text, marginBottom: '4px' }}>
               {currentShop?.shop_name || 'KasiTRADE'}
             </div>
-            <div style={{ fontSize: '12px', color: th.textMuted || '#94a3b8' }}>
+            <div style={{ fontSize: '12px', color: s.t.textSecondary }}>
               {new Date().toLocaleDateString(isSw ? 'sw-TZ' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
             {stats.lowStock > 0 && (
-              <div style={{ marginTop: '10px', padding: '6px 12px', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: '#ef4444' }}>
+              <div style={{ marginTop: '10px', ...s.badgeDanger, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 <Icons.Alert size={14} /> {stats.lowStock} {isSw ? 'bidhaa zina hesabu chini' : 'products low on stock'}
               </div>
             )}
@@ -117,12 +109,7 @@ const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage, the
         </div>
 
         {/* Quick Actions */}
-        <div style={{
-          background: th.cardBg || '#1e293b',
-          border: `1px solid ${th.border || '#334155'}`,
-          borderRadius: '16px', padding: '18px',
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px'
-        }}>
+        <div style={{ ...s.card, padding: '18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           {quickActions.map((action, i) => (
             <button key={i} onClick={() => setActivePage?.(action.page)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -133,8 +120,8 @@ const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage, the
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = ''; }}
             >
               <div style={{ color: action.color }}>{action.icon}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: th.text || '#f1f5f9' }}>{action.label}</div>
-              <div style={{ fontSize: '10px', color: th.textMuted || '#94a3b8' }}>{action.desc}</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: s.t.text }}>{action.label}</div>
+              <div style={{ fontSize: '10px', color: s.t.textSecondary }}>{action.desc}</div>
             </button>
           ))}
         </div>
