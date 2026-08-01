@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import Skeleton from './Skeleton';
+import getStyles from '../stylePresets';
 
 const Profile = ({ lang, supabase, currentShop, isDarkMode, setActivePage, session, theme, avatarUrl: parentAvatarUrl, setAvatarUrl: updateParentAvatar }) => {
   const [profile, setProfile] = useState(null);
@@ -13,7 +14,7 @@ const Profile = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sessi
 
   const [form, setForm] = useState({ full_name: '', phone: '', business_name: '', region: '', district: '', ward: '' });
   const isSw = lang === 'sw';
-  const localTheme = { cardBg: isDarkMode ? '#1e293b' : '#ffffff', text: isDarkMode ? '#f1f5f9' : '#0f172a', textMuted: isDarkMode ? '#94a3b8' : '#475569', border: isDarkMode ? '#334155' : '#e2e8f0', hoverBg: isDarkMode ? '#334155' : '#f1f5f9' }; const th = theme || localTheme;
+  const localTheme = { cardBg: isDarkMode ? '#1e293b' : '#ffffff', text: isDarkMode ? '#f1f5f9' : '#0f172a', textMuted: isDarkMode ? '#94a3b8' : '#475569', border: isDarkMode ? '#334155' : '#e2e8f0', hoverBg: isDarkMode ? '#334155' : '#f1f5f9' }; const th = getStyles(isDarkMode).t;
 
   const showToast = (msg, err) => { setToast({ msg, err }); setTimeout(() => setToast(null), 3000); };
 

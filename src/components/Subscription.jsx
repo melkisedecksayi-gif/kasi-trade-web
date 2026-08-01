@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import getStyles from '../stylePresets';
 
 const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining, statusBadge, activateSubscription, refresh, MONTHLY_PRICE }) => {
   const [paymentStep, setPaymentStep] = useState('select'); // select | confirm | done
@@ -8,7 +9,7 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
   const [error, setError] = useState('');
 
   const isSw = lang === 'sw';
-  const th = theme || {};
+  const th = getStyles(isDarkMode).t;
 
   const status = subscription?.status || 'expired';
   const isExpired = status === 'expired' || status === 'cancelled';

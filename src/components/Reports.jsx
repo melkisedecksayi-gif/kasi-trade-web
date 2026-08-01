@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Icons } from './Icons';
 import { sendSMS, generateReportSMS } from '../services/smsService';
 import { printReport } from '../utils/print';
+import getStyles from '../stylePresets';
 
 const GRADIENT_START = '#6366f1';
 const GRADIENT_END = '#8b5cf6';
@@ -569,7 +570,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
     accent: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
     accentText: '#6366f1',
   }), [isDarkMode]);
-  const th = theme || localTheme;
+  const th = getStyles(isDarkMode).t;
 
   const [activeTab, setActiveTab] = useState('today');
   const [customStart, setCustomStart] = useState('');

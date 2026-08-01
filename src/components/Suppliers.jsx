@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import Toast from './Toast';
 import { SkeletonList } from './Skeleton';
+import getStyles from '../stylePresets';
 
 const STATUS_MAP = {
   Active: {
@@ -237,7 +238,7 @@ const Suppliers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     border: isDarkMode ? '#334155' : '#e2e8f0',
     hoverBg: isDarkMode ? '#334155' : '#f1f5f9'
   };
-  const th = theme || localTheme;
+  const th = getStyles(isDarkMode).t;
 
   const statsCards = [
     {

@@ -4,6 +4,7 @@ import Toast from './Toast';
 import { SkeletonList } from './Skeleton';
 import CSVImport from './CSVImport';
 import { sendSMS, sendBulkSMS, generateCustomerSMS } from '../services/smsService';
+import getStyles from '../stylePresets';
 
 const StatCard = ({ icon, label, value, color, gradient, theme, lang }) => {
   const th = theme || {};
@@ -381,7 +382,7 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     border: isDarkMode ? '#334155' : '#e2e8f0',
     hoverBg: isDarkMode ? '#334155' : '#f1f5f9'
   };
-  const th = theme || localTheme;
+  const th = getStyles(isDarkMode).t;
 
   return (
     <div style={{ padding: 0, minHeight: '100vh' }}>

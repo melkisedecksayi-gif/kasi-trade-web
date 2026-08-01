@@ -6,6 +6,7 @@ import { playSaleBeep } from '../utils/sound';
 import { printReceipt } from '../utils/print';
 import { sendSMS } from '../services/smsService';
 import { sendReceiptEmail } from '../services/emailService';
+import getStyles from '../stylePresets';
 
 const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [products, setProducts] = useState([]);
@@ -21,7 +22,7 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [discountValue, setDiscountValue] = useState('');
   const [emailSettings, setEmailSettings] = useState({});
   const isSw = lang === 'sw';
-  const th = theme || {};
+  const th = getStyles(isDarkMode).t;
 
   useEffect(() => {
     if (currentShop?.id) fetchProducts();

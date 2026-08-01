@@ -3,6 +3,7 @@ import { Icons } from './Icons';
 import Toast from './Toast';
 import CI from './ColoredIcons';
 import { SkeletonList } from './Skeleton';
+import getStyles from '../stylePresets';
 
 const EXPENSE_CATEGORIES = {
   rent: {
@@ -75,7 +76,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     border: isDarkMode ? '#334155' : '#e2e8f0',
     hoverBg: isDarkMode ? '#334155' : '#f1f5f9'
   };
-  const th = theme || localTheme;
+  const th = getStyles(isDarkMode).t;
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
