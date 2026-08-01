@@ -28,7 +28,9 @@ function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState('landing');
-  const [activePage, setActivePage] = useState('dashboard');
+  const [activePage, setActivePage] = useState(() => {
+    return localStorage.getItem('app_activePage') || 'dashboard';
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('app_darkMode');
@@ -40,7 +42,7 @@ function App() {
   const [avatarUrl, setAvatarUrl] = useState(null);
   const autoSentRef = useRef({});
 
-  const { subscription, loading: subLoading, canAccess, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
+  const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
 
   const theme = getThemeColors(isDarkMode);
 
@@ -78,6 +80,10 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
+
+  useEffect(() => {
+    localStorage.setItem('app_activePage', activePage);
+  }, [activePage]);
 
   useEffect(() => {
     if (!currentShop?.id) return;
@@ -434,17 +440,6 @@ function App() {
     return <Auth supabase={supabase} onAuthSuccess={handleLoginSuccess} />;
   }
 
-  if (session && !subLoading && !canAccess) {
-    return (
-      <SubscriptionPage
-        lang={lang} isDarkMode={isDarkMode} theme={theme}
-        subscription={subscription} daysRemaining={daysRemaining}
-        statusBadge={statusBadge} activateSubscription={activateSubscription}
-        refresh={refreshSub} MONTHLY_PRICE={MONTHLY_PRICE}
-      />
-    );
-  }
-
   const headerStyle = {
     position: 'sticky', top: 0, zIndex: 100,
     background: isDarkMode ? 'rgba(15,23,42,0.9)' : 'rgba(255,255,255,0.9)',
@@ -590,46 +585,6 @@ function App() {
 
         {/* Page Content */}
         <div style={{ padding: '16px', maxWidth: '1440px', margin: '0 auto' }}>
-          {subscription?.status === 'trial' && (
-            <div style={{
-              background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
-              border: '1px solid #fcd34d',
-              borderRadius: '12px',
-              padding: '10px 16px',
-              marginBottom: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '8px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '16px' }}>&#9888;</span>
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#92400e' }}>
-                  {lang === 'sw'
-                    ? `Majaribio - Siku ${daysRemaining} zimebaki. Lipia TSh ${MONTHLY_PRICE.toLocaleString()}/mwezi kuendelea.`
-                    : `Trial - ${daysRemaining} days left. Pay TSh ${MONTHLY_PRICE.toLocaleString()}/month to continue.`
-                  }
-                </span>
-              </div>
-              <button
-                onClick={() => setActivePage('subscription')}
-                style={{
-                  padding: '6px 14px',
-                  background: '#d97706',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: '700',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {lang === 'sw' ? 'Lipia Sasa' : 'Pay Now'}
-              </button>
-            </div>
-          )}
           <div className="page-enter" key={activePage}>
             {renderPage()}
           </div>
