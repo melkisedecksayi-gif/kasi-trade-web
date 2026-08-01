@@ -558,18 +558,6 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
     package: <Icons.Box size={22} color="#ec4899" />,
   };
 
-  const localTheme = useMemo(() => ({
-    bg: isDarkMode ? '#0f172a' : '#f8fafc',
-    cardBg: isDarkMode ? '#1e293b' : '#ffffff',
-    text: isDarkMode ? '#f1f5f9' : '#0f172a',
-    textMuted: isDarkMode ? '#94a3b8' : '#475569',
-    border: isDarkMode ? '#334155' : '#e2e8f0',
-    gradientBg: isDarkMode
-      ? 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.15) 100%)'
-      : 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)',
-    accent: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    accentText: '#6366f1',
-  }), [isDarkMode]);
   const th = getStyles(isDarkMode).t;
 
   const [activeTab, setActiveTab] = useState('today');

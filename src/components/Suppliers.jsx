@@ -230,14 +230,6 @@ const Suppliers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     return { ...conf };
   };
 
-  const localTheme = {
-    bg: isDarkMode ? '#0f172a' : '#f8fafc',
-    cardBg: isDarkMode ? '#1e293b' : '#ffffff',
-    text: isDarkMode ? '#f1f5f9' : '#0f172a',
-    textMuted: isDarkMode ? '#94a3b8' : '#475569',
-    border: isDarkMode ? '#334155' : '#e2e8f0',
-    hoverBg: isDarkMode ? '#334155' : '#f1f5f9'
-  };
   const th = getStyles(isDarkMode).t;
 
   const statsCards = [
