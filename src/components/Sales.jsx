@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import CI from './ColoredIcons';
 import { SkeletonList } from './Skeleton';
+import logger from '../utils/logger';
 
 const Reports = ({ lang, supabase, currentShop, isDarkMode }) => {
   const [transactions, setTransactions] = useState([]);
@@ -40,7 +41,7 @@ const Reports = ({ lang, supabase, currentShop, isDarkMode }) => {
         setTodayTransactions(todayTrans.length);
       }
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      logger.error('Sales', 'Error fetching transactions:', err);
     } finally {
       setLoading(false);
     }

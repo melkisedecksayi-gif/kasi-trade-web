@@ -4,6 +4,7 @@ import Toast from './Toast';
 import CI from './ColoredIcons';
 import { SkeletonList } from './Skeleton';
 import getStyles from '../stylePresets';
+import logger from '../utils/logger';
 
 const EXPENSE_CATEGORIES = {
   rent: {
@@ -95,7 +96,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
         setExpenses(data);
       }
     } catch (err) {
-      console.error('Error:', err);
+      logger.error('Expenses', 'Error:', err);
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Icons } from '../Icons';
 
 const CreditCard = ({ size = 24, color = 'currentColor' }) => (
@@ -29,9 +29,20 @@ const HelpCircle = ({ size = 24, color = 'currentColor' }) => (
   </svg>
 );
 
+const SIDEBAR_WIDTH = 260;
+const DESKTOP_BREAKPOINT = 1024;
+
 const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, setIsSidebarOpen, isDarkMode, shopName, theme }) => {
   const [hoveredItem, setHoveredItem] = useState(null);
+  const [isDesktop, setIsDesktop] = useState(false);
   const t = theme || {};
+
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= DESKTOP_BREAKPOINT);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const tSidebarBg = t.sidebarBg || '#0f172a';
   const tText = t.text || '#0f172a';
@@ -52,8 +63,16 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
     { id: 'subscription', icon: ShieldCheck, label: lang === 'sw' ? 'Usajili' : 'Subscription' },
   ];
 
-  const closeSidebar = () => { if (setIsSidebarOpen) setIsSidebarOpen(false); };
-  const handleMenuClick = (pageId) => { if (setActivePage) setActivePage(pageId); closeSidebar(); };
+  const closeSidebar = useCallback(() => {
+    if (!isDesktop && setIsSidebarOpen) setIsSidebarOpen(false);
+  }, [isDesktop, setIsSidebarOpen]);
+
+  const handleMenuClick = (pageId) => {
+    if (setActivePage) setActivePage(pageId);
+    closeSidebar();
+  };
+
+  const sidebarVisible = isDesktop || isSidebarOpen;
 
   const navItemStyle = (isActive) => ({
     width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
@@ -78,7 +97,7 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
 
   return (
     <>
-      {isSidebarOpen && (
+      {!isDesktop && isSidebarOpen && (
         <div onClick={closeSidebar} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
           zIndex: 998, backdropFilter: 'blur(4px)', animation: 'fadeIn 0.3s ease'
@@ -86,41 +105,53 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
       )}
 
       <div style={{
-        width: 'min(280px, 85vw)', maxWidth: '300px', background: tSidebarBg, height: '100vh', position: 'fixed',
-        left: isSidebarOpen ? '0' : 'calc(-1 * min(280px, 85vw))', top: 0, zIndex: 999,
-        transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        boxShadow: isSidebarOpen ? '8px 0 40px rgba(0,0,0,0.3)' : 'none',
+        width: `${SIDEBAR_WIDTH}px`, maxWidth: isDesktop ? `${SIDEBAR_WIDTH}px` : 'min(280px, 85vw)',
+        background: tSidebarBg, height: '100vh', position: 'fixed',
+        left: isDesktop ? '0' : (isSidebarOpen ? '0' : 'calc(-1 * min(280px, 85vw))'),
+        top: 0, zIndex: isDesktop ? 50 : 999,
+        transition: isDesktop ? 'none' : 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        boxShadow: sidebarVisible ? '8px 0 40px rgba(0,0,0,0.3)' : 'none',
         display: 'flex', flexDirection: 'column',
         borderRight: `1px solid ${tBorder}`,
         overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch'
       }}>
-        {/* Brand Header */}
         <div style={{
-          padding: '24px 20px', borderBottom: `1px solid ${tBorder}`,
+          padding: '22px 18px', borderBottom: `1px solid ${tBorder}`,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img src="/Logo.png" alt="KasiTRADE" style={{ width: '48px', height: '48px', borderRadius: '14px', objectFit: 'contain' }} />
+            <div style={{
+              width: '42px', height: '42px', borderRadius: '14px',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(99,102,241,0.3)'
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+            </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: tText, letterSpacing: '-0.3px' }}>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: tText, letterSpacing: '-0.3px' }}>
                 KasiTRADE
               </h2>
               <p style={{ margin: '2px 0 0', fontSize: '10px', color: tTextSec, fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                POS System
+                {shopName || 'POS System'}
               </p>
             </div>
           </div>
-          <button onClick={closeSidebar} style={{
-            width: '36px', height: '36px', borderRadius: '10px', border: 'none',
-            cursor: 'pointer', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', background: tSurfaceHover, color: tText
-          }}>
-            <Icons.X size={18} />
-          </button>
+          {!isDesktop && (
+            <button onClick={closeSidebar} style={{
+              width: '32px', height: '32px', borderRadius: '8px', border: 'none',
+              cursor: 'pointer', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', background: tSurfaceHover, color: tText
+            }}>
+              <Icons.X size={16} />
+            </button>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto' }}>
+        <nav style={{ flex: 1, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: '1px', overflowY: 'auto' }}>
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             const isActive = activePage === item.id;
@@ -154,7 +185,7 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
         {/* Bottom Actions */}
         <div style={{
           borderTop: `1px solid ${tBorder}`,
-          padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0
+          padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0
         }}>
           <button onClick={() => handleMenuClick('help')} style={bottomBtnStyle}
             onMouseEnter={(e) => e.currentTarget.style.background = tHoverBg}
@@ -170,10 +201,18 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
             <Icons.LogOut size={20} />
             <span>{lang === 'sw' ? 'Toka' : 'Logout'}</span>
           </button>
+
+          <div style={{
+            padding: '8px 16px 4px', fontSize: '10px', color: tTextSec,
+            textAlign: 'center', opacity: 0.5
+          }}>
+            v0.1.0
+          </div>
         </div>
       </div>
     </>
   );
 };
 
+export { SIDEBAR_WIDTH, DESKTOP_BREAKPOINT };
 export default Sidebar;

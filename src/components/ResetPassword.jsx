@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import CI from './ColoredIcons';
+import logger from '../utils/logger';
 
 const ResetPassword = ({ supabase, onLogin }) => {
   const [password, setPassword] = useState('');
@@ -18,7 +19,7 @@ const ResetPassword = ({ supabase, onLogin }) => {
           setError('Link ya recovery haijapatikana au imeisha muda. Tafadhali omba tena.');
         }
       } catch (err) {
-        console.error('Session check error:', err);
+        logger.error('ResetPassword', 'Session check error:', err);
         setError('Hitilafu ya kuangalia session. Jaribu tena.');
       } finally {
         setChecking(false); // ✅ MPYA: Mwisho wa loading
@@ -51,7 +52,7 @@ const ResetPassword = ({ supabase, onLogin }) => {
       setMessage('Password imerekebishwa! Unaelekezwa kwenye login...');
       setTimeout(() => onLogin?.(), 2500); // ✅ Safi: onLogin inaweza kuwa undefined
     } catch (err) {
-      console.error('Password update error:', err);
+      logger.error('ResetPassword', 'Password update error:', err);
       setError(err.message || 'Hitilafu imepatikana. Jaribu tena.');
     } finally {
       setLoading(false);

@@ -1,3 +1,5 @@
+import logger from '../utils/logger';
+
 const DEFAULT_API_KEY = 'zs_4b512fd0330fe8a586617f5b89b41ff9300de57f7bb21c2b';
 const DEFAULT_SENDER_ID = 'KasiTRADE';
 const API_URL = 'https://meseji.co.tz/api/v1/sms/send';
@@ -116,7 +118,7 @@ export const sendSMS = async ({ to, message, sender, apiKey }) => {
     if (error.name === 'AbortError') {
       return { success: false, error: 'Request timeout' };
     }
-    console.error('SMS send error:', error.message);
+    logger.error('SMSService', 'SMS send error:', error);
     return { success: false, error: error.message };
   }
 };

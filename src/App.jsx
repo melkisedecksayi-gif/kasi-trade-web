@@ -1,28 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { supabase } from './supabaseClient';
 import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
 import { sendSMS, generateReportSMS, sendBulkSMS } from './services/smsService';
 import { sendReportEmail, sendLowStockEmail, sendBirthdayEmail } from './services/emailService';
-import Landing from './components/Landing';
-import Auth from './components/Auth';
-import UpdatePassword from './components/UpdatePassword';
-import SubscriptionPage from './components/Subscription';
-import Sidebar from './components/layout/Sidebar';
-import Dashboard from './components/Dashboard';
-import POS from './components/POS';
-import Products from './components/Products';
-import Customers from './components/Customers';
-import Reports from './components/Reports';
-import Expenses from './components/Expenses';
-import Suppliers from './components/Suppliers';
-import Settings from './components/Settings';
-import Profile from './components/Profile';
-import Help from './components/Help';
+import logger from './utils/logger';
+import ErrorBoundary from './components/ErrorBoundary';
+import Toast from './components/Toast';
+import Sidebar, { SIDEBAR_WIDTH } from './components/layout/Sidebar';
 import Footer from './components/Footer';
-import InfoPage from './components/InfoPage';
 import './design.css';
+
+const Landing = lazy(() => import('./components/Landing'));
+const Auth = lazy(() => import('./components/Auth'));
+const UpdatePassword = lazy(() => import('./components/UpdatePassword'));
+const SubscriptionPage = lazy(() => import('./components/Subscription'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const POS = lazy(() => import('./components/POS'));
+const Products = lazy(() => import('./components/Products'));
+const Customers = lazy(() => import('./components/Customers'));
+const Reports = lazy(() => import('./components/Reports'));
+const Expenses = lazy(() => import('./components/Expenses'));
+const Suppliers = lazy(() => import('./components/Suppliers'));
+const Settings = lazy(() => import('./components/Settings'));
+const Profile = lazy(() => import('./components/Profile'));
+const Help = lazy(() => import('./components/Help'));
+const InfoPage = lazy(() => import('./components/InfoPage'));
 
 function App() {
   const [session, setSession] = useState(null);
@@ -32,6 +36,7 @@ function App() {
     return localStorage.getItem('app_activePage') || 'dashboard';
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('app_darkMode');
     return saved ? saved === 'true' : true;
@@ -40,9 +45,22 @@ function App() {
   const [currentShop, setCurrentShop] = useState(null);
   const [shops, setShops] = useState([]);
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [toast, setToast] = useState(null);
   const autoSentRef = useRef({});
 
   const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
+
+  useEffect(() => {
+    logger.registerUI((type, message) => {
+      setToast({ type, message });
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const theme = getThemeColors(isDarkMode);
 
@@ -206,7 +224,7 @@ function App() {
             });
           }).catch(() => {});
         }
-      } catch (e) { console.warn('Auto close SMS error:', e); }
+      } catch (e) { logger.warn('App', 'Auto close SMS error:', e); }
     };
 
     const checkLowStock = async () => {
@@ -264,7 +282,7 @@ function App() {
             });
           }).catch(() => {});
         }
-      } catch (e) { console.warn('Low stock SMS error:', e); }
+      } catch (e) { logger.warn('App', 'Low stock SMS error:', e); }
     };
 
     const checkBirthdays = async () => {
@@ -337,7 +355,7 @@ function App() {
             }).catch(() => {});
           }
         }
-      } catch (e) { console.warn('Birthday SMS error:', e); }
+      } catch (e) { logger.warn('App', 'Birthday SMS error:', e); }
     };
 
     autoCloseInterval = setInterval(checkAutoClose, 60000);
@@ -360,7 +378,7 @@ function App() {
       const uid = session.user.id;
       const { data: shopData, error: shopErr } = await supabase.from('shops').select('*');
       if (shopErr) {
-        console.error('Shops fetch error:', shopErr.message, shopErr.details, shopErr.hint);
+        logger.error('App', 'Shops fetch error:', shopErr);
       }
       if (shopData && shopData.length > 0) {
         setShops(shopData);
@@ -384,7 +402,7 @@ function App() {
         })
         .select().single();
       if (insErr) {
-        console.error('Shop insert error:', insErr.message, insErr.details, insErr.hint);
+        logger.error('App', 'Shop insert error:', insErr);
         return;
       }
       if (newShop) {
@@ -392,7 +410,7 @@ function App() {
         localStorage.setItem('current_shop_id', newShop.id);
       }
     } catch (err) {
-      console.error('Shop fetch error:', err.message);
+      logger.error('App', 'Shop fetch error:', err);
     }
   };
 
@@ -430,14 +448,16 @@ function App() {
     );
   }
 
+  const spinnerFallback = <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" style={{ width: '32px', height: '32px' }} /></div>;
+
   if (currentView === 'update-password') {
-    return <UpdatePassword supabase={supabase} onPasswordUpdated={handlePasswordUpdated} />;
+    return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><UpdatePassword supabase={supabase} onPasswordUpdated={handlePasswordUpdated} /></ErrorBoundary></Suspense>;
   }
   if (currentView === 'landing') {
-    return <Landing lang={lang} setLang={setLang} onGetStarted={() => setCurrentView('login')} />;
+    return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Landing lang={lang} setLang={setLang} onGetStarted={() => setCurrentView('login')} /></ErrorBoundary></Suspense>;
   }
   if (currentView === 'login' || !session) {
-    return <Auth supabase={supabase} onAuthSuccess={handleLoginSuccess} />;
+    return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Auth supabase={supabase} onAuthSuccess={handleLoginSuccess} /></ErrorBoundary></Suspense>;
   }
 
   const headerStyle = {
@@ -501,7 +521,7 @@ function App() {
         isDarkMode={isDarkMode} shopName={currentShop?.shop_name || 'KasiTRADE'} theme={theme}
       />
 
-      <div style={{ flex: 1, marginLeft: '0', padding: '0', minHeight: '100vh', width: '100%' }}>
+      <div style={{ flex: 1, marginLeft: isDesktop ? `${SIDEBAR_WIDTH}px` : '0', padding: '0', minHeight: '100vh', width: isDesktop ? `calc(100% - ${SIDEBAR_WIDTH}px)` : '100%', transition: 'margin-left 0.3s ease' }}>
         <style>{`
           @media (max-width: 480px) {
             .header-shop-name, .header-shop-switcher { display: none !important; }
@@ -518,6 +538,7 @@ function App() {
               onClick={() => setIsSidebarOpen(true)}
               className="btn-icon"
               style={{
+                display: isDesktop ? 'none' : 'flex',
                 border: `1px solid ${theme.border}`, background: theme.surface,
                 color: theme.text, fontSize: '18px'
               }}
@@ -586,12 +607,20 @@ function App() {
         {/* Page Content */}
         <div style={{ padding: '16px', maxWidth: '1440px', margin: '0 auto' }}>
           <div className="page-enter" key={activePage}>
-            {renderPage()}
+            <ErrorBoundary isDarkMode={isDarkMode} lang={lang}>
+              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px 0' }}><div className="spinner" style={{ width: '32px', height: '32px' }} /></div>}>
+                {renderPage()}
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </div>
 
         <Footer lang={lang} isDarkMode={isDarkMode} setActivePage={setActivePage} theme={theme} />
       </div>
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

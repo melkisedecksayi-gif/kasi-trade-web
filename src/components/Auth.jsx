@@ -3,6 +3,7 @@ import { REGIONS, DISTRICTS_BY_REGION } from '../data/tanzaniaLocations';
 import CI from '../components/ColoredIcons';
 import { sendWelcomeSMS, sendOTPSMS } from '../services/smsService';
 import { sendWelcomeEmail } from '../services/emailService';
+import logger from '../utils/logger';
 
 const Toast = ({ message, type = 'success', onClose }) => {
   const [visible, setVisible] = useState(false);
@@ -278,7 +279,7 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
           await new Promise(resolve => setTimeout(resolve, 500));
           await supabase.from('profiles').update({ phone, business_type: businessType, business_name: businessName, country, region, district, ward }).eq('id', data.user.id);
         } catch (profileErr) {
-          console.warn('Profile update warning:', profileErr);
+          logger.warn('Auth', 'Profile update warning:', profileErr);
         }
 
         if (phone) {

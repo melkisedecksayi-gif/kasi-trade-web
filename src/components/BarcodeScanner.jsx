@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { THEME } from '../theme';
 import CI from './ColoredIcons';
+import logger from '../utils/logger';
 
 const BarcodeScanner = ({ onScan, onClose, products, lang }) => {
   const scannerRef = useRef(null);
@@ -51,7 +52,7 @@ const BarcodeScanner = ({ onScan, onClose, products, lang }) => {
         // Ignore scan errors - they're normal during scanning
       }
     ).catch(err => {
-      console.error('Scanner error:', err);
+      logger.error('BarcodeScanner', 'Scanner error:', err);
       setError(lang === 'sw' ? 'Imeshindwa kufungua kamera. Jaribu ruhusa au tumia namba ya mkono.' : 'Failed to open camera. Check permissions or use manual entry.');
     });
 

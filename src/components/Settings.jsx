@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import useEscapeKey from '../hooks/useEscapeKey';
 import getStyles from '../stylePresets';
+import logger from '../utils/logger';
 
 const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, session, onLogout, setIsDarkMode, setLang, shops, setShops, onShopChange }) => {
   const [toast, setToast] = useState(null);
@@ -41,7 +42,7 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
           phone: currentShop?.phone || prev.phone || '',
           low_stock_threshold: data?.low_stock_threshold || 10
         }));
-      } catch (e) { console.warn('SMS settings fetch:', e); }
+      } catch (e) { logger.warn('Settings', 'SMS settings fetch:', e); }
       finally { setSmsLoaded(true); }
     };
     fetchSmsSettings();
@@ -62,7 +63,7 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
           auto_close_time: data?.auto_close_time || '22:00',
           low_stock_threshold: data?.low_stock_threshold || 10
         }));
-      } catch (e) { console.warn('Email settings fetch:', e); }
+      } catch (e) { logger.warn('Settings', 'Email settings fetch:', e); }
       finally { setEmailLoaded(true); }
     };
     fetchEmailSettings();

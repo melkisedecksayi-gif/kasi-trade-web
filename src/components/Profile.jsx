@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import Skeleton from './Skeleton';
 import getStyles from '../stylePresets';
+import logger from '../utils/logger';
 
 const Profile = ({ lang, supabase, currentShop, isDarkMode, setActivePage, session, theme, avatarUrl: parentAvatarUrl, setAvatarUrl: updateParentAvatar }) => {
   const [profile, setProfile] = useState(null);
@@ -30,7 +31,7 @@ const Profile = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sessi
         if (data.avatar_url) updateParentAvatar(data.avatar_url);
         setForm({ full_name: data.full_name || '', phone: data.phone || '', business_name: data.business_name || '', region: data.region || '', district: data.district || '', ward: data.ward || '' });
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { logger.error('Profile', 'Profile error:', e); }
     finally { setLoading(false); }
   };
 

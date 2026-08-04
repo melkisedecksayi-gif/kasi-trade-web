@@ -1390,6 +1390,84 @@ button:active:not(:disabled) {
   padding: var(--space-5);
 }
 
+/* ---------- Chart Utilities ---------- */
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  transition: all var(--transition-standard);
+}
+.chart-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+}
+.chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.chart-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+.chart-card-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+.chart-card-badge.up { background: var(--success-bg); color: var(--success); }
+.chart-card-badge.down { background: var(--danger-bg); color: var(--danger); }
+
+/* Category Hover Card */
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-quick);
+}
+.category-item:hover {
+  background: var(--bg-secondary);
+}
+
+/* Transaction Mini Row */
+.tx-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-muted);
+}
+.tx-mini-row:last-child { border-bottom: none; }
+
+/* Sidebar Persistent Desktop */
+@media (min-width: 1024px) {
+  .sidebar-desktop {
+    left: 0 !important;
+    position: fixed !important;
+    z-index: 50 !important;
+  }
+  .main-content-desktop {
+    margin-left: var(--sidebar-width) !important;
+  }
+  .header-desktop {
+    padding-left: calc(var(--sidebar-width) + 16px) !important;
+  }
+  .sidebar-backdrop-desktop {
+    display: none !important;
+  }
+  .sidebar-toggle-desktop {
+    display: none !important;
+  }
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1200px) {
   .grid-4, .grid-5 { grid-template-columns: repeat(2, 1fr); }

@@ -4,8 +4,15 @@ const isLocalhost = Boolean(
   window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
 );
 
+let appLogger = null;
+
+function setLogger(logger) {
+  appLogger = logger;
+}
+
 export function register(config) {
   if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+    setLogger(config?.logger || null);
     const publicUrl = new URL(process.env.PUBLIC_URL, window.location.href);
     if (publicUrl.origin !== window.location.origin) return;
 
@@ -15,7 +22,7 @@ export function register(config) {
       if (isLocalhost) {
         checkValidServiceWorker(swUrl, config);
         navigator.serviceWorker.ready.then(() => {
-          console.log('KasiTRADE running in offline mode.');
+          log('debug', 'KasiTRADE running in offline mode.');
         });
       } else {
         registerValidSW(swUrl, config);
@@ -24,12 +31,18 @@ export function register(config) {
   }
 }
 
+function log(level, message, data) {
+  if (appLogger) {
+    appLogger[level]('ServiceWorker', message, data || '');
+  }
+}
+
 function registerValidSW(swUrl, config) {
   fetch(swUrl, { headers: { 'Service-Worker': 'script' } })
     .then((response) => {
       const contentType = response.headers.get('content-type');
       if (!response.ok || !contentType || contentType.indexOf('javascript') === -1) {
-        console.warn('Service worker unavailable (server returned non-JS). App will run without offline support.');
+        log('warn', 'Service worker unavailable (server returned non-JS). App will run without offline support.');
         if (navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then((registration) => {
             registration.unregister();
@@ -46,10 +59,10 @@ function registerValidSW(swUrl, config) {
             installingWorker.onstatechange = () => {
               if (installingWorker.state === 'installed') {
                 if (navigator.serviceWorker.controller) {
-                  console.log('New content available; please refresh.');
+                  log('debug', 'New content available; please refresh.');
                   if (config && config.onUpdate) config.onUpdate(registration);
                 } else {
-                  console.log('Content cached for offline use.');
+                  log('debug', 'Content cached for offline use.');
                   if (config && config.onSuccess) config.onSuccess(registration);
                 }
               }
@@ -57,11 +70,11 @@ function registerValidSW(swUrl, config) {
           };
         })
         .catch((error) => {
-          console.warn('Service worker registration failed:', error.message);
+          log('warn', 'Service worker registration failed:', error.message);
         });
     })
     .catch(() => {
-      console.log('No internet connection. App running in offline mode.');
+      log('debug', 'No internet connection. App running in offline mode.');
     });
 }
 
@@ -80,7 +93,7 @@ function checkValidServiceWorker(swUrl, config) {
       }
     })
     .catch(() => {
-      console.log('No internet connection. App running in offline mode.');
+      log('debug', 'No internet connection. App running in offline mode.');
     });
 }
 

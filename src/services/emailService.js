@@ -1,4 +1,5 @@
 import emailjs from '@emailjs/browser';
+import logger from '../utils/logger';
 
 const DEFAULT_PUBLIC_KEY = 'ZxWOL0OzGhy06G6f5';
 const DEFAULT_SERVICE_ID = 'service_wb6ens2';
@@ -235,7 +236,7 @@ export const sendEmail = async ({ to, toName, subject, html, serviceId, template
     }
     throw new Error(response.text || `HTTP ${response.status}`);
   } catch (error) {
-    console.error('Email send error:', error.message);
+    logger.error('EmailService', 'Email send error:', error);
     return { success: false, error: error.message };
   }
 };

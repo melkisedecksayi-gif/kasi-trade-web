@@ -4,6 +4,7 @@ import './index.css';
 import './design.css';
 import App from './App';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
+import logger from './utils/logger';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -13,6 +14,7 @@ root.render(
 );
 
 serviceWorkerRegistration.register({
+  logger,
   onUpdate: (registration) => {
     if (window.confirm('KasiTRADE imeboreshwa! Bonyeza OK kupata toleo jipya.')) {
       registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
@@ -41,7 +43,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
       if (deferredPrompt) {
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') console.log('PWA installed');
+        logger.debug('PWA', outcome === 'accepted' ? 'PWA installed' : 'PWA install dismissed');
         deferredPrompt = null;
       }
       installBar.remove();

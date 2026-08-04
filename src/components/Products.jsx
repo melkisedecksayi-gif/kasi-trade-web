@@ -5,6 +5,7 @@ import { SkeletonList } from './Skeleton';
 import CSVImport from './CSVImport';
 import { printReport } from '../utils/print';
 import getStyles from '../stylePresets';
+import logger from '../utils/logger';
 
 // Categories data
 const Categories = {
@@ -166,7 +167,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
         setProducts(data);
       }
     } catch (err) {
-      console.error('Error:', err);
+      logger.error('Products', 'Error:', err);
     } finally {
       setLoading(false);
     }

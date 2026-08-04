@@ -3,6 +3,7 @@ import { Icons } from './Icons';
 import Toast from './Toast';
 import { SkeletonList } from './Skeleton';
 import getStyles from '../stylePresets';
+import logger from '../utils/logger';
 
 const STATUS_MAP = {
   Active: {
@@ -75,7 +76,7 @@ const Suppliers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
         setSuppliers(data);
       }
     } catch (err) {
-      console.error('Error:', err);
+      logger.error('Suppliers', 'Error:', err);
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import { Icons } from './Icons';
 import { sendSMS, generateReportSMS } from '../services/smsService';
 import { printReport } from '../utils/print';
 import getStyles from '../stylePresets';
+import logger from '../utils/logger';
 
 const GRADIENT_START = '#6366f1';
 const GRADIENT_END = '#8b5cf6';
@@ -594,7 +595,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         .eq('shop_id', currentShop.id);
       return data || [];
     } catch (err) {
-      console.error('Error fetching products:', err);
+      logger.error('Reports', 'Error fetching products:', err);
       return [];
     }
   }, [supabase, currentShop]);
@@ -631,7 +632,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
 
       return allData;
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      logger.error('Reports', 'Error fetching transactions:', err);
       return [];
     }
   }, [supabase, currentShop]);

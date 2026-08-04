@@ -1,4 +1,5 @@
 {
+  "id": "kasitrade-pos-web",
   "short_name": "KasiTRADE",
   "name": "KasiTRADE - Mfumo wa POS na Uendeshaji Biashara",
   "description": "Dhibiti mauzo, bidhaa, wateja, hesabu na ripoti zote sehemu moja",
@@ -23,5 +24,19 @@
   "theme_color": "#6366f1",
   "background_color": "#0f172a",
   "categories": ["business", "finance", "productivity"],
-  "lang": "sw"
+  "lang": "sw",
+  "shortcuts": [
+    {
+      "name": "Mauzo (POS)",
+      "short_name": "POS",
+      "description": "Fanya mauzo",
+      "url": "/#/?page=pos"
+    },
+    {
+      "name": "Ripoti",
+      "short_name": "Ripoti",
+      "description": "Tazama ripoti za biashara",
+      "url": "/#/?page=reports"
+    }
+  ]
 }

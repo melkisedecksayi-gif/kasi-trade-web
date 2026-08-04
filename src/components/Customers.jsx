@@ -5,6 +5,7 @@ import { SkeletonList } from './Skeleton';
 import CSVImport from './CSVImport';
 import { sendSMS, sendBulkSMS, generateCustomerSMS } from '../services/smsService';
 import getStyles from '../stylePresets';
+import logger from '../utils/logger';
 
 const StatCard = ({ icon, label, value, color, gradient, theme, lang }) => {
   const th = theme || {};
@@ -116,7 +117,7 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
         computeStats(data);
       }
     } catch (err) {
-      console.error('Error:', err);
+      logger.error('Customers', 'Error:', err);
     } finally {
       setLoading(false);
     }
