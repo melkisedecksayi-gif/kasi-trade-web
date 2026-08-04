@@ -36,6 +36,7 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [emailSettings, setEmailSettings] = useState({});
   const [processing, setProcessing] = useState(false);
   const searchRef = useRef(null);
+  const checkoutRef = useRef(null);
   const isSw = lang === 'sw';
   const th = getStyles(isDarkMode).t;
 
@@ -59,7 +60,7 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
         if (showCheckout) setShowCheckout(false);
         if (notify) setNotify(null);
       }
-      if (e.key === 'Enter' && showCheckout && cart.length > 0) handleCheckout();
+      if (e.key === 'Enter' && showCheckout && cart.length > 0) checkoutRef.current?.();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
@@ -174,6 +175,7 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     }
     finally { setProcessing(false); }
   };
+  checkoutRef.current = handleCheckout;
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name?.toLowerCase()?.includes(searchQuery.toLowerCase());

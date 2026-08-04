@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const ANIM_DURATION = 800;
-
-function animateValue(start, end, duration, callback) {
-  const startTime = performance.now();
-  function tick(now) {
-    const elapsed = now - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    callback(start + (end - start) * eased);
-    if (progress < 1) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
-
 /* ==================== Area Chart ==================== */
 export function AreaChart({ data, width = 600, height = 280, color = '#6366f1', gradientId = 'areaGrad', formatY = (v) => v, labels = [] }) {
   const [animProgress, setAnimProgress] = useState(0);
@@ -297,14 +283,11 @@ export function FancyDonut({ data = [], isDark = true, size = 260 }) {
           {/* Animated segments */}
           {segments.map((seg) => {
             const visibleEnd = seg.startAngle + (seg.endAngle - seg.startAngle) * animProgress;
-            const outerArc = describeArc(cx, cy, outerR, seg.startAngle, visibleEnd);
-            const innerArc = describeArc(cx, cy, innerR, seg.startAngle, visibleEnd);
             const isHovered = hoveredIndex === seg.index;
             const r = outerR - (isHovered ? 2 : 0);
-            const r2 = innerR;
             
             const hOuterArc = describeArc(cx, cy, r, seg.startAngle, visibleEnd);
-            const hInnerArc = describeArc(cx, cy, r2, seg.startAngle, visibleEnd);
+            const hInnerArc = describeArc(cx, cy, innerR, seg.startAngle, visibleEnd);
             
             return (
               <g key={seg.index}

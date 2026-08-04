@@ -5,7 +5,7 @@ const formatMessage = (level, context, message, data) => {
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [${level.toUpperCase()}] [${context}]`;
   if (data !== undefined) {
-    return `${prefix} ${message}`, data;
+    return `${prefix} ${message} ${JSON.stringify(data)}`;
   }
   return `${prefix} ${message}`;
 };
