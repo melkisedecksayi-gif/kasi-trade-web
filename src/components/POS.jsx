@@ -243,7 +243,7 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </span>
             <input ref={searchRef} type="text" className="input" style={{ paddingLeft: '44px', fontSize: '14px' }}
-              placeholder={isSw ? '🔍 Tafuta bidhaa... (au soma barcode)' : '🔍 Search products... (or scan barcode)'}
+              placeholder={isSw ? 'Tafuta bidhaa...' : 'Search products...'}
               value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               autoFocus />
           </div>
@@ -677,14 +677,14 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
             <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {isSw ? '📱 Namba ya Simu (si lazima)' : '📱 Phone Number (optional)'}
+                  {isSw ? 'Namba ya Simu (si lazima)' : 'Phone Number (optional)'}
                 </label>
                 <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
                   className="input" placeholder="255XXXXXXXXX" style={{ fontSize: '13px' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {isSw ? '📧 Barua Pepe (si lazima)' : '📧 Email (optional)'}
+                  {isSw ? 'Barua Pepe (si lazima)' : 'Email (optional)'}
                 </label>
                 <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)}
                   className="input" placeholder="customer@example.com" style={{ fontSize: '13px' }} />
