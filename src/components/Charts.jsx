@@ -220,6 +220,169 @@ export function Sparkline({ data = [], width = 80, height = 28, color = '#10b981
   );
 }
 
+/* ==================== Fancy Donut (Premium) ==================== */
+export function FancyDonut({ data = [], isDark = true, size = 260 }) {
+  const [animProgress, setAnimProgress] = useState(0);
+  const [hoveredIndex, setHoveredIndex] = useState(-1);
+  const [countedTotal, setCountedTotal] = useState(0);
+  const triggered = useRef(false);
+
+  useEffect(() => {
+    if (!triggered.current) { triggered.current = true; setAnimProgress(1); }
+  }, []);
+
+  useEffect(() => {
+    const end = data.reduce((s, d) => s + d.value, 0);
+    let start = 0;
+    if (animProgress >= 1) { setCountedTotal(end); return; }
+    const startTime = performance.now();
+    let raf;
+    function tick(now) {
+      const elapsed = now - startTime;
+      const p = Math.min(elapsed / 1400, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setCountedTotal(Math.round(start + (end - start) * eased));
+      if (p < 1) raf = requestAnimationFrame(tick); else setCountedTotal(end);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [animProgress, data]);
+
+  const chartColors = [
+    '#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444',
+    '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#14b8a6',
+  ];
+
+  const total = data.reduce((s, d) => s + d.value, 0) || 1;
+  const cx = size / 2, cy = size / 2;
+  const outerR = size / 2 - 12;
+  const innerR = outerR - 36;
+  const gapDeg = 2;
+
+  let cumulative = 0;
+  const segments = data.map((d, i) => {
+    const pct = d.value / total;
+    const startAngle = (cumulative / total) * 360 + gapDeg;
+    const endAngle = ((cumulative) / total) * 360 + pct * 360;
+    cumulative += d.value;
+    return {
+      ...d, index: i,
+      startAngle: startAngle,
+      endAngle: endAngle,
+      color: chartColors[i % chartColors.length],
+      percentage: Math.round((d.value / total) * 100),
+    };
+  });
+
+  const polarToCartesian = (cx, cy, r, angleDeg) => {
+    const rad = ((angleDeg - 90) * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  };
+
+  const describeArc = (cx, cy, r, startAngle, endAngle) => {
+    const s = polarToCartesian(cx, cy, r, endAngle);
+    const e = polarToCartesian(cx, cy, r, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${e.x} ${e.y}`;
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+      {/* Donut SVG */}
+      <div style={{ position: 'relative', marginBottom: '20px' }}>
+        <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ filter: 'drop-shadow(0 4px 16px rgba(99,102,241,0.15))' }}>
+          {/* Background circle */}
+          <circle cx={cx} cy={cy} r={outerR} fill="none" stroke={isDark ? 'rgba(51,65,85,0.3)' : 'rgba(226,232,240,0.5)'} strokeWidth={outerR - innerR} />
+          
+          {/* Animated segments */}
+          {segments.map((seg) => {
+            const visibleEnd = seg.startAngle + (seg.endAngle - seg.startAngle) * animProgress;
+            const outerArc = describeArc(cx, cy, outerR, seg.startAngle, visibleEnd);
+            const innerArc = describeArc(cx, cy, innerR, seg.startAngle, visibleEnd);
+            const isHovered = hoveredIndex === seg.index;
+            const r = outerR - (isHovered ? 2 : 0);
+            const r2 = innerR;
+            
+            const hOuterArc = describeArc(cx, cy, r, seg.startAngle, visibleEnd);
+            const hInnerArc = describeArc(cx, cy, r2, seg.startAngle, visibleEnd);
+            
+            return (
+              <g key={seg.index}
+                onMouseEnter={() => setHoveredIndex(seg.index)}
+                onMouseLeave={() => setHoveredIndex(-1)}
+                style={{ cursor: 'pointer', transition: 'transform 0.2s ease', transform: isHovered ? 'scale(1.02)' : 'scale(1)', transformOrigin: `${cx}px ${cy}px` }}
+              >
+                <path
+                  d={`${hOuterArc} L ${hInnerArc.split(' ').slice(-2).join(' ')} ${hInnerArc.split(' ').slice(0, 2).join(' ')} Z`}
+                  fill={seg.color}
+                  opacity={isHovered ? 1 : 0.88}
+                  stroke={isDark ? 'transparent' : '#fff'}
+                  strokeWidth="2"
+                  style={{ transition: 'opacity 0.2s ease' }}
+                />
+              </g>
+            );
+          })}
+
+          {/* Inner circle */}
+          <circle cx={cx} cy={cy} r={innerR - 3} fill={isDark ? '#1e293b' : '#ffffff'} stroke={isDark ? 'rgba(51,65,85,0.2)' : 'rgba(226,232,240,0.6)'} strokeWidth="1" />
+
+          {/* Center content */}
+          <text x={cx} y={cy - 12} textAnchor="middle" fill="var(--text-tertiary)" fontSize="11" fontWeight="600" fontFamily="'Inter', sans-serif" letterSpacing="0.5px" style={{ textTransform: 'uppercase' }}>
+            TOTAL
+          </text>
+          <text x={cx} y={cy + 12} textAnchor="middle" fill="var(--text-primary)" fontSize="26" fontWeight="800" fontFamily="'Inter', sans-serif" letterSpacing="-0.5px">
+            {countedTotal}
+          </text>
+          
+          {/* Hover indicator dot */}
+          {hoveredIndex >= 0 && segments[hoveredIndex] && (() => {
+            const midAngle = (segments[hoveredIndex].startAngle + segments[hoveredIndex].endAngle) / 2;
+            const dotR = outerR - 10;
+            const dot = polarToCartesian(cx, cy, dotR, midAngle);
+            return (
+              <circle cx={dot.x} cy={dot.y} r="4" fill="#fff" stroke={segments[hoveredIndex].color} strokeWidth="2" />
+            );
+          })()}
+        </svg>
+      </div>
+
+      {/* Legend */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+        gap: '6px', width: '100%', maxWidth: '400px',
+      }}>
+        {segments.map((seg) => (
+          <div
+            key={seg.index}
+            onMouseEnter={() => setHoveredIndex(seg.index)}
+            onMouseLeave={() => setHoveredIndex(-1)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '8px 10px', borderRadius: '10px',
+              cursor: 'pointer',
+              background: hoveredIndex === seg.index ? (isDark ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.05)') : 'transparent',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{
+              width: '10px', height: '10px', borderRadius: '3px',
+              background: seg.color, flexShrink: 0,
+              boxShadow: `0 0 6px ${seg.color}44`,
+            }} />
+            <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {seg.label}
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: seg.color, fontFamily: "'Inter', sans-serif", flexShrink: 0 }}>
+              {seg.percentage}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ==================== Empty Placeholder ==================== */
 function EmptyChartPlaceholder() {
   return (
