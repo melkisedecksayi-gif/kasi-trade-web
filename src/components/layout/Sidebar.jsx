@@ -64,15 +64,13 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
   ];
 
   const closeSidebar = useCallback(() => {
-    if (!isDesktop && setIsSidebarOpen) setIsSidebarOpen(false);
-  }, [isDesktop, setIsSidebarOpen]);
+    if (setIsSidebarOpen) setIsSidebarOpen(false);
+  }, [setIsSidebarOpen]);
 
   const handleMenuClick = (pageId) => {
     if (setActivePage) setActivePage(pageId);
-    closeSidebar();
+    if (!isDesktop) closeSidebar();
   };
-
-  const sidebarVisible = isDesktop || isSidebarOpen;
 
   const navItemStyle = (isActive) => ({
     width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
@@ -97,7 +95,7 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
 
   return (
     <>
-      {!isDesktop && isSidebarOpen && (
+      {isSidebarOpen && (
         <div onClick={closeSidebar} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
           zIndex: 998, backdropFilter: 'blur(4px)', animation: 'fadeIn 0.3s ease'
@@ -105,12 +103,13 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
       )}
 
       <div style={{
-        width: `${SIDEBAR_WIDTH}px`, maxWidth: isDesktop ? `${SIDEBAR_WIDTH}px` : 'min(280px, 85vw)',
+        width: isDesktop ? `${SIDEBAR_WIDTH}px` : 'min(280px, 85vw)',
+        maxWidth: isDesktop ? `${SIDEBAR_WIDTH}px` : 'min(280px, 85vw)',
         background: tSidebarBg, height: '100vh', position: 'fixed',
-        left: isDesktop ? '0' : (isSidebarOpen ? '0' : 'calc(-1 * min(280px, 85vw))'),
-        top: 0, zIndex: isDesktop ? 50 : 999,
-        transition: isDesktop ? 'none' : 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        boxShadow: sidebarVisible ? '8px 0 40px rgba(0,0,0,0.3)' : 'none',
+        left: isSidebarOpen ? '0' : (isDesktop ? `${-SIDEBAR_WIDTH}px` : 'calc(-1 * min(280px, 85vw))'),
+        top: 0, zIndex: 999,
+        transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        boxShadow: isSidebarOpen ? '8px 0 40px rgba(0,0,0,0.3)' : 'none',
         display: 'flex', flexDirection: 'column',
         borderRight: `1px solid ${tBorder}`,
         overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch'
@@ -139,18 +138,15 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
               </p>
             </div>
           </div>
-          {!isDesktop && (
-            <button onClick={closeSidebar} style={{
-              width: '32px', height: '32px', borderRadius: '8px', border: 'none',
-              cursor: 'pointer', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', background: tSurfaceHover, color: tText
-            }}>
-              <Icons.X size={16} />
-            </button>
-          )}
+          <button onClick={closeSidebar} style={{
+            width: '32px', height: '32px', borderRadius: '8px', border: 'none',
+            cursor: 'pointer', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', background: tSurfaceHover, color: tText
+          }}>
+            <Icons.X size={16} />
+          </button>
         </div>
 
-        {/* Navigation */}
         <nav style={{ flex: 1, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: '1px', overflowY: 'auto' }}>
           {menuItems.map((item) => {
             const IconComponent = item.icon;
@@ -182,7 +178,6 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
           })}
         </nav>
 
-        {/* Bottom Actions */}
         <div style={{
           borderTop: `1px solid ${tBorder}`,
           padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0

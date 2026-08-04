@@ -35,7 +35,9 @@ function App() {
   const [activePage, setActivePage] = useState(() => {
     return localStorage.getItem('app_activePage') || 'dashboard';
   });
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    return window.innerWidth >= 1024;
+  });
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('app_darkMode');
@@ -521,7 +523,7 @@ function App() {
         isDarkMode={isDarkMode} shopName={currentShop?.shop_name || 'KasiTRADE'} theme={theme}
       />
 
-      <div style={{ flex: 1, marginLeft: isDesktop ? `${SIDEBAR_WIDTH}px` : '0', padding: '0', minHeight: '100vh', width: isDesktop ? `calc(100% - ${SIDEBAR_WIDTH}px)` : '100%', transition: 'margin-left 0.3s ease' }}>
+      <div style={{ flex: 1, marginLeft: isDesktop && isSidebarOpen ? `${SIDEBAR_WIDTH}px` : '0', padding: '0', minHeight: '100vh', width: isDesktop && isSidebarOpen ? `calc(100% - ${SIDEBAR_WIDTH}px)` : '100%', transition: 'margin-left 0.3s ease, width 0.3s ease' }}>
         <style>{`
           @media (max-width: 480px) {
             .header-shop-name, .header-shop-switcher { display: none !important; }
@@ -535,10 +537,9 @@ function App() {
         <div style={headerStyle}>
           <div className="header-left flex items-center" style={{ gap: '14px', flex: 1, minWidth: 0 }}>
             <button
-              onClick={() => setIsSidebarOpen(true)}
+              onClick={() => setIsSidebarOpen(prev => !prev)}
               className="btn-icon"
               style={{
-                display: isDesktop ? 'none' : 'flex',
                 border: `1px solid ${theme.border}`, background: theme.surface,
                 color: theme.text, fontSize: '18px'
               }}
