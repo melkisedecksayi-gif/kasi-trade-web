@@ -921,8 +921,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
     setSmsResult(null);
     try {
       const { start, end } = getDateRange(activeTab, customStart, customEnd);
-      const { data: settings } = await supabase.from('sms_settings').select('api_key').eq('shop_id', currentShop.id).maybeSingle();
-      const apiKey = settings?.api_key || undefined;
+      const apiKey = undefined;
 
       const paymentBreakdown = {};
       const uniqueCustomers = new Set();
@@ -1048,8 +1047,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         totalExpenses = (expData || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
       } catch (e) {}
 
-      const { data: settings } = await supabase.from('sms_settings').select('api_key').eq('shop_id', currentShop.id).maybeSingle();
-      const apiKey = settings?.api_key || undefined;
+      const apiKey = undefined;
 
       const reportData = {
         shopName: currentShop?.shop_name || '',

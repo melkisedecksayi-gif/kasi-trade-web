@@ -21,35 +21,13 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
   const s = getStyles(isDarkMode);
 
   useEffect(() => {
-    if (!currentShop?.id) return;
-    const fetchSmsSettings = async () => {
-      try {
-        const { data } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
-        setSmsSettings(prev => ({
-          auto_close_time: data?.auto_close_time || '22:00',
-          phone: currentShop?.phone || prev.phone || '',
-          low_stock_threshold: data?.low_stock_threshold || 10
-        }));
-      } catch (e) { logger.warn('Settings', 'SMS settings fetch:', e); }
-      finally { setSmsLoaded(true); }
-    };
-    fetchSmsSettings();
-  }, [currentShop?.id, currentShop?.phone, supabase]);
+    setSmsLoaded(true);
+  }, []);
 
   const handleSaveSmsSettings = async () => {
     if (!currentShop?.id) return;
     setSmsSaving(true);
     try {
-      const saveData = {
-        auto_close_time: smsSettings.auto_close_time,
-        low_stock_threshold: smsSettings.low_stock_threshold
-      };
-      const { data: existing } = await supabase.from('sms_settings').select('id').eq('shop_id', currentShop.id).maybeSingle();
-      if (existing) {
-        await supabase.from('sms_settings').update(saveData).eq('shop_id', currentShop.id);
-      } else {
-        await supabase.from('sms_settings').insert({ shop_id: currentShop.id, ...saveData });
-      }
       if (smsSettings.phone && smsSettings.phone !== currentShop?.phone) {
         const { data: updatedShop } = await supabase.from('shops').update({ phone: smsSettings.phone }).eq('id', currentShop.id).select().single();
         if (updatedShop) onShopChange(updatedShop);
