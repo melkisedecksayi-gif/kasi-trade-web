@@ -197,73 +197,16 @@ export const generateReportSMS = (data, lang = 'sw') => {
       maximumFractionDigits: 0,
     }).format(amount || 0);
 
-  const date = data.date || new Date().toLocaleDateString(lang === 'sw' ? 'sw-TZ' : 'en-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-  });
-
-  let msg = '';
-
-  msg += isSw ? 'RIPOTI YA MAUZO\n' : 'SALES REPORT\n';
-  if (data.shopName) msg += `${data.shopName}\n`;
-  msg += `${isSw ? 'Tarehe' : 'Date'}: ${date}\n`;
-  msg += `${'-'.repeat(20)}\n\n`;
-
-  msg += `${isSw ? 'MUHTASARI WA LEO' : 'DAILY SUMMARY'}\n`;
-  msg += `${isSw ? '  Mauzo Yote' : '  Total Sales'}: ${fmt(data.totalRevenue)}\n`;
-  msg += `${isSw ? '  Idadi ya Mauzo' : '  Transactions'}: ${data.totalTransactions || 0}\n`;
-  msg += `${isSw ? '  Wastani kwa Mteja' : '  Avg per Customer'}: ${fmt(data.avgOrderValue || 0)}\n`;
-  msg += `${isSw ? '  Bidhaa Zilizouzwa' : '  Items Sold'}: ${data.productsSold || 0}\n`;
-
-  if (data.customerCount !== undefined) {
-    msg += `${isSw ? '  Wateja Waliohudumiwa' : '  Customers Served'}: ${data.customerCount}\n`;
-  }
-
-  if (data.paymentBreakdown && Object.keys(data.paymentBreakdown).length > 0) {
-    msg += `\n${isSw ? 'NJIA ZA MALIPO' : 'PAYMENT METHODS'}\n`;
-    if (data.paymentBreakdown.cash) msg += `  ${isSw ? 'Taslimu' : 'Cash'}: ${fmt(data.paymentBreakdown.cash)}\n`;
-    if (data.paymentBreakdown.mobile) msg += `  ${isSw ? 'Simu' : 'Mobile'}: ${fmt(data.paymentBreakdown.mobile)}\n`;
-    if (data.paymentBreakdown.card) msg += `  ${isSw ? 'Kadi' : 'Card'}: ${fmt(data.paymentBreakdown.card)}\n`;
-    if (data.paymentBreakdown.bank) msg += `  ${isSw ? 'Benki' : 'Bank'}: ${fmt(data.paymentBreakdown.bank)}\n`;
-  }
-
-  if (data.totalExpenses !== undefined) {
-    msg += `\n${isSw ? 'MATUMIZI' : 'EXPENSES'}\n`;
-    msg += `${isSw ? '  Jumla' : '  Total'}: ${fmt(data.totalExpenses)}\n`;
-  }
-
   const totalProfit = data.totalProfit || 0;
   const totalExpenses = data.totalExpenses || 0;
   const netProfit = data.netProfit !== undefined ? data.netProfit : totalProfit - totalExpenses;
 
-  msg += `\n${isSw ? 'FAIDA' : 'PROFIT'}\n`;
-  if (data.totalProfit || data.totalExpenses) {
-    msg += `${isSw ? '  Faida Ghafi' : '  Gross Profit'}: ${fmt(totalProfit)}\n`;
-    if (data.totalExpenses !== undefined) {
-      msg += `${isSw ? '  Toa Matumizi' : '  Less Expenses'}: ${fmt(-totalExpenses)}\n`;
-    }
-  }
-  msg += `${isSw ? '  FAIDA HAI' : '  NET PROFIT'}: ${fmt(netProfit)}\n`;
-
-  if (data.topProducts && data.topProducts.length > 0) {
-    msg += `\n${isSw ? 'BIDHAA KUU ZA LEO' : 'TODAYS TOP PRODUCTS'}\n`;
-    data.topProducts.slice(0, 10).forEach((p, i) => {
-      const prefix = `${i + 1}. `;
-      const qty = p.quantity ? ` (${p.quantity})` : '';
-      msg += `${prefix}${p.name}${qty} - ${fmt(p.total)}\n`;
-    });
-  }
-
-  if (data.salesSummary) {
-    msg += `\n${isSw ? 'MUHTASARI' : 'SUMMARY'}\n`;
-    msg += `${isSw ? '  Mauzo ya Juu' : '  Highest Sale'}: ${fmt(data.salesSummary.highest)}\n`;
-    msg += `${isSw ? '  Mauzo ya Chini' : '  Lowest Sale'}: ${fmt(data.salesSummary.lowest)}\n`;
-    if (data.salesSummary.totalDiscount) {
-      msg += `${isSw ? '  Punguzo Zote' : '  Total Discounts'}: ${fmt(data.salesSummary.totalDiscount)}\n`;
-    }
-  }
-
-  msg += `\n${'-'.repeat(20)}\n`;
-  msg += isSw ? 'Asante kwa kutumia KasiTRADE!' : 'Thank you for using KasiTRADE!';
+  let msg = `${data.shopName || 'KasiTRADE'}\n`;
+  msg += isSw ? 'RIPOTI YA MAUZO\n\n' : 'SALES REPORT\n\n';
+  msg += `${isSw ? '📊 Mauzo' : '📊 Sales'}: ${fmt(data.totalRevenue)}\n`;
+  msg += `${isSw ? '💰 Faida' : '💰 Profit'}: ${fmt(netProfit)}\n`;
+  msg += `${isSw ? '🧾 Idadi' : '🧾 Count'}: ${data.totalTransactions || 0}\n`;
+  msg += `\nKasiTRADE POS`;
 
   return msg;
 };
