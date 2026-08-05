@@ -248,24 +248,23 @@ export function FancyDonut({ data = [], isDark = true, size = 280 }) {
   const strokeW = 22;
   const r = size / 2 - 30;
   const circumference = 2 * Math.PI * r;
-  const gapTotal = 4 * data.length;
-  const arcPerItem = (360 - gapTotal) / total;
+  const gapDeg = 4;
+  const totalGap = gapDeg * data.length;
+  const availableDeg = 360 - totalGap;
 
   const segments = [];
   let currentAngle = -90;
   
   data.forEach((d, i) => {
-    const arcDeg = (d.value / total) * (360 - gapTotal);
+    const arcDeg = (d.value / total) * availableDeg;
     const startAngle = currentAngle;
-    const endAngle = currentAngle + arcDeg;
     const strokeLen = (arcDeg / 360) * circumference;
     const dashArray = `${strokeLen} ${circumference - strokeLen}`;
     const startDashOffset = circumference * 0.75;
-    const animatedOffset = startDashOffset - (startDashOffset * animProgress);
     
     segments.push({
       ...d, index: i,
-      startAngle, endAngle,
+      startAngle,
       color: chartColors[i % chartColors.length],
       glow: glowColors[i % glowColors.length],
       percentage: Math.round((d.value / total) * 100),
@@ -274,14 +273,8 @@ export function FancyDonut({ data = [], isDark = true, size = 280 }) {
       animatedOffset: startDashOffset - (strokeLen * animProgress),
     });
     
-    currentAngle = endAngle + (360 - gapTotal) / data.length * (4 / 360) * 360 / data.length > 0 ? 4 : 4;
-    currentAngle = endAngle + 4;
+    currentAngle = startAngle + arcDeg + gapDeg;
   });
-
-  const polarToCartesian = (cx, cy, r, angleDeg) => {
-    const rad = ((angleDeg - 90) * Math.PI) / 180;
-    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 1 }}>
