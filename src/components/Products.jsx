@@ -121,7 +121,7 @@ const Categories = {
   }
 };
 
-const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
+const Products = ({ lang, supabase, currentShop, isDarkMode, theme, globalSearchQuery, onSearchConsumed }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -154,6 +154,13 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop, supabase]);
+
+  useEffect(() => {
+    if (globalSearchQuery) {
+      setSearchQuery(globalSearchQuery);
+      if (onSearchConsumed) onSearchConsumed();
+    }
+  }, [globalSearchQuery, onSearchConsumed]);
 
   const fetchProducts = async () => {
     setLoading(true);

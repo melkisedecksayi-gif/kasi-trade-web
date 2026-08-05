@@ -49,6 +49,7 @@ function App() {
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [toast, setToast] = useState(null);
   const [globalSearch, setGlobalSearch] = useState('');
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const autoSentRef = useRef({});
 
   const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
@@ -493,7 +494,7 @@ function App() {
     switch (activePage) {
       case 'dashboard': return <Dashboard {...props} />;
       case 'pos': return <POS {...props} />;
-      case 'products': return <Products {...props} />;
+      case 'products': return <Products {...props} globalSearchQuery={globalSearchQuery} onSearchConsumed={() => setGlobalSearchQuery('')} />;
       case 'customers': return <Customers {...props} />;
       case 'reports': return <Reports {...props} />;
       case 'expenses': return <Expenses {...props} />;
@@ -576,8 +577,8 @@ function App() {
                 onChange={(e) => setGlobalSearch(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && globalSearch.trim()) {
+                    setGlobalSearchQuery(globalSearch.trim());
                     setActivePage('products');
-                    setGlobalSearch('');
                   }
                 }}
                 style={{
