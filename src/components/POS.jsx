@@ -5,7 +5,6 @@ import { getCategoryIcon } from '../data/categoryIcons';
 import { playSaleBeep } from '../utils/sound';
 import { printReceipt } from '../utils/print';
 import { sendSMS } from '../services/smsService';
-import { sendReceiptEmail } from '../services/emailService';
 import getStyles from '../stylePresets';
 import logger from '../utils/logger';
 
@@ -33,7 +32,6 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [notify, setNotify] = useState(null);
   const [discountType, setDiscountType] = useState('none');
   const [discountValue, setDiscountValue] = useState('');
-  const [emailSettings, setEmailSettings] = useState({});
   const [processing, setProcessing] = useState(false);
   const searchRef = useRef(null);
   const checkoutRef = useRef(null);
@@ -44,14 +42,6 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     if (currentShop?.id) fetchProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop]);
-
-  useEffect(() => {
-    if (currentShop?.id) {
-      supabase.from('email_settings').select('receipt_template_id, service_id, public_key').eq('shop_id', currentShop.id).maybeSingle().then(({ data }) => {
-        setEmailSettings(data || {});
-      }).catch(() => {});
-    }
-  }, [currentShop?.id, supabase]);
 
   useEffect(() => {
     if (!showCheckout && !notify) return;
@@ -154,18 +144,6 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
         sendSMS({ to: phone, message: smsMsg }).catch(() => {});
       }
 
-      const custEmail = customerEmail.trim();
-      if (custEmail && emailSettings?.receipt_template_id) {
-        sendReceiptEmail({
-          email: custEmail,
-          transaction: { items: soldItems, total_amount: soldTotal, payment_method: paymentMethod, created_at: new Date().toISOString() },
-          shopName: currentShop?.shop_name || 'KasiTRADE',
-          lang,
-          publicKey: emailSettings.public_key,
-          serviceId: emailSettings.service_id,
-          templateId: emailSettings.receipt_template_id,
-        }).catch(() => {});
-      }
     } catch (err) {
       setNotify({ msg: err.message || (lang === 'sw' ? 'Hitilafu imetokea' : 'Error occurred'), type: 'error', total: 0 });
       if (phone) {

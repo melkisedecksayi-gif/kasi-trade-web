@@ -4,7 +4,6 @@ import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
 import { sendSMS, generateReportSMS, sendBulkSMS } from './services/smsService';
-import { sendReportEmail, sendLowStockEmail, sendBirthdayEmail } from './services/emailService';
 import logger from './utils/logger';
 import ErrorBoundary from './components/ErrorBoundary';
 import Toast from './components/Toast';
@@ -210,24 +209,6 @@ function App() {
         });
         autoSentRef.current[sentKey] = true;
 
-        const { data: emailCfg } = await supabase.from('email_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
-        if (emailCfg && emailCfg.report_email && emailCfg.report_template_id) {
-          sendReportEmail({
-            email: emailCfg.report_email,
-            reportData,
-            shopName: currentShop?.shop_name || '',
-            lang,
-            publicKey: emailCfg.public_key,
-            serviceId: emailCfg.service_id,
-            templateId: emailCfg.report_template_id,
-          }).then(r => {
-            supabase.from('email_logs').insert({
-              shop_id: currentShop.id, recipient: emailCfg.report_email, subject: 'Daily Report',
-              type: 'auto_close', status: r.success ? 'sent' : 'failed',
-              provider_response: r.success ? JSON.stringify(r.data).slice(0, 500) : (r.error?.slice(0, 500) || '')
-            });
-          }).catch(() => {});
-        }
       } catch (e) { logger.warn('App', 'Auto close SMS error:', e); }
     };
 
@@ -267,25 +248,6 @@ function App() {
         });
         autoSentRef.current[alertKey] = true;
 
-        const { data: emailCfg } = await supabase.from('email_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
-        if (emailCfg && emailCfg.report_email && emailCfg.low_stock_template_id) {
-          sendLowStockEmail({
-            email: emailCfg.report_email,
-            products: lowProducts,
-            threshold: emailCfg.low_stock_threshold || threshold,
-            shopName: currentShop?.shop_name || '',
-            lang,
-            publicKey: emailCfg.public_key,
-            serviceId: emailCfg.service_id,
-            templateId: emailCfg.low_stock_template_id,
-          }).then(r => {
-            supabase.from('email_logs').insert({
-              shop_id: currentShop.id, recipient: emailCfg.report_email, subject: 'Low Stock Alert',
-              type: 'low_stock', status: r.success ? 'sent' : 'failed',
-              provider_response: r.success ? JSON.stringify(r.data).slice(0, 500) : (r.error?.slice(0, 500) || '')
-            });
-          }).catch(() => {});
-        }
       } catch (e) { logger.warn('App', 'Low stock SMS error:', e); }
     };
 
@@ -338,27 +300,6 @@ function App() {
         }
         autoSentRef.current[alertKey] = true;
 
-        const { data: emailCfg } = await supabase.from('email_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
-        if (emailCfg && emailCfg.report_template_id) {
-          const emailRecipients = todayBirthdays.filter(c => c.email).map(c => ({ name: c.name, email: c.email }));
-          for (const r of emailRecipients) {
-            sendBirthdayEmail({
-              email: r.email,
-              customerName: r.name,
-              shopName: currentShop?.shop_name || '',
-              lang,
-              publicKey: emailCfg.public_key,
-              serviceId: emailCfg.service_id,
-              templateId: emailCfg.report_template_id,
-            }).then(result => {
-              supabase.from('email_logs').insert({
-                shop_id: currentShop.id, recipient: r.email, subject: 'Birthday',
-                type: 'birthday', status: result.success ? 'sent' : 'failed',
-                provider_response: result.success ? null : (result.error?.slice(0, 500) || '')
-              });
-            }).catch(() => {});
-          }
-        }
       } catch (e) { logger.warn('App', 'Birthday SMS error:', e); }
     };
 

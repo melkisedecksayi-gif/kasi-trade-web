@@ -17,18 +17,6 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
   });
   const [smsSaving, setSmsSaving] = useState(false);
   const [smsLoaded, setSmsLoaded] = useState(false);
-  const [emailSettings, setEmailSettings] = useState({
-    public_key: 'ZxWOL0OzGhy06G6f5',
-    service_id: 'service_wb6ens2',
-    receipt_template_id: 'template_6pllxba',
-    report_template_id: 'template_d9272ji',
-    low_stock_template_id: 'template_d9272ji',
-    report_email: currentShop?.email || '',
-    auto_close_time: '22:00',
-    low_stock_threshold: 10
-  });
-  const [emailSaving, setEmailSaving] = useState(false);
-  const [emailLoaded, setEmailLoaded] = useState(false);
   const isSw = lang === 'sw';
   const s = getStyles(isDarkMode);
 
@@ -47,52 +35,6 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
     };
     fetchSmsSettings();
   }, [currentShop?.id, currentShop?.phone, supabase]);
-
-  useEffect(() => {
-    if (!currentShop?.id) return;
-    const fetchEmailSettings = async () => {
-      try {
-        const { data } = await supabase.from('email_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
-        setEmailSettings(prev => ({
-          public_key: data?.public_key || '',
-          service_id: data?.service_id || '',
-          receipt_template_id: data?.receipt_template_id || '',
-          report_template_id: data?.report_template_id || '',
-          low_stock_template_id: data?.low_stock_template_id || '',
-          report_email: data?.report_email || currentShop?.email || prev.report_email || '',
-          auto_close_time: data?.auto_close_time || '22:00',
-          low_stock_threshold: data?.low_stock_threshold || 10
-        }));
-      } catch (e) { logger.warn('Settings', 'Email settings fetch:', e); }
-      finally { setEmailLoaded(true); }
-    };
-    fetchEmailSettings();
-  }, [currentShop?.id, currentShop?.email, supabase]);
-
-  const handleSaveEmailSettings = async () => {
-    if (!currentShop?.id) return;
-    setEmailSaving(true);
-    try {
-      const saveData = {
-        public_key: emailSettings.public_key,
-        service_id: emailSettings.service_id,
-        receipt_template_id: emailSettings.receipt_template_id,
-        report_template_id: emailSettings.report_template_id,
-        low_stock_template_id: emailSettings.low_stock_template_id,
-        auto_close_time: emailSettings.auto_close_time,
-        report_email: emailSettings.report_email,
-        low_stock_threshold: emailSettings.low_stock_threshold
-      };
-      const { data: existing } = await supabase.from('email_settings').select('id').eq('shop_id', currentShop.id).maybeSingle();
-      if (existing) {
-        await supabase.from('email_settings').update(saveData).eq('shop_id', currentShop.id);
-      } else {
-        await supabase.from('email_settings').insert({ shop_id: currentShop.id, ...saveData });
-      }
-      showToast(isSw ? 'Mipangilio ya Email imehifadhiwa!' : 'Email settings saved!');
-    } catch (e) { showToast(e.message); }
-    finally { setEmailSaving(false); }
-  };
 
   const handleSaveSmsSettings = async () => {
     if (!currentShop?.id) return;
@@ -326,91 +268,6 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
             <div className="text-small mb-md">{session.user.email}</div>
           </div>
         )}
-
-        {/* Email Settings */}
-        <div className="card card-xl" style={{ padding: '22px', borderRadius: '16px' }}>
-          <h3 className="text-h4 mb-lg">{isSw ? 'Mipangilio ya Email (Barua Pepe)' : 'Email Settings'}</h3>
-          {!emailLoaded ? (
-            <div style={{ fontSize: '13px', color: tTextMuted }}>{isSw ? 'Inapakia...' : 'Loading...'}</div>
-          ) : (
-            <div className="flex flex-col" style={{ gap: '10px' }}>
-              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
-                  EmailJS Public Key
-                </span>
-                <input type="text" value={emailSettings.public_key} onChange={e => setEmailSettings({ ...emailSettings, public_key: e.target.value })}
-                  className="input" placeholder="your_public_key" style={{ fontSize: '13px' }} />
-              </div>
-
-              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
-                  EmailJS Service ID
-                </span>
-                <input type="text" value={emailSettings.service_id} onChange={e => setEmailSettings({ ...emailSettings, service_id: e.target.value })}
-                  className="input" placeholder="service_xxxxx" style={{ fontSize: '13px' }} />
-              </div>
-
-              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
-                  {isSw ? 'Template ID - Risiti' : 'Receipt Template ID'}
-                </span>
-                <input type="text" value={emailSettings.receipt_template_id} onChange={e => setEmailSettings({ ...emailSettings, receipt_template_id: e.target.value })}
-                  className="input" placeholder="template_xxxxx" style={{ fontSize: '13px' }} />
-              </div>
-
-              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
-                  {isSw ? 'Template ID - Ripoti' : 'Report Template ID'}
-                </span>
-                <input type="text" value={emailSettings.report_template_id} onChange={e => setEmailSettings({ ...emailSettings, report_template_id: e.target.value })}
-                  className="input" placeholder="template_xxxxx" style={{ fontSize: '13px' }} />
-              </div>
-
-              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
-                  {isSw ? 'Template ID - Stock Alert' : 'Low Stock Template ID'}
-                </span>
-                <input type="text" value={emailSettings.low_stock_template_id} onChange={e => setEmailSettings({ ...emailSettings, low_stock_template_id: e.target.value })}
-                  className="input" placeholder="template_xxxxx" style={{ fontSize: '13px' }} />
-              </div>
-
-              <div className="flex flex-col" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>
-                  {isSw ? 'Email ya Kupokea Ripoti' : 'Recipient Email'}
-                </span>
-                <input type="email" value={emailSettings.report_email} onChange={e => setEmailSettings({ ...emailSettings, report_email: e.target.value })}
-                  className="input" placeholder="shop@example.com" style={{ fontSize: '13px' }} />
-                <div className="text-micro" style={{ color: tTextMuted }}>
-                  {isSw ? 'Email itakayopokea ripoti na tahadhari' : 'Email to receive reports and alerts'}
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Saa ya Kufunga (Ripoti)' : 'Closing Time (Report)'}</span>
-                <input type="time" value={emailSettings.auto_close_time} onChange={e => setEmailSettings({ ...emailSettings, auto_close_time: e.target.value })}
-                  style={{
-                    padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
-                    background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '120px'
-                  }} />
-              </div>
-
-              <div className="flex justify-between items-center" style={{ padding: '10px 14px', background: tHoverBg, borderRadius: '10px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: tText }}>{isSw ? 'Kiwango cha Tahadhari Stock' : 'Stock Alert Threshold'}</span>
-                <input type="number" min="1" max="999" value={emailSettings.low_stock_threshold} onChange={e => setEmailSettings({ ...emailSettings, low_stock_threshold: parseInt(e.target.value) || 0 })}
-                  style={{
-                    padding: '6px 10px', borderRadius: '8px', border: `1px solid ${tBorder}`,
-                    background: isDarkMode ? '#1e293b' : '#fff', color: tText, fontSize: '13px', width: '80px', textAlign: 'center'
-                  }} />
-              </div>
-
-              <button onClick={handleSaveEmailSettings} disabled={emailSaving} className="btn btn-primary" style={{
-                width: '100%', padding: '10px', borderRadius: '10px', fontWeight: 700, fontSize: '14px', marginTop: '4px'
-              }}>
-                {emailSaving ? (isSw ? 'Inahifadhi...' : 'Saving...') : (isSw ? 'Hifadhi Mipangilio' : 'Save Settings')}
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Logout */}
         <button onClick={onLogout} className="btn btn-danger" style={{
