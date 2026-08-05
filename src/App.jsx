@@ -69,7 +69,7 @@ function App() {
 
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash && hash.includes('access_token')) {
+    if (hash && hash.includes('type=recovery')) {
       setCurrentView('update-password');
     }
 
