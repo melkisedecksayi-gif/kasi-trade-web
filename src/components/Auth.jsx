@@ -72,6 +72,12 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
   const otpInputRef = useRef(null);
 
   useEffect(() => {
+    setEmail('');
+    setPassword('');
+    setPhone('');
+  }, []);
+
+  useEffect(() => {
     let strength = 0;
     if (password.length > 6) strength++;
     if (password.length > 10) strength++;
@@ -444,7 +450,7 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
               {lang === 'sw' ? 'Ingia kwenye akaunti yako' : 'Sign in to your account'}
             </h2>
             <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input type="email" placeholder={lang === 'sw' ? 'Barua pepe' : 'Email'} value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }} />
+              <input type="email" placeholder={lang === 'sw' ? 'Barua pepe' : 'Email'} value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} autoComplete="off" style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }} />
               <input type="password" placeholder={lang === 'sw' ? 'Nenosiri' : 'Password'} value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }} />
 
               <button type="button" onClick={() => setMode('forgot-password')} style={{ background: 'none', border: 'none', color: '#667eea', fontWeight: '600', cursor: 'pointer', fontSize: '14px', alignSelf: 'flex-end', textDecoration: 'underline', padding: '0' }}>
@@ -484,7 +490,7 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
               {lang === 'sw' ? 'Rejesha Nenosiri' : 'Reset Password'}
             </h2>
             <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input type="email" placeholder={lang === 'sw' ? 'Barua pepe yako' : 'Your email'} value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }} />
+              <input type="email" placeholder={lang === 'sw' ? 'Barua pepe yako' : 'Your email'} value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} autoComplete="off" style={{ padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '15px', outline: 'none' }} />
               <button type="submit" disabled={loading} style={{ padding: '16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 {loading ? <><CI.Clock size={18} />{lang === 'sw' ? 'Inatuma...' : 'Sending...'}</> : <><CI.Mail size={18} />{lang === 'sw' ? 'Tuma Link' : 'Send Link'}</>}
               </button>
