@@ -50,6 +50,7 @@ function App() {
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const autoSentRef = useRef({});
+  const smsTableMissing = useRef(false);
 
   const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
 
@@ -114,8 +115,10 @@ function App() {
     let birthdayInterval;
 
     const checkAutoClose = async () => {
+      if (smsTableMissing.current) return;
       try {
-        const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        const { data: settings, error: settingsErr } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (settingsErr) { smsTableMissing.current = true; return; }
         if (!settings) return;
 
         const now = new Date();
@@ -213,8 +216,10 @@ function App() {
     };
 
     const checkLowStock = async () => {
+      if (smsTableMissing.current) return;
       try {
-        const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        const { data: settings, error: settingsErr } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (settingsErr) { smsTableMissing.current = true; return; }
         if (!settings) return;
 
         const threshold = settings.low_stock_threshold || 10;
@@ -252,8 +257,10 @@ function App() {
     };
 
     const checkBirthdays = async () => {
+      if (smsTableMissing.current) return;
       try {
-        const { data: settings } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        const { data: settings, error: settingsErr } = await supabase.from('sms_settings').select('*').eq('shop_id', currentShop.id).maybeSingle();
+        if (settingsErr) { smsTableMissing.current = true; return; }
         if (!settings) return;
         const today = new Date();
         const todayMonth = today.getMonth() + 1;
