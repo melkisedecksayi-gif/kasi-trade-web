@@ -3,7 +3,6 @@ import { supabase } from './supabaseClient';
 import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
-import { sendSMS, generateReportSMS, sendBulkSMS } from './services/smsService';
 import logger from './utils/logger';
 import ErrorBoundary from './components/ErrorBoundary';
 import Toast from './components/Toast';
@@ -49,7 +48,6 @@ function App() {
   const [toast, setToast] = useState(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
-  const autoSentRef = useRef({});
 
   const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
 
