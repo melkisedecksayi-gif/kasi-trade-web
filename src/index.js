@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import './design.css';
 import App from './App';
-import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 import logger from './utils/logger';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -12,16 +11,6 @@ root.render(
     <App />
   </React.StrictMode>
 );
-
-serviceWorkerRegistration.register({
-  logger,
-  onUpdate: (registration) => {
-    if (window.confirm('KasiTRADE imeboreshwa! Bonyeza OK kupata toleo jipya.')) {
-      registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
-      window.location.reload();
-    }
-  },
-});
 
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
