@@ -452,7 +452,7 @@ function App() {
     return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><UpdatePassword supabase={supabase} onPasswordUpdated={handlePasswordUpdated} /></ErrorBoundary></Suspense>;
   }
   if (currentView === 'landing') {
-    return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Landing lang={lang} setLang={setLang} onGetStarted={() => setCurrentView('login')} /></ErrorBoundary></Suspense>;
+    return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Landing lang={lang} setLang={setLang} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onGetStarted={() => setCurrentView('login')} /></ErrorBoundary></Suspense>;
   }
   if (currentView === 'login' || !session) {
     return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Auth supabase={supabase} onAuthSuccess={handleLoginSuccess} /></ErrorBoundary></Suspense>;
