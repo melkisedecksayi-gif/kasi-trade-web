@@ -195,6 +195,7 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
 
   const handleGoogleLogin = async () => {
     localStorage.removeItem('app_otpPending');
+    localStorage.setItem('app_googleOtpPending', 'true');
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({

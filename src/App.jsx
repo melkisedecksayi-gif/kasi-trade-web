@@ -49,9 +49,50 @@ function App() {
   const [toast, setToast] = useState(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [showEmailOTP, setShowEmailOTP] = useState(false);
+  const [emailOTPCode, setEmailOTPCode] = useState('');
+  const [emailOTPSending, setEmailOTPSending] = useState(false);
   const autoSentRef = useRef({});
 
   const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
+
+  const handleSendEmailOTP = async () => {
+    if (!session?.user?.email) return;
+    setEmailOTPSending(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: session.user.email,
+        options: { shouldCreateUser: false },
+      });
+      if (error) throw error;
+      setToast({ type: 'success', message: lang === 'sw' ? 'OTP imetumwa kwenye email yako!' : 'OTP sent to your email!' });
+    } catch (e) {
+      setToast({ type: 'error', message: e.message });
+    } finally {
+      setEmailOTPSending(false);
+    }
+  };
+
+  const handleVerifyEmailOTP = async () => {
+    if (!session?.user?.email || !emailOTPCode) return;
+    setEmailOTPSending(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: session.user.email,
+        token: emailOTPCode,
+        type: 'email',
+      });
+      if (error) throw error;
+      localStorage.removeItem('app_googleOtpPending');
+      setShowEmailOTP(false);
+      setEmailOTPCode('');
+      setCurrentView('app');
+    } catch (e) {
+      setToast({ type: 'error', message: lang === 'sw' ? 'OTP si sahihi. Jaribu tena.' : 'Invalid OTP. Try again.' });
+    } finally {
+      setEmailOTPSending(false);
+    }
+  };
 
   useEffect(() => {
     logger.registerUI((type, message) => {
@@ -78,6 +119,12 @@ function App() {
         await supabase.auth.signOut();
         localStorage.removeItem('app_otpPending');
         setCurrentView('login');
+        setLoading(false);
+        return;
+      }
+      if (session && localStorage.getItem('app_googleOtpPending')) {
+        setSession(session);
+        setShowEmailOTP(true);
         setLoading(false);
         return;
       }
@@ -292,6 +339,13 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop?.id, lang]);
 
+  useEffect(() => {
+    if (showEmailOTP && session?.user?.email) {
+      handleSendEmailOTP();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEmailOTP]);
+
   const fetchShops = async () => {
     try {
       const uid = session.user.id;
@@ -368,6 +422,42 @@ function App() {
   }
 
   const spinnerFallback = <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" style={{ width: '32px', height: '32px' }} /></div>;
+
+  if (showEmailOTP && session) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.98)', borderRadius: '20px', padding: '36px', width: '100%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <img src="/Logo.png" alt="KasiTRADE" style={{ width: '120px', marginBottom: '20px' }} />
+          <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontSize: '18px', fontWeight: 700 }}>
+            {lang === 'sw' ? 'Thibitisha Email yako' : 'Verify Your Email'}
+          </h3>
+          <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '13px' }}>
+            {lang === 'sw'
+              ? `OTP imetumwa kwenye ${session.user.email}. Ingiza namba uliyopokea.`
+              : `OTP sent to ${session.user.email}. Enter the code you received.`}
+          </p>
+          <input type="text" value={emailOTPCode} onChange={e => setEmailOTPCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="000000" maxLength={6}
+            style={{ width: '100%', padding: '14px', border: '2px solid #e2e8f0', borderRadius: '12px', fontSize: '20px', textAlign: 'center', letterSpacing: '8px', outline: 'none', fontWeight: 700, boxSizing: 'border-box' }}
+            onKeyDown={e => { if (e.key === 'Enter') handleVerifyEmailOTP(); }} autoFocus />
+          <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+            <button onClick={() => { localStorage.removeItem('app_googleOtpPending'); supabase.auth.signOut().then(() => { setSession(null); setCurrentView('login'); setShowEmailOTP(false); }); }}
+              style={{ flex: 1, padding: '14px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '12px', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}>
+              {lang === 'sw' ? 'Ghairi' : 'Cancel'}
+            </button>
+            <button onClick={handleVerifyEmailOTP} disabled={emailOTPSending || emailOTPCode.length < 6}
+              style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', fontSize: '14px', opacity: emailOTPCode.length < 6 ? 0.6 : 1 }}>
+              {emailOTPSending ? '...' : (lang === 'sw' ? 'Thibitisha' : 'Verify')}
+            </button>
+          </div>
+          <button onClick={handleSendEmailOTP} disabled={emailOTPSending}
+            style={{ background: 'none', border: 'none', color: '#667eea', fontWeight: '600', cursor: 'pointer', fontSize: '13px', marginTop: '14px' }}>
+            {lang === 'sw' ? 'Tuma OTP tena' : 'Resend OTP'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (currentView === 'update-password') {
     return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><UpdatePassword supabase={supabase} onPasswordUpdated={handlePasswordUpdated} /></ErrorBoundary></Suspense>;
