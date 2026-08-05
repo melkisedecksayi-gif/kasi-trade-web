@@ -333,7 +333,7 @@ function App() {
   const fetchShops = async () => {
     try {
       const uid = session.user.id;
-      const { data: shopData, error: shopErr } = await supabase.from('shops').select('*');
+      const { data: shopData, error: shopErr } = await supabase.from('shops').select('*').eq('owner_id', uid);
       if (shopErr) {
         logger.error('App', 'Shops fetch error:', shopErr);
       }
