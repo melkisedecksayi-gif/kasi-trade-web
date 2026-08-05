@@ -378,7 +378,17 @@ function App() {
   };
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setSession(null); setCurrentView('login');
+    setSession(null);
+    setCurrentShop(null);
+    setShops([]);
+    setAvatarUrl(null);
+    setCurrentView('login');
+    setActivePage('dashboard');
+    setGlobalSearch('');
+    setGlobalSearchQuery('');
+    localStorage.removeItem('current_shop_id');
+    localStorage.removeItem('app_googleOtpPending');
+    localStorage.removeItem('app_otpPending');
   };
   const handleSwitchShop = (shop) => {
     setCurrentShop(shop);
