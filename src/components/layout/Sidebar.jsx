@@ -119,16 +119,7 @@ const Sidebar = ({ onLogout, activePage, setActivePage, lang, isSidebarOpen, set
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '42px', height: '42px', borderRadius: '14px',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(99,102,241,0.3)'
-            }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-              </svg>
-            </div>
+            <img src="/Logo.png" alt="KasiTRADE" style={{ width: '42px', height: '42px', borderRadius: '14px', objectFit: 'contain' }} />
             <div>
               <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: tText, letterSpacing: '-0.3px' }}>
                 KasiTRADE
