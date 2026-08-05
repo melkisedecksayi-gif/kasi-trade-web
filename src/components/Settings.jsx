@@ -20,6 +20,13 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
   const s = getStyles(isDarkMode);
 
   useEffect(() => {
+    const saved = localStorage.getItem('app_smsSettings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setSmsSettings(prev => ({ ...prev, ...parsed }));
+      } catch (e) {}
+    }
     setSmsLoaded(true);
   }, []);
 
@@ -27,6 +34,10 @@ const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, sess
     if (!currentShop?.id) return;
     setSmsSaving(true);
     try {
+      localStorage.setItem('app_smsSettings', JSON.stringify({
+        auto_close_time: smsSettings.auto_close_time,
+        low_stock_threshold: smsSettings.low_stock_threshold
+      }));
       if (smsSettings.phone && smsSettings.phone !== currentShop?.phone) {
         const { data: updatedShop } = await supabase.from('shops').update({ phone: smsSettings.phone }).eq('id', currentShop.id).select().single();
         if (updatedShop) onShopChange(updatedShop);
