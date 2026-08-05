@@ -101,15 +101,6 @@ function App() {
         return;
       }
       if (session && localStorage.getItem('app_googleOtpPending')) {
-        const verified = session.user?.amr?.some(m => m.method === 'email');
-        if (verified) {
-          localStorage.removeItem('app_googleOtpPending');
-          setShowEmailOTP(false);
-          setLoading(false);
-          setSession(session);
-          setCurrentView('app');
-          return;
-        }
         setSession(session);
         setShowEmailOTP(true);
         setLoading(false);
@@ -120,8 +111,14 @@ function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession);
+      if (event === 'SIGNED_IN' && localStorage.getItem('app_googleOtpPending')) {
+        localStorage.removeItem('app_googleOtpPending');
+        setShowEmailOTP(false);
+        setLoading(false);
+        setCurrentView('app');
+      }
     });
 
     return () => subscription.unsubscribe();
