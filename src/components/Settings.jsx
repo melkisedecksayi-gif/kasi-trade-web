@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import useEscapeKey from '../hooks/useEscapeKey';
 import getStyles from '../stylePresets';
-import logger from '../utils/logger';
 
 const Settings = ({ lang, supabase, currentShop, isDarkMode, setActivePage, session, onLogout, setIsDarkMode, setLang, shops, setShops, onShopChange }) => {
   const [toast, setToast] = useState(null);
