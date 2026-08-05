@@ -73,7 +73,14 @@ function App() {
       setCurrentView('update-password');
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session && localStorage.getItem('app_otpPending')) {
+        await supabase.auth.signOut();
+        localStorage.removeItem('app_otpPending');
+        setCurrentView('login');
+        setLoading(false);
+        return;
+      }
       setSession(session);
       if (session) setCurrentView('app');
       setLoading(false);

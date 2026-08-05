@@ -166,6 +166,7 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
       if (rpcErr) throw new Error(rpcErr.message);
 
       if (valid) {
+        localStorage.removeItem('app_otpPending');
         setOtpVerified(true);
         onAuthSuccess && onAuthSuccess();
       } else {
@@ -205,6 +206,7 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
           setAuthUser(data.user);
           setOtpNeeded(true);
           setOtpResendTimer(0);
+          localStorage.setItem('app_otpPending', 'true');
           await handleSendOTP(data.user.id, userPhone);
           setLoading(false);
           return;
