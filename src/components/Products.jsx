@@ -133,6 +133,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [productToDelete, setProductToDelete] = useState(null);
   const [toast, setToast] = useState(null);
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [viewMode, setViewMode] = useState('list');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -450,6 +451,54 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
             <option value="low">{lang === 'sw' ? 'Stock Ndogo' : 'Low'}</option>
             <option value="out">{lang === 'sw' ? 'Zimeisha' : 'Out'}</option>
           </select>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={() => setViewMode('list')}
+              title={lang === 'sw' ? 'Mwonekano wa Orodha' : 'List View'}
+              style={{
+                padding: '10px 12px',
+                border: `2px solid ${viewMode === 'list' ? '#6366f1' : th.border}`,
+                borderRadius: '10px',
+                background: viewMode === 'list' ? '#ede9fe' : th.cardBg,
+                color: viewMode === 'list' ? '#6366f1' : th.text,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              title={lang === 'sw' ? 'Mwonekano wa Gridi' : 'Grid View'}
+              style={{
+                padding: '10px 12px',
+                border: `2px solid ${viewMode === 'grid' ? '#6366f1' : th.border}`,
+                borderRadius: '10px',
+                background: viewMode === 'grid' ? '#ede9fe' : th.cardBg,
+                color: viewMode === 'grid' ? '#6366f1' : th.text,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {selectedProducts.length > 0 && (
@@ -518,10 +567,128 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
           )}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={viewMode === 'grid'
+          ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }
+          : { display: 'flex', flexDirection: 'column', gap: '12px' }
+        }>
           {filteredProducts.map(product => {
             const stockStatus = getStockStatus(product.stock);
             const categoryInfo = Categories[product.category?.toLowerCase()] || Categories.other;
+
+            if (viewMode === 'grid') {
+              return (
+                <div
+                  key={product.id}
+                  style={{
+                    background: th.cardBg,
+                    borderRadius: '12px',
+                    border: `2px solid ${selectedProducts.includes(product.id) ? '#6366f1' : th.border}`,
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px',
+                    position: 'relative'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedProducts.includes(product.id)}
+                    onChange={() => toggleSelectProduct(product.id)}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', position: 'absolute', top: '12px', left: '12px' }}
+                  />
+                  <div
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '16px',
+                      background: categoryInfo.bg,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: `2px solid ${categoryInfo.color}30`
+                    }}
+                  >
+                    {categoryInfo.svg}
+                  </div>
+                  <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: th.text, textAlign: 'center' }}>
+                    {product.name}
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: categoryInfo.color, fontWeight: '600' }}>
+                    {categoryInfo.name[lang]}
+                  </p>
+                  <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '11px', color: th.textMuted }}>
+                        {lang === 'sw' ? 'Kununua' : 'Buy'}
+                      </div>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: th.text }}>
+                        {formatCurrency(product.buy_price)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '11px', color: th.textMuted }}>
+                        {lang === 'sw' ? 'Kuuza' : 'Sell'}
+                      </div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#10b981' }}>
+                        {formatCurrency(product.sell_price)}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: '6px 12px',
+                      background: stockStatus.bg,
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: stockStatus.color
+                    }}
+                  >
+                    {product.stock} {lang === 'sw' ? 'imebaki' : 'left'}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => openEditModal(product)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        background: '#6366f1',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Icons.Edit size={16} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProductToDelete(product);
+                        setShowDeleteConfirm(true);
+                      }}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        background: '#ef4444',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Icons.Trash size={16} />
+                    </button>
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div

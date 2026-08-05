@@ -283,6 +283,86 @@ body {
   }
 }
 
+/* ---------- Micro-Interactions ---------- */
+.hover-lift {
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+.hover-lift:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.hover-glow {
+  transition: box-shadow 0.3s var(--ease-out);
+}
+.hover-glow:hover {
+  box-shadow: var(--shadow-glow-md);
+}
+
+.hover-scale {
+  transition: transform 0.2s var(--ease-out);
+}
+.hover-scale:hover {
+  transform: scale(1.04);
+}
+
+.tap-shrink:active {
+  transform: scale(0.96) !important;
+}
+
+.stagger-in > * {
+  opacity: 0;
+  animation: fadeInUp 0.4s var(--ease-out) forwards;
+}
+.stagger-in > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-in > *:nth-child(2) { animation-delay: 0.10s; }
+.stagger-in > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-in > *:nth-child(4) { animation-delay: 0.20s; }
+.stagger-in > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-in > *:nth-child(6) { animation-delay: 0.30s; }
+.stagger-in > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-in > *:nth-child(8) { animation-delay: 0.40s; }
+.stagger-in > *:nth-child(9) { animation-delay: 0.45s; }
+.stagger-in > *:nth-child(10) { animation-delay: 0.50s; }
+
+.slide-up-in {
+  animation: slideUp 0.35s var(--ease-out) forwards;
+}
+
+.number-pop {
+  animation: fadeInUp 0.5s var(--ease-spring) forwards;
+}
+
+.card-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.card-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.04) 45%, transparent 50%);
+  animation: shimmer-sweep 3s infinite;
+  pointer-events: none;
+}
+@keyframes shimmer-sweep {
+  0% { transform: translateX(-100%) rotate(0deg); }
+  100% { transform: translateX(100%) rotate(0deg); }
+}
+
+/* Skeleton pulse enhancement */
+.skeleton-pulse {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* ---------- Glass Effect ---------- */
 .glass {
   background: var(--glass-bg);

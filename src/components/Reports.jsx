@@ -37,6 +37,7 @@ const texts = {
     profit: 'Faida',
     items: 'Bidhaa',
     payment: 'Malipo',
+    paymentBreakdown: 'Mgawanyo wa Malipo',
     startDate: 'Tarehe ya Kuanza',
     endDate: 'Tarehe ya Mwisho',
     apply: 'Tekeleza',
@@ -88,6 +89,7 @@ const texts = {
     profit: 'Profit',
     items: 'Items',
     payment: 'Payment',
+    paymentBreakdown: 'Payment Methods',
     startDate: 'Start Date',
     endDate: 'End Date',
     apply: 'Apply',
@@ -548,6 +550,38 @@ const ProfitMarginGauge = ({ pct, isDarkMode }) => {
   );
 };
 
+const PaymentMethodsSVG = ({ data, isDarkMode }) => {
+  const rowH = 48;
+  const W = 520;
+  const H = 30 + data.length * rowH;
+  const pad = { top: 10, right: 110, bottom: 10, left: 110 };
+  const barH = 28;
+  const barArea = W - pad.left - pad.right;
+  const maxAmount = Math.max(...data.map(d => d.amount), 1);
+  const textColor = isDarkMode ? '#94a3b8' : '#475569';
+  const valueColor = isDarkMode ? '#e2e8f0' : '#1e293b';
+
+  return (
+    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+      {data.map((item, i) => {
+        const y = pad.top + i * rowH;
+        const barW = Math.max((item.amount / maxAmount) * barArea, 4);
+        return (
+          <g key={item.method}>
+            <text x={pad.left - 8} y={y + barH / 2 + 5} textAnchor="end" fill={textColor} fontSize="13" fontWeight={500} fontFamily="inherit">
+              {item.method}
+            </text>
+            <rect x={pad.left} y={y} width={barW} height={barH} rx="8" fill={item.color} opacity="0.85" />
+            <text x={pad.left + barW + 8} y={y + barH / 2 + 5} fill={valueColor} fontSize="12" fontWeight={600} fontFamily="inherit">
+              {formatCurrency(item.amount)} ({item.percent}%)
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
 const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme }) => {
   const t = texts[lang] || texts.en;
 
@@ -818,6 +852,24 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 20);
   }, [transactions]);
+
+  const paymentMethodData = useMemo(() => {
+    const methodMap = {};
+    transactions.forEach(tx => {
+      const method = getPaymentMethodLabel(tx.payment_method, lang);
+      methodMap[method] = (methodMap[method] || 0) + (Number(tx.total_amount) || 0);
+    });
+    const total = Object.values(methodMap).reduce((s, v) => s + v, 0) || 1;
+    const colors = ['#6366f1', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6'];
+    return Object.entries(methodMap)
+      .map(([method, amount], i) => ({
+        method,
+        amount,
+        percent: Math.round((amount / total) * 100),
+        color: colors[i % colors.length],
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [transactions, lang]);
 
   const exportToCSV = useCallback(() => {
     if (!transactions.length) return;
@@ -1400,6 +1452,25 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
             </div>
           )}
         </div>
+      </div>
+
+      <div style={{
+        background: th.cardBg,
+        borderRadius: '16px',
+        padding: '24px',
+        border: `1px solid ${th.border}`,
+        marginBottom: '24px',
+      }}>
+        <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 600, color: th.text }}>
+          {t.paymentBreakdown}
+        </h3>
+        {paymentMethodData.length > 0 ? (
+          <PaymentMethodsSVG data={paymentMethodData} isDarkMode={isDarkMode} />
+        ) : (
+          <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: th.textMuted, fontSize: '14px' }}>
+            {t.noData}
+          </div>
+        )}
       </div>
 
       <div style={{

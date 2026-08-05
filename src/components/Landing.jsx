@@ -34,39 +34,17 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
     { num: '3', title: isSw ? 'Anza Kuuza' : 'Start Selling', desc: isSw ? 'Anza kurekodi mauzo na kufuatilia biashara.' : 'Start recording sales and tracking business.' },
   ];
 
-  const bg = '#ffffff';
-  const text = '#0f172a';
-  const textSec = '#475569';
-  const border = '#e2e8f0';
-  const cardBg = '#f8fafc';
-  const cardBorder = '#e2e8f0';
-  const navBg = 'rgba(255,255,255,0.9)';
-
   return (
     <div style={{
-      minHeight: '100vh', background: bg, color: text,
+      minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)',
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", overflow: 'hidden'
     }}>
-      <style>{`
-        @media (prefers-color-scheme: dark) {
-          .landing-root { background: #0f172a !important; color: #f1f5f9 !important; }
-          .landing-nav { background: rgba(15,23,42,0.9) !important; border-color: rgba(148,163,184,0.1) !important; }
-          .landing-card { background: #1e293b !important; border-color: rgba(148,163,184,0.08) !important; }
-          .landing-text-sec { color: #94a3b8 !important; }
-          .landing-text-muted { color: #64748b !important; }
-          .landing-hero-text { color: #94a3b8 !important; }
-          .landing-footer { border-color: rgba(148,163,184,0.08) !important; color: #94a3b8 !important; }
-          .landing-stat-card { background: rgba(30,41,59,0.8) !important; border-color: rgba(148,163,184,0.08) !important; }
-          .landing-cta { background: rgba(99,102,241,0.08) !important; border-color: rgba(99,102,241,0.15) !important; }
-        }
-      `}</style>
-
       {/* Nav */}
-      <nav className="landing-nav" style={{
+      <nav style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '16px 24px', maxWidth: '1200px', margin: '0 auto',
-        borderBottom: `1px solid ${border}`,
-        background: navBg, position: 'sticky', top: 0, zIndex: 10,
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--glass-bg)', position: 'sticky', top: 0, zIndex: 10,
         backdropFilter: 'blur(20px)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -87,7 +65,7 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
             onClick={onGetStarted}
             style={{
               padding: '10px 24px', borderRadius: '12px', border: 'none',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
+              background: 'var(--gradient-primary)', color: '#fff',
               fontWeight: '700', fontSize: '14px', cursor: 'pointer'
             }}>
             {isSw ? 'Ingia / Jisajili' : 'Login / Sign Up'}
@@ -110,13 +88,13 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
           margin: '0 0 16px', letterSpacing: '-1px'
         }}>
           {isSw ? 'Dhibiti Biashara Yako' : 'Take Control of'}<br />
-          <span style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <span style={{ background: 'var(--gradient-text)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             {isSw ? 'Kwa Urahisi Kabisa' : 'Your Business'}
           </span>
         </h1>
 
-        <p className="landing-hero-text" style={{
-          fontSize: '16px', color: textSec, maxWidth: '560px', margin: '0 auto 32px', lineHeight: 1.7
+        <p style={{
+          fontSize: '16px', color: 'var(--text-secondary)', maxWidth: '560px', margin: '0 auto 32px', lineHeight: 1.7
         }}>
           {isSw
             ? 'KasiTRADE ni mfumo kamili wa uendeshaji biashara unaokuwezesha kudhibiti mauzo, bidhaa, wateja, matumizi na ripoti zote sehemu moja. Rahisi, salama, na inafanya kazi popote.'
@@ -129,7 +107,7 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
             onClick={onGetStarted}
             style={{
               padding: '14px 32px', borderRadius: '14px', border: 'none',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
+              background: 'var(--gradient-primary)', color: '#fff',
               fontWeight: '700', fontSize: '15px', cursor: 'pointer',
               boxShadow: '0 4px 20px rgba(99,102,241,0.3)'
             }}>
@@ -141,8 +119,8 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
             style={{
-              padding: '14px 32px', borderRadius: '14px', border: `1px solid ${border}`,
-              background: 'transparent', color: textSec,
+              padding: '14px 32px', borderRadius: '14px', border: '1px solid var(--border)',
+              background: 'transparent', color: 'var(--text-secondary)',
               fontWeight: '600', fontSize: '15px', cursor: 'pointer'
             }}>
             {isSw ? 'Jifunze Zaidi' : 'Learn More'}
@@ -162,12 +140,12 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
           { v: '24/7', l: isSw ? 'Online' : 'Online' },
           { v: '100%', l: isSw ? 'Salama' : 'Secure' },
         ].map((s, i) => (
-          <div key={i} className="landing-stat-card" style={{
+          <div key={i} style={{
             padding: '22px 14px', borderRadius: '14px',
-            background: cardBg, border: `1px solid ${cardBorder}`
+            background: 'var(--surface)', border: '1px solid var(--border)'
           }}>
             <div style={{ fontSize: '24px', fontWeight: '800', color: '#6366f1', marginBottom: '4px' }}>{s.v}</div>
-            <div className="landing-text-sec" style={{ fontSize: '12px', color: textSec }}>{s.l}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{s.l}</div>
           </div>
         ))}
       </div>
@@ -181,17 +159,17 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px'
         }}>
           {features.map((f, i) => (
-            <div key={i} className="landing-card" style={{
+            <div key={i} style={{
               padding: '28px', borderRadius: '16px',
-              background: cardBg, border: `1px solid ${cardBorder}`,
+              background: 'var(--surface)', border: '1px solid var(--border)',
               transition: 'transform 0.2s, box-shadow 0.2s'
             }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.06)'; }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = 'none'; }}
             >
               <IconSvg color={f.color}>{f.icon}</IconSvg>
               <h3 style={{ fontSize: '15px', fontWeight: '700', margin: '16px 0 6px' }}>{f.title}</h3>
-              <p className="landing-text-sec" style={{ fontSize: '13px', color: textSec, margin: 0, lineHeight: 1.6 }}>{f.desc}</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>{f.desc}</p>
             </div>
           ))}
         </div>
@@ -211,7 +189,7 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
             <div key={i}>
               <div style={{
                 width: '56px', height: '56px', borderRadius: '16px',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: 'var(--gradient-primary)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 margin: '0 auto 16px', fontWeight: '800', fontSize: '22px', color: '#fff',
                 boxShadow: '0 4px 16px rgba(99,102,241,0.25)'
@@ -219,7 +197,7 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
                 {s.num}
               </div>
               <h3 style={{ fontSize: '15px', fontWeight: '700', margin: '0 0 6px' }}>{s.title}</h3>
-              <p className="landing-text-sec" style={{ fontSize: '13px', color: textSec, margin: 0 }}>{s.desc}</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>{s.desc}</p>
             </div>
           ))}
         </div>
@@ -227,7 +205,7 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
 
       {/* CTA */}
       <div style={{ textAlign: 'center', padding: '0 24px 80px' }}>
-        <div className="landing-cta" style={{
+        <div style={{
           maxWidth: '700px', margin: '0 auto', padding: '48px 24px',
           borderRadius: '24px', background: 'rgba(99,102,241,0.04)',
           border: '1px solid rgba(99,102,241,0.12)'
@@ -235,14 +213,14 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
           <h2 style={{ fontSize: '24px', fontWeight: '800', margin: '0 0 12px' }}>
             {isSw ? 'Tayari Kuanza?' : 'Ready to Start?'}
           </h2>
-          <p className="landing-text-sec" style={{ fontSize: '14px', color: textSec, margin: '0 0 28px' }}>
+          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: '0 0 28px' }}>
             {isSw ? 'Jiunge na mamia ya wafanyabiashara wanaotumia KasiTRADE kukuza biashara zao.' : 'Join hundreds of business owners using KasiTRADE to grow their businesses.'}
           </p>
           <button
             onClick={onGetStarted}
             style={{
               padding: '16px 40px', borderRadius: '14px', border: 'none',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
+              background: 'var(--gradient-primary)', color: '#fff',
               fontWeight: '700', fontSize: '16px', cursor: 'pointer',
               boxShadow: '0 8px 30px rgba(99,102,241,0.35)'
             }}>
@@ -252,10 +230,10 @@ const Landing = ({ onGetStarted, lang = 'sw', setLang }) => {
       </div>
 
       {/* Footer */}
-      <footer className="landing-footer" style={{
-        borderTop: `1px solid ${border}`,
+      <footer style={{
+        borderTop: '1px solid var(--border)',
         padding: '24px', textAlign: 'center',
-        fontSize: '12px', color: '#64748b'
+        fontSize: '12px', color: 'var(--text-tertiary)'
       }}>
         KasiTRADE &copy; {new Date().getFullYear()} &middot; {isSw ? 'Tanzania' : 'Tanzania'} &middot; +255 622 995 734
       </footer>

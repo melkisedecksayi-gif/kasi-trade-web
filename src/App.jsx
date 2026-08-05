@@ -48,6 +48,7 @@ function App() {
   const [shops, setShops] = useState([]);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [toast, setToast] = useState(null);
+  const [globalSearch, setGlobalSearch] = useState('');
   const autoSentRef = useRef({});
 
   const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
@@ -563,6 +564,29 @@ function App() {
           </div>
 
           <div className="header-right flex items-center" style={{ gap: '10px' }}>
+            {/* Global Search */}
+            <div className="input-group" style={{ maxWidth: isDesktop ? '220px' : '140px' }}>
+              <span className="input-icon" style={{ left: '10px' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={theme.textSecondary} strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </span>
+              <input
+                type="text"
+                placeholder={lang === 'sw' ? 'Tafuta...' : 'Search...'}
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && globalSearch.trim()) {
+                    setActivePage('products');
+                    setGlobalSearch('');
+                  }
+                }}
+                style={{
+                  padding: '6px 10px 6px 32px', borderRadius: '8px', border: `1px solid ${theme.border}`,
+                  background: theme.surface, color: theme.text, fontSize: '12px', outline: 'none',
+                  width: '100%', boxSizing: 'border-box'
+                }}
+              />
+            </div>
             {/* Language Toggle */}
             <button
               onClick={() => { const nl = lang === 'sw' ? 'en' : 'sw'; setLang(nl); localStorage.setItem('app_lang', nl); }}
