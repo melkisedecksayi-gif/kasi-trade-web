@@ -207,7 +207,7 @@ export function Sparkline({ data = [], width = 80, height = 28, color = '#10b981
 }
 
 /* ==================== Fancy Donut (Modern 2026) ==================== */
-export function FancyDonut({ data = [], isDark = true, size = 280 }) {
+export function FancyDonut({ data = [], isDark = true, size = 180 }) {
   const [animProgress, setAnimProgress] = useState(0);
   const [hoveredIndex, setHoveredIndex] = useState(-1);
   const [countedTotal, setCountedTotal] = useState(0);
@@ -245,8 +245,8 @@ export function FancyDonut({ data = [], isDark = true, size = 280 }) {
 
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
   const cx = size / 2, cy = size / 2;
-  const strokeW = 22;
-  const r = size / 2 - 30;
+  const strokeW = 16;
+  const r = size / 2 - 20;
   const circumference = 2 * Math.PI * r;
   const gapDeg = 4;
   const totalGap = gapDeg * data.length;
@@ -277,13 +277,14 @@ export function FancyDonut({ data = [], isDark = true, size = 280 }) {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 1 }}>
-      <div style={{ position: 'relative', marginBottom: '24px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', zIndex: 1 }}>
+      {/* Donut SVG */}
+      <div style={{ position: 'relative', flexShrink: 0 }}>
         <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
           <defs>
             {segments.map((seg) => (
               <filter key={`glow-${seg.index}`} id={`glow-${seg.index}`}>
-                <feGaussianBlur stdDeviation="2.5" result="blur" />
+                <feGaussianBlur stdDeviation="2" result="blur" />
                 <feMerge>
                   <feMergeNode in="blur" />
                   <feMergeNode in="SourceGraphic" />
@@ -296,7 +297,7 @@ export function FancyDonut({ data = [], isDark = true, size = 280 }) {
           <circle cx={cx} cy={cy} r={r} fill="none"
             stroke={isDark ? 'rgba(51,65,85,0.25)' : 'rgba(226,232,240,0.6)'}
             strokeWidth={strokeW}
-            strokeDasharray="6 3"
+            strokeDasharray="4 2.5"
             strokeLinecap="round"
           />
 
@@ -318,13 +319,13 @@ export function FancyDonut({ data = [], isDark = true, size = 280 }) {
               style={{
                 cursor: 'pointer',
                 transition: 'opacity 0.3s ease, stroke-width 0.25s ease',
-                strokeWidth: hoveredIndex === seg.index ? strokeW + 4 : strokeW,
+                strokeWidth: hoveredIndex === seg.index ? strokeW + 3 : strokeW,
               }}
             />
           ))}
 
           {/* Inner circle */}
-          <circle cx={cx} cy={cy} r={r - strokeW / 2 + 2} fill={isDark ? '#1e293b' : '#ffffff'} />
+          <circle cx={cx} cy={cy} r={r - strokeW / 2 + 1} fill={isDark ? '#1e293b' : '#ffffff'} />
           <circle cx={cx} cy={cy} r={r - strokeW / 2} fill="none"
             stroke={isDark ? 'rgba(51,65,85,0.15)' : 'rgba(226,232,240,0.4)'}
             strokeWidth="1" />
@@ -332,92 +333,53 @@ export function FancyDonut({ data = [], isDark = true, size = 280 }) {
           {/* Center content */}
           {hoveredIndex >= 0 ? (
             <>
-              <text x={cx} y={cy - 14} textAnchor="middle" fill={segments[hoveredIndex]?.color || 'var(--text-primary)'}
-                fontSize="12" fontWeight="600" fontFamily="'Inter', sans-serif">
-                {segments[hoveredIndex]?.label || ''}
+              <text x={cx} y={cy - 5} textAnchor="middle" fill={segments[hoveredIndex]?.color || 'var(--text-primary)'}
+                fontSize="10" fontWeight="600" fontFamily="'Inter', sans-serif">
+                {(segments[hoveredIndex]?.label || '').length > 8 ? segments[hoveredIndex]?.label?.slice(0, 7) + '...' : segments[hoveredIndex]?.label || ''}
               </text>
               <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--text-primary)"
-                fontSize="28" fontWeight="800" fontFamily="'Inter', sans-serif" letterSpacing="-0.5px">
+                fontSize="20" fontWeight="800" fontFamily="'Inter', sans-serif" letterSpacing="-0.5px">
                 {segments[hoveredIndex]?.percentage || 0}%
-              </text>
-              <text x={cx} y={cy + 26} textAnchor="middle" fill="var(--text-secondary)"
-                fontSize="11" fontWeight="500" fontFamily="'Inter', sans-serif">
-                {segments[hoveredIndex]?.value || 0} {segments[hoveredIndex]?.value === 1 ? 'item' : 'items'}
               </text>
             </>
           ) : (
             <>
-              <text x={cx} y={cy - 16} textAnchor="middle" fill="var(--text-tertiary)"
-                fontSize="11" fontWeight="600" fontFamily="'Inter', sans-serif" letterSpacing="1px" style={{ textTransform: 'uppercase' }}>
-                JUMLA
-              </text>
-              <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--text-primary)"
-                fontSize="32" fontWeight="800" fontFamily="'Inter', sans-serif" letterSpacing="-0.5px">
+              <text x={cx} y={cy - 5} textAnchor="middle" fill="var(--text-primary)"
+                fontSize="18" fontWeight="800" fontFamily="'Inter', sans-serif" letterSpacing="-0.3px">
                 {countedTotal}
               </text>
-              <text x={cx} y={cy + 24} textAnchor="middle" fill="var(--text-secondary)"
-                fontSize="10" fontWeight="500" fontFamily="'Inter', sans-serif">
+              <text x={cx} y={cy + 11} textAnchor="middle" fill="var(--text-secondary)"
+                fontSize="9" fontWeight="600" fontFamily="'Inter', sans-serif" letterSpacing="0.3px" style={{ textTransform: 'uppercase' }}>
                 bidhaa
               </text>
             </>
           )}
-
-          {/* Outer accent ring */}
-          <circle cx={cx} cy={cy} r={r + strokeW / 2 + 6} fill="none"
-            stroke={isDark ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.06)'}
-            strokeWidth="1" />
-          <circle cx={cx} cy={cy} r={r + strokeW / 2 + 10} fill="none"
-            stroke={isDark ? 'rgba(99,102,241,0.04)' : 'rgba(99,102,241,0.03)'}
-            strokeWidth="1" />
         </svg>
       </div>
 
-      {/* Legend with progress bars */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: '8px',
-        width: '100%', maxWidth: '380px', padding: '0 4px'
-      }}>
+      {/* Compact legend beside donut */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1, minWidth: 0 }}>
         {segments.map((seg) => (
           <div
             key={seg.index}
             onMouseEnter={() => setHoveredIndex(seg.index)}
             onMouseLeave={() => setHoveredIndex(-1)}
             style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '6px 10px', borderRadius: '10px',
-              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '4px 8px', borderRadius: '8px', cursor: 'pointer',
               background: hoveredIndex === seg.index ? (isDark ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.04)') : 'transparent',
               transition: 'all 0.2s ease',
             }}
           >
             <div style={{
-              width: '8px', height: '8px', borderRadius: '50%',
+              width: '7px', height: '7px', borderRadius: '50%',
               background: seg.color, flexShrink: 0,
-              boxShadow: `0 0 8px ${seg.glow}`,
+              boxShadow: `0 0 5px ${seg.glow}`,
             }} />
-            <span style={{
-              fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)',
-              width: '90px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-            }}>
+            <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {seg.label}
             </span>
-            <div style={{
-              flex: 1, height: '5px', borderRadius: '3px',
-              background: isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.6)',
-              overflow: 'hidden', position: 'relative'
-            }}>
-              <div style={{
-                height: '100%', borderRadius: '3px',
-                background: `linear-gradient(90deg, ${seg.color}, ${seg.color}88)`,
-                width: `${seg.percentage * animProgress}%`,
-                transition: 'width 0.6s ease',
-                boxShadow: `0 0 6px ${seg.glow}`,
-              }} />
-            </div>
-            <span style={{
-              fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)',
-              fontFamily: "'Inter', sans-serif", flexShrink: 0, width: '36px', textAlign: 'right'
-            }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: seg.color, fontFamily: "'Inter', sans-serif", flexShrink: 0, marginLeft: '4px' }}>
               {Math.round(seg.percentage * animProgress)}%
             </span>
           </div>
