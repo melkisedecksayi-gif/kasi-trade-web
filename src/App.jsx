@@ -1,8 +1,9 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { supabase } from './supabaseClient';
 import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
+import { sendSMS, generateReportSMS } from './services/smsService';
 import logger from './utils/logger';
 import ErrorBoundary from './components/ErrorBoundary';
 import Toast from './components/Toast';
@@ -48,6 +49,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const autoSentRef = useRef({});
 
   const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
 
@@ -111,16 +113,161 @@ function App() {
     let lowStockInterval;
     let birthdayInterval;
 
+    const getSmsSettings = () => {
+      try {
+        const saved = localStorage.getItem('app_smsSettings');
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) { return {}; }
+    };
+
     const checkAutoClose = async () => {
-      // sms_settings table not available - skipping auto-close SMS
+      try {
+        const sms = getSmsSettings();
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const closeTime = sms.auto_close_time || '22:00';
+        if (currentTime < closeTime) return;
+
+        const today = now.toISOString().split('T')[0];
+        const sentKey = `close_${currentShop.id}_${today}`;
+        if (autoSentRef.current[sentKey]) return;
+
+        let phone = currentShop?.phone || '';
+        if (!phone) {
+          const { data: profile } = await supabase.from('profiles').select('phone').eq('id', currentShop.owner_id).maybeSingle();
+          phone = profile?.phone || '';
+        }
+        if (!phone) return;
+
+        const { data: todayTx } = await supabase.from('transactions')
+          .select('total_amount, profit, items_count, payment_method, discount, customer_id').eq('shop_id', currentShop.id).gte('created_at', today);
+        const totalRevenue = (todayTx || []).reduce((s, tx) => s + (tx.total_amount || 0), 0);
+        const totalProfit = (todayTx || []).reduce((s, tx) => s + (tx.profit || 0), 0);
+        const totalTx = (todayTx || []).length;
+        const productsSold = (todayTx || []).reduce((s, tx) => s + (tx.items_count || 0), 0);
+
+        const paymentBreakdown = {};
+        const uniqueCustomers = new Set();
+        let highestSale = 0, lowestSale = Infinity, totalDiscount = 0;
+        (todayTx || []).forEach(tx => {
+          const pm = tx.payment_method || 'cash';
+          paymentBreakdown[pm] = (paymentBreakdown[pm] || 0) + (tx.total_amount || 0);
+          if (tx.customer_id) uniqueCustomers.add(tx.customer_id);
+          if (tx.total_amount > highestSale) highestSale = tx.total_amount;
+          if (tx.total_amount < lowestSale && tx.total_amount > 0) lowestSale = tx.total_amount;
+          totalDiscount += tx.discount || 0;
+        });
+        if (lowestSale === Infinity) lowestSale = 0;
+
+        let topProducts = [];
+        try {
+          const { data: txIds } = await supabase.from('transactions').select('id').eq('shop_id', currentShop.id).gte('created_at', today);
+          if (txIds?.length) {
+            const ids = txIds.map(t => t.id);
+            const { data: items } = await supabase.from('transaction_items').select('product_name, quantity, total_price').in('transaction_id', ids);
+            const productMap = {};
+            (items || []).forEach(item => {
+              const name = item.product_name || 'Unknown';
+              if (!productMap[name]) productMap[name] = { name, total: 0, quantity: 0 };
+              productMap[name].total += item.total_price || 0;
+              productMap[name].quantity += item.quantity || 0;
+            });
+            topProducts = Object.values(productMap).sort((a, b) => b.total - a.total).slice(0, 5);
+          }
+        } catch (e) {}
+
+        const reportData = {
+          shopName: currentShop?.shop_name || '', date: today,
+          totalRevenue, totalProfit, totalTransactions: totalTx,
+          avgOrderValue: totalTx > 0 ? totalRevenue / totalTx : 0,
+          productsSold, customerCount: uniqueCustomers.size,
+          paymentBreakdown, topProducts,
+          salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
+        };
+        const message = generateReportSMS(reportData, lang);
+        const result = await sendSMS({ to: phone, message });
+        if (result.success) {
+          await supabase.from('sms_logs').insert({
+            shop_id: currentShop.id, recipient: phone, message, type: 'auto_close',
+            status: 'sent', provider_response: JSON.stringify(result.data).slice(0, 500)
+          });
+        }
+        autoSentRef.current[sentKey] = true;
+      } catch (e) { logger.warn('App', 'Auto close SMS error:', e); }
     };
 
     const checkLowStock = async () => {
-      // sms_settings table not available - skipping low stock SMS
+      try {
+        const sms = getSmsSettings();
+        const threshold = sms.low_stock_threshold || 10;
+        const today = new Date().toISOString().split('T')[0];
+        const alertKey = `stock_${currentShop.id}_${today}`;
+        if (autoSentRef.current[alertKey]) return;
+
+        const { data: lowProducts } = await supabase.from('products')
+          .select('name, stock').eq('shop_id', currentShop.id).lt('stock', threshold).limit(10);
+        if (!lowProducts?.length) return;
+
+        let phone = currentShop?.phone || '';
+        if (!phone) {
+          const { data: profile } = await supabase.from('profiles').select('phone').eq('id', currentShop.owner_id).maybeSingle();
+          phone = profile?.phone || '';
+        }
+        if (!phone) return;
+
+        const productList = lowProducts.map(p => `${p.name} (${p.stock})`).join(', ');
+        const msg = lang === 'sw'
+          ? `TAHADHARI STOCK\n\nBidhaa zifuatazo ziko chini ya ${threshold}:\n${productList}\n\n${currentShop?.shop_name || 'KasiTRADE'}`
+          : `LOW STOCK ALERT\n\nProducts below ${threshold}:\n${productList}\n\n${currentShop?.shop_name || 'KasiTRADE'}`;
+
+        const result = await sendSMS({ to: phone, message: msg });
+        if (result.success) {
+          await supabase.from('sms_logs').insert({
+            shop_id: currentShop.id, recipient: phone, message: msg, type: 'low_stock',
+            status: 'sent', provider_response: JSON.stringify(result.data).slice(0, 500)
+          });
+        }
+        autoSentRef.current[alertKey] = true;
+      } catch (e) { logger.warn('App', 'Low stock SMS error:', e); }
     };
 
     const checkBirthdays = async () => {
-      // sms_settings table not available - skipping birthday SMS
+      try {
+        const today = new Date();
+        const todayMonth = today.getMonth() + 1;
+        const todayStr = today.toISOString().split('T')[0];
+        const alertKey = `birthday_${currentShop.id}_${todayStr}`;
+        if (autoSentRef.current[alertKey]) return;
+
+        const { data: bdayCustomers } = await supabase.from('customers')
+          .select('id, name, phone, birthday').eq('shop_id', currentShop.id)
+          .not('birthday', 'is', null).limit(50);
+        if (!bdayCustomers?.length) return;
+
+        const todayBirthdays = bdayCustomers.filter(c => {
+          if (!c.birthday) return false;
+          const bday = new Date(c.birthday);
+          return (bday.getMonth() + 1) === todayMonth && bday.getDate() === today.getDate();
+        });
+        if (!todayBirthdays.length) return;
+
+        const msg = lang === 'sw'
+          ? `${currentShop?.shop_name || 'KasiTRADE'}\n\nHeri ya kuzaliwa! Tunakutakia siku njema yenye baraka. Tembelea duka letu kwa ofa maalum ya siku yako ya kuzaliwa. Karibu!`
+          : `${currentShop?.shop_name || 'KasiTRADE'}\n\nHappy Birthday! Wishing you a blessed day. Visit our shop for a special birthday offer. Welcome!`;
+
+        const recipients = todayBirthdays.map(c => c.phone).filter(Boolean);
+        if (!recipients.length) return;
+
+        for (const recipient of recipients) {
+          const result = await sendSMS({ to: recipient, message: msg });
+          await supabase.from('sms_logs').insert({
+            shop_id: currentShop.id, recipient, message: msg, type: 'birthday',
+            status: result.success ? 'sent' : 'failed',
+            provider_response: result.success ? JSON.stringify(result.data)?.slice(0, 500) : (result.error?.slice(0, 500) || '')
+          });
+        }
+        autoSentRef.current[alertKey] = true;
+      } catch (e) { logger.warn('App', 'Birthday SMS error:', e); }
     };
 
     autoCloseInterval = setInterval(checkAutoClose, 60000);
