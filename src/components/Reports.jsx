@@ -1128,51 +1128,47 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       `}</style>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-        <h1 style={{ margin: 0, fontSize: '26px', fontWeight: 700, background: th.accent, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+        <h1 style={{ margin: 0, fontSize: '26px', fontWeight: 700, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
           {t.reports}
         </h1>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={handleOpenSms} disabled={!transactions.length}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '8px',
-              padding: '10px 20px', borderRadius: '10px',
-              border: `1px solid ${th.border}`,
-              background: transactions.length ? '#6366f1' : th.border,
+              padding: '10px 20px', borderRadius: '12px',
+              border: 'none',
+              background: transactions.length ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(148,163,184,0.15)',
               color: '#fff', cursor: transactions.length ? 'pointer' : 'not-allowed',
-              fontSize: '14px', fontWeight: 600, opacity: transactions.length ? 1 : 0.5,
-              transition: 'all 0.2s'
+              fontSize: '13px', fontWeight: 700, opacity: transactions.length ? 1 : 0.5,
+              boxShadow: transactions.length ? '0 4px 16px rgba(99,102,241,0.25)' : 'none',
+              transition: 'all 0.2s ease',
+              letterSpacing: '0.2px',
             }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="4" width="20" height="16" rx="1" />
               <path d="M22 7 13.5 12.5a2 2 0 0 1-2.27.02L2 7" />
             </svg>
             {lang === 'sw' ? 'Tuma kwa SMS' : 'Send via SMS'}
           </button>
           <button onClick={exportToCSV} disabled={!transactions.length}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 20px',
-            borderRadius: '10px',
-            border: `1px solid ${th.border}`,
-            background: transactions.length ? th.accent : th.border,
-            color: '#fff',
-            cursor: transactions.length ? 'pointer' : 'not-allowed',
-            fontSize: '14px',
-            fontWeight: 600,
-            opacity: transactions.length ? 1 : 0.5,
-            transition: 'all 0.2s',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          {t.exportCSV}
-        </button>
-
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              padding: '10px 20px', borderRadius: '12px',
+              border: 'none',
+              background: transactions.length ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(148,163,184,0.15)',
+              color: '#fff', cursor: transactions.length ? 'pointer' : 'not-allowed',
+              fontSize: '13px', fontWeight: 700, opacity: transactions.length ? 1 : 0.5,
+              boxShadow: transactions.length ? '0 4px 16px rgba(99,102,241,0.25)' : 'none',
+              transition: 'all 0.2s ease',
+              letterSpacing: '0.2px',
+            }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            {t.exportCSV}
+          </button>
           <button onClick={() => {
             const rows = transactions.map(tx => [
               tx.id?.slice(0, 8) || '-',
@@ -1188,42 +1184,38 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
               totals: ['', '', '', (transactions.reduce((s, t) => s + (t.total_amount || 0), 0)).toLocaleString(), (transactions.reduce((s, t) => s + (t.profit || 0), 0)).toLocaleString()],
             });
           }} disabled={!transactions.length}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            padding: '10px 20px', borderRadius: '10px',
-            border: `1px solid ${th.border}`,
-            background: transactions.length ? '#10b981' : th.border,
-            color: '#fff', cursor: transactions.length ? 'pointer' : 'not-allowed',
-            fontSize: '14px', fontWeight: 600, opacity: transactions.length ? 1 : 0.5,
-            transition: 'all 0.2s',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 12H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-3"/><rect width="10" height="8" x="7" y="13" rx="1"/>
-          </svg>
-           {lang === 'sw' ? 'Chapisha' : 'Print'}
-        </button>
-
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              padding: '10px 20px', borderRadius: '12px',
+              border: 'none',
+              background: transactions.length ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(148,163,184,0.15)',
+              color: '#fff', cursor: transactions.length ? 'pointer' : 'not-allowed',
+              fontSize: '13px', fontWeight: 700, opacity: transactions.length ? 1 : 0.5,
+              boxShadow: transactions.length ? '0 4px 16px rgba(16,185,129,0.25)' : 'none',
+              transition: 'all 0.2s ease',
+              letterSpacing: '0.2px',
+            }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 12H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-3"/><rect width="10" height="8" x="7" y="13" rx="1"/>
+            </svg>
+            {lang === 'sw' ? 'Chapisha' : 'Print'}
+          </button>
           <button
             onClick={() => { setEodPhone(currentShop?.phone || ''); setEodResult(null); setShowEodModal(true); }}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              borderRadius: '8px',
-              border: `1px solid ${th.border}`,
-              background: '#ef4444',
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 600,
-              transition: 'all 0.2s',
-              opacity: 0.9,
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '10px 20px', borderRadius: '12px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+              color: '#fff', cursor: 'pointer',
+              fontSize: '13px', fontWeight: 700,
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 16px rgba(239,68,68,0.2)',
+              letterSpacing: '0.2px',
             }}
             title={lang === 'sw' ? 'Funga Duka - Tuma Ripoti ya Leo kwa SMS' : 'Close Day - Send Today Report via SMS'}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
             </svg>
             {t.closeDuka}
@@ -1233,61 +1225,71 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
 
       <div style={{
         display: 'flex',
-        gap: '8px',
+        gap: '6px',
         marginBottom: '24px',
         flexWrap: 'wrap',
-        background: th.cardBg,
-        padding: '6px',
-        borderRadius: '14px',
+        alignItems: 'center',
+        background: isDarkMode ? 'rgba(30,41,59,0.6)' : 'rgba(241,245,249,0.8)',
+        padding: '5px',
+        borderRadius: '16px',
         border: `1px solid ${th.border}`,
+        backdropFilter: 'blur(10px)',
       }}>
         {periodTabs.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             style={{
-              padding: '8px 18px',
-              borderRadius: '10px',
+              padding: '9px 20px',
+              borderRadius: '12px',
               border: 'none',
               cursor: 'pointer',
               fontSize: '13px',
-              fontWeight: 600,
-              background: activeTab === tab.key ? th.accent : 'transparent',
+              fontWeight: 700,
+              background: activeTab === tab.key
+                ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                : 'transparent',
               color: activeTab === tab.key ? '#fff' : th.textMuted,
-              transition: 'all 0.2s',
+              boxShadow: activeTab === tab.key ? '0 2px 12px rgba(99,102,241,0.3)' : 'none',
+              transition: 'all 0.2s ease',
               whiteSpace: 'nowrap',
+              letterSpacing: '0.2px',
             }}
           >
             {tab.label}
           </button>
         ))}
         {activeTab === 'custom' && (
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '4px', padding: '0 4px' }}>
             <input
               type="date"
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
               style={{
-                padding: '8px 12px',
-                borderRadius: '8px',
+                padding: '8px 14px',
+                borderRadius: '10px',
                 border: `1px solid ${th.border}`,
-                background: th.cardBg,
+                background: th.surface,
                 color: th.text,
-                fontSize: '13px',
+                fontSize: '12px',
+                fontWeight: 600,
+                outline: 'none',
               }}
             />
-            <span style={{ color: th.textMuted, fontSize: '13px' }}>-</span>
+            <span style={{ color: th.textMuted, fontSize: '13px', fontWeight: 600 }}>-</span>
             <input
               type="date"
               value={customEnd}
               onChange={(e) => setCustomEnd(e.target.value)}
               style={{
-                padding: '8px 12px',
-                borderRadius: '8px',
+                padding: '8px 14px',
+                borderRadius: '10px',
                 border: `1px solid ${th.border}`,
-                background: th.cardBg,
+                background: th.surface,
                 color: th.text,
-                fontSize: '13px',
+                fontSize: '12px',
+                fontWeight: 600,
+                outline: 'none',
               }}
             />
           </div>
@@ -1297,29 +1299,47 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '16px',
+        gap: '14px',
         marginBottom: '24px',
       }}>
         {kpis.map((kpi, idx) => (
           <div
             key={idx}
             style={{
-              background: th.cardBg,
+              background: isDarkMode ? 'linear-gradient(135deg, rgba(30,41,59,0.9), rgba(30,41,59,0.6))' : 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.7))',
               borderRadius: '16px',
-              padding: '20px',
-              border: `1px solid ${th.border}`,
+              padding: '20px 22px',
+              border: `1px solid ${isDarkMode ? 'rgba(148,163,184,0.1)' : 'rgba(226,232,240,0.8)'}`,
               position: 'relative',
               overflow: 'hidden',
+              backdropFilter: 'blur(12px)',
+              boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.04)',
+              transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-3px)';
+              e.currentTarget.style.boxShadow = isDarkMode ? '0 12px 32px rgba(99,102,241,0.15)' : '0 12px 28px rgba(99,102,241,0.1)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = '';
+              e.currentTarget.style.boxShadow = isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.04)';
             }}
           >
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: kpi.gradient }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-              {iconMap[kpi.icon] || <Icons.Box size={22} color={th.textMuted} />}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: kpi.gradient, borderRadius: '3px 3px 0 0' }} />
+            <div style={{ position: 'absolute', top: '-28px', right: '-20px', width: '90px', height: '90px', borderRadius: '50%', background: kpi.gradient, opacity: 0.05 }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+              <div style={{
+                width: '42px', height: '42px', borderRadius: '12px',
+                background: `${kpi.gradient.split(',')[0].replace('linear-gradient(135deg,', '').trim()}20`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {iconMap[kpi.icon] || <Icons.Box size={20} color={th.textMuted} />}
+              </div>
             </div>
-            <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: th.textMuted, fontWeight: 500 }}>
+            <p style={{ margin: '0 0 5px 0', fontSize: '12px', color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
               {kpi.label}
             </p>
-            <p style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: th.text }}>
+            <p style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: th.text, letterSpacing: '-0.3px', lineHeight: 1 }}>
               {kpi.value}
             </p>
           </div>
@@ -1329,18 +1349,37 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: '16px',
+        gap: '14px',
         marginBottom: '24px',
       }}>
         <div style={{
           background: th.cardBg,
           borderRadius: '16px',
-          padding: '24px',
+          padding: '22px',
           border: `1px solid ${th.border}`,
+          transition: 'all 0.25s ease',
+          boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.03)',
         }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 600, color: th.text }}>
-            {t.salesTrend}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                boxShadow: '0 0 8px rgba(99,102,241,0.4)',
+              }} />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: th.text, letterSpacing: '-0.2px' }}>
+                {t.salesTrend}
+              </h3>
+            </div>
+            <span style={{
+              fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px',
+              background: isDarkMode ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)',
+              color: th.primaryLight || '#818cf8',
+              textTransform: 'uppercase', letterSpacing: '0.4px',
+            }}>
+              {salesTrendData.length} {lang === 'sw' ? 'Vipindi' : 'Periods'}
+            </span>
+          </div>
           {salesTrendData.length > 0 ? (
             <div style={{ width: '100%', height: '300px' }}>
               <SalesTrendSVG data={salesTrendData} isDarkMode={isDarkMode} t={t} />
@@ -1355,12 +1394,31 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         <div style={{
           background: th.cardBg,
           borderRadius: '16px',
-          padding: '24px',
+          padding: '22px',
           border: `1px solid ${th.border}`,
+          transition: 'all 0.25s ease',
+          boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.03)',
         }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 600, color: th.text }}>
-            {t.topProducts}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                boxShadow: '0 0 8px rgba(245,158,11,0.4)',
+              }} />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: th.text, letterSpacing: '-0.2px' }}>
+                {t.topProducts}
+              </h3>
+            </div>
+            <span style={{
+              fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px',
+              background: isDarkMode ? 'rgba(245,158,11,0.12)' : 'rgba(245,158,11,0.08)',
+              color: isDarkMode ? '#fbbf24' : '#d97706',
+              textTransform: 'uppercase', letterSpacing: '0.4px',
+            }}>
+              {lang === 'sw' ? 'Juu 10' : 'Top 10'}
+            </span>
+          </div>
           {topProductsData.length > 0 ? (
             <div style={{ width: '100%', height: '300px' }}>
               <TopProductsSVG data={topProductsData} isDarkMode={isDarkMode} t={t} />
@@ -1376,18 +1434,37 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: '16px',
+        gap: '14px',
         marginBottom: '24px',
       }}>
         <div style={{
           background: th.cardBg,
           borderRadius: '16px',
-          padding: '24px',
+          padding: '22px',
           border: `1px solid ${th.border}`,
+          transition: 'all 0.25s ease',
+          boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.03)',
         }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 600, color: th.text }}>
-            {t.salesByCategory}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
+                boxShadow: '0 0 8px rgba(6,182,212,0.4)',
+              }} />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: th.text, letterSpacing: '-0.2px' }}>
+                {t.salesByCategory}
+              </h3>
+            </div>
+            <span style={{
+              fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px',
+              background: isDarkMode ? 'rgba(6,182,212,0.12)' : 'rgba(6,182,212,0.08)',
+              color: isDarkMode ? '#22d3ee' : '#0891b2',
+              textTransform: 'uppercase', letterSpacing: '0.4px',
+            }}>
+              {categoryData.length} {lang === 'sw' ? 'Kategoria' : 'Categories'}
+            </span>
+          </div>
           {categoryData.length > 0 ? (
             <div style={{ width: '100%', height: '300px' }}>
               <CategoryPieSVG data={categoryData} isDarkMode={isDarkMode} />
@@ -1402,30 +1479,49 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         <div style={{
           background: th.cardBg,
           borderRadius: '16px',
-          padding: '24px',
+          padding: '22px',
           border: `1px solid ${th.border}`,
+          transition: 'all 0.25s ease',
+          boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.03)',
         }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 600, color: th.text }}>
-            {t.profitMargin}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                boxShadow: '0 0 8px rgba(16,185,129,0.4)',
+              }} />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: th.text, letterSpacing: '-0.2px' }}>
+                {t.profitMargin}
+              </h3>
+            </div>
+            <span style={{
+              fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px',
+              background: isDarkMode ? 'rgba(16,185,129,0.12)' : 'rgba(16,185,129,0.08)',
+              color: isDarkMode ? '#34d399' : '#059669',
+              textTransform: 'uppercase', letterSpacing: '0.4px',
+            }}>
+              {profitMarginData.marginPercent.toFixed(1)}%
+            </span>
+          </div>
           {profitMarginData.totalRevenue > 0 ? (
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                <div style={{ padding: '16px', borderRadius: '12px', background: isDarkMode ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)' }}>
-                  <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: th.textMuted }}>{t.revenue}</p>
-                  <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: GRADIENT_START }}>{formatCurrency(profitMarginData.totalRevenue)}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '18px' }}>
+                <div style={{ padding: '14px', borderRadius: '12px', background: isDarkMode ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)', border: `1px solid ${isDarkMode ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)'}` }}>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{t.revenue}</p>
+                  <p style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: GRADIENT_START }}>{formatCurrency(profitMarginData.totalRevenue)}</p>
                 </div>
-                <div style={{ padding: '16px', borderRadius: '12px', background: isDarkMode ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.06)' }}>
-                  <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: th.textMuted }}>{t.profit}</p>
-                  <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: isDarkMode ? '#6ee7b7' : '#059669' }}>{formatCurrency(profitMarginData.totalProfit)}</p>
+                <div style={{ padding: '14px', borderRadius: '12px', background: isDarkMode ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.06)', border: `1px solid ${isDarkMode ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.08)'}` }}>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{t.profit}</p>
+                  <p style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: isDarkMode ? '#6ee7b7' : '#059669' }}>{formatCurrency(profitMarginData.totalProfit)}</p>
                 </div>
-                <div style={{ padding: '16px', borderRadius: '12px', background: isDarkMode ? 'rgba(245,158,11,0.1)' : 'rgba(245,158,11,0.06)' }}>
-                  <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: th.textMuted }}>{t.cost}</p>
-                  <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: isDarkMode ? '#fcd34d' : '#b45309' }}>{formatCurrency(profitMarginData.totalCost)}</p>
+                <div style={{ padding: '14px', borderRadius: '12px', background: isDarkMode ? 'rgba(245,158,11,0.1)' : 'rgba(245,158,11,0.06)', border: `1px solid ${isDarkMode ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.08)'}` }}>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{t.cost}</p>
+                  <p style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: isDarkMode ? '#fcd34d' : '#b45309' }}>{formatCurrency(profitMarginData.totalCost)}</p>
                 </div>
-                <div style={{ padding: '16px', borderRadius: '12px', background: isDarkMode ? 'rgba(139,92,246,0.1)' : 'rgba(139,92,246,0.06)' }}>
-                  <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: th.textMuted }}>{t.marginPercent}</p>
-                  <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: GRADIENT_END }}>{profitMarginData.marginPercent.toFixed(1)}%</p>
+                <div style={{ padding: '14px', borderRadius: '12px', background: isDarkMode ? 'rgba(139,92,246,0.1)' : 'rgba(139,92,246,0.06)', border: `1px solid ${isDarkMode ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.08)'}` }}>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{t.marginPercent}</p>
+                  <p style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: GRADIENT_END }}>{profitMarginData.marginPercent.toFixed(1)}%</p>
                 </div>
               </div>
 
@@ -1435,8 +1531,8 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
                 </div>
               </div>
 
-              <div style={{ marginTop: '8px', padding: '12px', borderRadius: '10px', background: th.gradientBg }}>
-                <p style={{ margin: 0, fontSize: '13px', color: th.text, lineHeight: 1.6 }}>
+              <div style={{ marginTop: '8px', padding: '14px', borderRadius: '12px', background: isDarkMode ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.04)', border: `1px solid ${isDarkMode ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)'}` }}>
+                <p style={{ margin: 0, fontSize: '13px', color: th.text, lineHeight: 1.6, fontWeight: 500 }}>
                   {lang === 'sw'
                     ? `Katika kipindi hiki, faida ni ${formatCurrency(profitMarginData.totalProfit)} kutoka mapato ya ${formatCurrency(profitMarginData.totalRevenue)}, ikiwa ni kiwango cha faida cha ${profitMarginData.marginPercent.toFixed(1)}%.`
                     : `During this period, profit is ${formatCurrency(profitMarginData.totalProfit)} from revenue of ${formatCurrency(profitMarginData.totalRevenue)}, resulting in a profit margin of ${profitMarginData.marginPercent.toFixed(1)}%.`
@@ -1455,13 +1551,22 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       <div style={{
         background: th.cardBg,
         borderRadius: '16px',
-        padding: '24px',
+        padding: '22px',
         border: `1px solid ${th.border}`,
         marginBottom: '24px',
+        transition: 'all 0.25s ease',
+        boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.03)',
       }}>
-        <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 600, color: th.text }}>
-          {t.paymentBreakdown}
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+          <div style={{
+            width: '8px', height: '8px', borderRadius: '50%',
+            background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+            boxShadow: '0 0 8px rgba(139,92,246,0.4)',
+          }} />
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: th.text, letterSpacing: '-0.2px' }}>
+            {t.paymentBreakdown}
+          </h3>
+        </div>
         {paymentMethodData.length > 0 ? (
           <PaymentMethodsSVG data={paymentMethodData} isDarkMode={isDarkMode} />
         ) : (
@@ -1474,13 +1579,22 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       <div style={{
         background: th.cardBg,
         borderRadius: '16px',
-        padding: '24px',
+        padding: '22px',
         border: `1px solid ${th.border}`,
         overflow: 'hidden',
+        transition: 'all 0.25s ease',
+        boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.2)' : '0 2px 12px rgba(0,0,0,0.03)',
       }}>
-        <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 600, color: th.text }}>
-          {t.recentTransactions}
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+          <div style={{
+            width: '8px', height: '8px', borderRadius: '50%',
+            background: 'linear-gradient(135deg, #ec4899, #db2777)',
+            boxShadow: '0 0 8px rgba(236,72,153,0.4)',
+          }} />
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: th.text, letterSpacing: '-0.2px' }}>
+            {t.recentTransactions}
+          </h3>
+        </div>
         {recentTransactions.length > 0 ? (
           <div className="report-scroll" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -1614,11 +1728,12 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
                     {lang === 'sw' ? 'Mfano wa Ujumbe' : 'Message Preview'}
                   </label>
                   <div style={{
-                    padding: '14px', borderRadius: '10px',
-                    background: isDarkMode ? '#0f172a' : '#f8fafc',
-                    border: `1px solid ${th.border}`,
+                    padding: '16px', borderRadius: '12px',
+                    background: isDarkMode ? 'linear-gradient(135deg, #0f172a, #1e293b)' : 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+                    border: `1px solid ${isDarkMode ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)'}`,
                     fontSize: '12px', color: th.text, fontFamily: "'Inter', monospace",
-                    whiteSpace: 'pre-wrap', lineHeight: 1.7, maxHeight: '200px', overflowY: 'auto'
+                    whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: '200px', overflowY: 'auto',
+                    boxShadow: isDarkMode ? 'inset 0 2px 8px rgba(0,0,0,0.3)' : 'inset 0 2px 8px rgba(0,0,0,0.03)',
                   }}>
                     {smsPreviewData ? generateReportSMS(smsPreviewData, lang) : (lang === 'sw' ? 'Hakuna data ya leo' : 'No data for today')}
                   </div>
