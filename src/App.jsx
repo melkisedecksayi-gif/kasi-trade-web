@@ -9,6 +9,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Toast from './components/Toast';
 import Sidebar, { SIDEBAR_WIDTH } from './components/layout/Sidebar';
 import Footer from './components/Footer';
+import AIAssistant from './components/AIAssistant';
 import './design.css';
 
 const Landing = lazy(() => import('./components/Landing'));
@@ -51,6 +52,7 @@ function App() {
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [showEmailOTP, setShowEmailOTP] = useState(false);
   const [emailOTPSending, setEmailOTPSending] = useState(false);
+  const [showAI, setShowAI] = useState(false);
   const autoSentRef = useRef({});
 
   const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
@@ -646,6 +648,22 @@ function App() {
         </div>
 
         <Footer lang={lang} isDarkMode={isDarkMode} setActivePage={setActivePage} theme={theme} />
+
+        {/* AI Assistant FAB */}
+        {!showAI && (
+          <button onClick={() => setShowAI(true)} style={{
+            position: 'fixed', bottom: '24px', right: '24px', zIndex: 9998,
+            width: '56px', height: '56px', borderRadius: '50%', border: 'none',
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            color: '#fff', fontSize: '22px', cursor: 'pointer',
+            boxShadow: '0 4px 20px rgba(99,102,241,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: 'fadeInScale 0.3s ease',
+          }}>🤖</button>
+        )}
+        {showAI && (
+          <AIAssistant isDarkMode={isDarkMode} lang={lang} theme={theme} onClose={() => setShowAI(false)} />
+        )}
       </div>
 
       {toast && (
