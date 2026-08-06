@@ -237,13 +237,14 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
         }
 
         await supabase.auth.signOut();
-        showToast(
-          lang === 'sw'
-            ? 'Akaunti haina namba ya simu. Wasiliana na support kuongeza namba yako.'
-            : 'Account has no phone number. Contact support to add your phone.',
-          'error'
-        );
+        localStorage.setItem('app_googleOtpPending', 'true');
+        const { error: otpErr } = await supabase.auth.signInWithOtp({
+          email,
+          options: { shouldCreateUser: false },
+        });
+        if (otpErr) throw otpErr;
         setLoading(false);
+        window.location.reload();
         return;
       }
     } catch (err) {
