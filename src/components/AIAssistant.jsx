@@ -4,8 +4,8 @@ const AIAssistant = ({ isDarkMode, lang, theme, onClose }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('app_openai_key') || '');
-  const [showSettings, setShowSettings] = useState(!localStorage.getItem('app_openai_key'));
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('app_groq_key') || '');
+  const [showSettings, setShowSettings] = useState(!localStorage.getItem('app_groq_key'));
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const isSw = lang === 'sw';
@@ -46,14 +46,14 @@ const AIAssistant = ({ isDarkMode, lang, theme, onClose }) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 20000);
 
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'llama-3.1-8b-instant',
           messages: [systemPrompt, ...messages.slice(-10), userMsg],
           max_tokens: 300,
           temperature: 0.7,
@@ -86,7 +86,7 @@ const AIAssistant = ({ isDarkMode, lang, theme, onClose }) => {
 
   const handleSaveKey = () => {
     if (apiKey.trim()) {
-      localStorage.setItem('app_openai_key', apiKey.trim());
+      localStorage.setItem('app_groq_key', apiKey.trim());
       setShowSettings(false);
     }
   };
@@ -135,11 +135,11 @@ const AIAssistant = ({ isDarkMode, lang, theme, onClose }) => {
       {showSettings && (
         <div style={{ padding: '16px', borderBottom: `1px solid ${t.border || 'var(--border)'}` }}>
           <label style={{ fontSize: '12px', fontWeight: 600, color: t.text || 'var(--text-primary)', display: 'block', marginBottom: '8px' }}>
-            {isSw ? 'OpenAI API Key' : 'OpenAI API Key'}
+            {isSw ? 'Groq API Key (Bure)' : 'Groq API Key (Free)'}
           </label>
           <div style={{ display: 'flex', gap: '8px' }}>
             <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
-              placeholder="sk-..."
+              placeholder="gsk_..."
               style={{
                 flex: 1, padding: '8px 12px', borderRadius: '8px',
                 border: `1px solid ${t.border || 'var(--border)'}`,
@@ -154,7 +154,7 @@ const AIAssistant = ({ isDarkMode, lang, theme, onClose }) => {
             }}>{isSw ? 'Hifadhi' : 'Save'}</button>
           </div>
           <p style={{ fontSize: '10px', color: t.textSecondary || 'var(--text-secondary)', margin: '6px 0 0' }}>
-            {isSw ? 'Pata API key kutoka platform.openai.com/api-keys' : 'Get API key from platform.openai.com/api-keys'}
+            {isSw ? 'Pata API key bure kutoka console.groq.com/keys' : 'Get free API key from console.groq.com/keys'}
           </p>
         </div>
       )}
