@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
+import GROQ_API_KEY from '../services/groqKey';
 
 const SYSTEM_PROMPT_SW = `Wewe ni KasiAI, msaidizi wa KasiTRADE POS System. Jibu kwa Kiswahili kwa ufupi na kwa maneno rahisi. KasiTRADE ni mfumo wa POS (Point of Sale) unaosaidia kudhibiti: Mauzo, Bidhaa (Stock), Wateja, Ripoti, Matumizi, Wauzaji. Features: Ongeza bidhaa, rekodi mauzo, angalia faida, pokea malipo kwa fedha/simu/kadi, tuma risiti kwa SMS, angalia hesabu ya bidhaa. Jibu kwa kirefu (max mistari 5). Kuwa na tabasamu.`;
 const SYSTEM_PROMPT_EN = `You are KasiAI, assistant for KasiTRADE POS System. Be brief and helpful. KasiTRADE is a POS system managing: Sales, Products (Stock), Customers, Reports, Expenses, Suppliers. Keep responses under 5 lines. Be friendly.`;
 
-const API_KEY = process.env.REACT_APP_GROQ_KEY || '';
+const API_KEY = GROQ_API_KEY;
 const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const AIAssistant = ({ isDarkMode, lang, theme, onClose }) => {
@@ -61,13 +62,14 @@ const AIAssistant = ({ isDarkMode, lang, theme, onClose }) => {
           'Authorization': `Bearer ${API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: 'openai/gpt-oss-20b',
+          reasoning_effort: 'low',
           messages: [
             { role: 'system', content: isSw ? SYSTEM_PROMPT_SW : SYSTEM_PROMPT_EN },
             ...messages.slice(-6),
             userMsg,
           ],
-          max_tokens: 250,
+          max_tokens: 512,
           temperature: 0.7,
         }),
         signal: controller.signal,

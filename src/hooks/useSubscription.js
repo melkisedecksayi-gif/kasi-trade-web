@@ -4,6 +4,20 @@ import { supabase } from '../supabaseClient';
 const MONTHLY_PRICE = 12000;
 const TRIAL_DAYS = 14;
 
+const normalize = (data) => (Array.isArray(data) ? data[0] : data) || null;
+
+// Hesabu hali halisi kutoka tarehe (bila kuandika kwenye database)
+const effectiveStatus = (sub) => {
+  if (!sub) return null;
+  const now = new Date();
+  const trialEnd = sub.trial_end ? new Date(sub.trial_end) : null;
+  const subEnd = sub.subscription_end ? new Date(sub.subscription_end) : null;
+
+  if (sub.status === 'trial' && trialEnd && now > trialEnd) return 'expired';
+  if (sub.status === 'active' && subEnd && now > subEnd) return 'expired';
+  return sub.status;
+};
+
 export function useSubscription(session) {
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,47 +37,19 @@ export function useSubscription(session) {
 
       if (err) throw err;
 
-      if (data) {
-        const now = new Date();
-        const trialEnd = data.trial_end ? new Date(data.trial_end) : null;
-        const subEnd = data.subscription_end ? new Date(data.subscription_end) : null;
+      let sub = data;
 
-        let status = data.status;
-        if (status === 'trial' && trialEnd && now > trialEnd) {
-          status = 'expired';
-        } else if (status === 'active' && subEnd && now > subEnd) {
-          status = 'expired';
-        }
+      // Hana rekodi? Unda trial kwa usalama (server-side function)
+      if (!sub) {
+        const { data: created, error: cErr } = await supabase.rpc('ensure_subscription');
+        if (cErr) throw cErr;
+        sub = normalize(created);
+      }
 
-        if (status !== data.status) {
-          await supabase
-            .from('subscriptions')
-            .update({ status })
-            .eq('id', data.id);
-          data.status = status;
-        }
-
-        setSubscription(data);
+      if (sub) {
+        setSubscription({ ...sub, status: effectiveStatus(sub) });
       } else {
-        const now = new Date();
-        const trialEnd = new Date(now);
-        trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
-
-        const { data: newSub, error: insErr } = await supabase
-          .from('subscriptions')
-          .insert({
-            user_id: session.user.id,
-            plan: 'monthly',
-            status: 'trial',
-            trial_start: now.toISOString(),
-            trial_end: trialEnd.toISOString(),
-            amount: MONTHLY_PRICE,
-          })
-          .select()
-          .single();
-
-        if (insErr) throw insErr;
-        setSubscription(newSub);
+        setSubscription(null);
       }
     } catch (e) {
       setError(e.message);
@@ -75,11 +61,6 @@ export function useSubscription(session) {
   useEffect(() => {
     fetchSubscription();
   }, [fetchSubscription]);
-
-  const canAccess = () => {
-    if (!subscription) return false;
-    return subscription.status === 'trial' || subscription.status === 'active';
-  };
 
   const getDaysRemaining = () => {
     if (!subscription) return 0;
@@ -127,52 +108,21 @@ export function useSubscription(session) {
     }
   };
 
-  const activateSubscription = async (paymentMethod, paymentReference) => {
-    try {
-      const now = new Date();
-      const endDate = new Date(now);
-      endDate.setMonth(endDate.getMonth() + 1);
+  // Huvunja tu ikiwa code si sahihi (server-side function inahakiki)
+  const activateSubscription = async (code) => {
+    const { data, error: err } = await supabase.rpc('activate_subscription', {
+      p_code: code,
+    });
+    if (err) throw err;
+    const sub = normalize(data);
+    if (sub) setSubscription({ ...sub, status: effectiveStatus(sub) });
+    await fetchSubscription();
+    return true;
+  };
 
-      if (subscription?.id) {
-        const { error: err } = await supabase
-          .from('subscriptions')
-          .update({
-            status: 'active',
-            subscription_start: now.toISOString(),
-            subscription_end: endDate.toISOString(),
-            payment_method: paymentMethod,
-            payment_reference: paymentReference,
-            payment_status: 'paid',
-            amount: MONTHLY_PRICE,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', subscription.id);
-        if (err) throw err;
-      } else {
-        const { error: err } = await supabase
-          .from('subscriptions')
-          .insert({
-            user_id: session.user.id,
-            plan: 'monthly',
-            status: 'active',
-            trial_start: null,
-            trial_end: null,
-            subscription_start: now.toISOString(),
-            subscription_end: endDate.toISOString(),
-            payment_method: paymentMethod,
-            payment_reference: paymentReference,
-            payment_status: 'paid',
-            amount: MONTHLY_PRICE,
-          });
-        if (err) throw err;
-      }
-
-      await fetchSubscription();
-      return true;
-    } catch (e) {
-      setError(e.message);
-      return false;
-    }
+  const canAccess = () => {
+    if (!subscription) return false;
+    return subscription.status === 'trial' || subscription.status === 'active';
   };
 
   return {

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import getStyles from '../stylePresets';
+import PAYMENT from '../config/payment';
 
 const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining, statusBadge, activateSubscription, refresh, MONTHLY_PRICE }) => {
   const [paymentStep, setPaymentStep] = useState('select'); // select | confirm | done
   const [paymentMethod, setPaymentMethod] = useState('mobile');
-  const [paymentRef, setPaymentRef] = useState('');
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,22 +22,18 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
   };
 
   const handleSubmitPayment = async () => {
-    if (!paymentRef.trim()) {
-      setError(isSw ? 'Ingiza namba ya kumbukumbu ya malipo' : 'Enter payment reference number');
+    if (!code.trim()) {
+      setError(isSw ? 'Ingiza code ya kuwasha uliyopewa' : 'Enter the activation code you were given');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const success = await activateSubscription(paymentMethod, paymentRef);
-      if (success) {
-        setPaymentStep('done');
-        if (refresh) refresh();
-      } else {
-        setError(isSw ? 'Imeshindwa kusasisha. Jaribu tena.' : 'Update failed. Try again.');
-      }
+      await activateSubscription(code.trim());
+      setPaymentStep('done');
+      if (refresh) refresh();
     } catch (e) {
-      setError(e.message);
+      setError(e.message || (isSw ? 'Imeshindwa kuwasha. Jaribu tena.' : 'Activation failed. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -226,11 +223,11 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{isSw ? 'Namba ya Malipo:' : 'Payment Number:'}</span>
-                      <span style={{ fontWeight: '700' }}>0712 345 678</span>
+                      <span style={{ fontWeight: '700' }}>{PAYMENT.mobile.number}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{isSw ? 'Jina:' : 'Name:'}</span>
-                      <span style={{ fontWeight: '700' }}>KasiTRADE</span>
+                      <span style={{ fontWeight: '700' }}>{PAYMENT.mobile.name}</span>
                     </div>
                   </div>
                 )}
@@ -241,15 +238,15 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{isSw ? 'Benki:' : 'Bank:'}</span>
-                      <span style={{ fontWeight: '700' }}>NMB / CRDB</span>
+                      <span style={{ fontWeight: '700' }}>{PAYMENT.bank.bank}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{isSw ? 'Akaunti:' : 'Account:'}</span>
-                      <span style={{ fontWeight: '700' }}>0123456789</span>
+                      <span style={{ fontWeight: '700' }}>{PAYMENT.bank.account}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{isSw ? 'Jina:' : 'Name:'}</span>
-                      <span style={{ fontWeight: '700' }}>KasiTRADE</span>
+                      <span style={{ fontWeight: '700' }}>{PAYMENT.bank.name}</span>
                     </div>
                   </div>
                 )}
@@ -265,17 +262,17 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
 
               <div style={{ marginBottom: '14px' }}>
                 <div style={{ fontSize: '12px', fontWeight: '600', color: th.text || '#0f172a', marginBottom: '6px' }}>
-                  {isSw ? 'Namba ya Kumbukumbu ya Malipo' : 'Payment Reference Number'}
+                  {isSw ? 'Code ya Kuwasha Akaunti' : 'Account Activation Code'}
                 </div>
                 <input
                   type="text"
-                  value={paymentRef}
-                  onChange={(e) => setPaymentRef(e.target.value)}
-                  placeholder={isSw ? 'Mf: LVA7X9K2M3' : 'e.g. LVA7X9K2M3'}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder={isSw ? 'Mf: KASI-2026-AAAA' : 'e.g. KASI-2026-AAAA'}
                   style={inputStyle}
                 />
                 <div style={{ fontSize: '11px', color: th.textMuted || '#94a3b8', marginTop: '4px' }}>
-                  {isSw ? 'Baada ya kulipa, ingiza namba ya muamala hapa' : 'After payment, enter the transaction ID here'}
+                  {isSw ? 'Baada ya kulipa, wasiliana na admin upate code ya kuwasha.' : 'After payment, contact admin to get your activation code.'}
                 </div>
               </div>
             </div>
@@ -292,12 +289,12 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
             <button onClick={handleSubmitPayment} disabled={loading} style={btnPrimary}>
               {loading
                 ? (isSw ? 'Inasubiri...' : 'Processing...')
-                : (isSw ? `Thibitisha Malipo ya ${formatCurrency(MONTHLY_PRICE)}` : `Confirm ${formatCurrency(MONTHLY_PRICE)} Payment`)
+                : (isSw ? 'Washa Akaunti' : 'Activate Account')
               }
             </button>
 
             <p style={{ textAlign: 'center', fontSize: '11px', color: th.textMuted || '#94a3b8', marginTop: '12px' }}>
-              {isSw ? 'Kwa msaada piga: 0712 345 678' : 'For support call: 0712 345 678'}
+              {isSw ? `Kwa msaada piga: ${PAYMENT.support}` : `For support call: ${PAYMENT.support}`}
             </p>
           </>
         )}

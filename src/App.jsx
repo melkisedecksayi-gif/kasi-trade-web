@@ -55,7 +55,7 @@ function App() {
   const [showAI, setShowAI] = useState(false);
   const autoSentRef = useRef({});
 
-  const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE } = useSubscription(session);
+  const { subscription, loading: subLoading, daysRemaining, statusBadge, activateSubscription, refresh: refreshSub, MONTHLY_PRICE, canAccess } = useSubscription(session);
 
   const handleSendEmailOTP = async () => {
     if (!session?.user?.email) return;
@@ -468,6 +468,22 @@ function App() {
   }
   if (currentView === 'login' || !session) {
     return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Auth supabase={supabase} onAuthSuccess={handleLoginSuccess} /></ErrorBoundary></Suspense>;
+  }
+
+  // Subscription gate: block the whole system when the subscription has expired
+  if (!subLoading && subscription && !canAccess) {
+    return (
+      <Suspense fallback={spinnerFallback}>
+        <ErrorBoundary isDarkMode={isDarkMode} lang={lang}>
+          <SubscriptionPage
+            lang={lang} isDarkMode={isDarkMode} theme={theme}
+            subscription={subscription} daysRemaining={daysRemaining}
+            statusBadge={statusBadge} activateSubscription={activateSubscription}
+            refresh={refreshSub} MONTHLY_PRICE={MONTHLY_PRICE}
+          />
+        </ErrorBoundary>
+      </Suspense>
+    );
   }
 
   const headerStyle = {
