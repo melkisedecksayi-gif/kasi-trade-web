@@ -6,6 +6,8 @@ jest.mock('./hooks/useSubscription', () => ({
   useSubscription: () => ({
     subscription: null,
     loading: false,
+    error: null,
+    canAccess: false,
     daysRemaining: 0,
     statusBadge: { bg: '#f1f5f9', color: '#64748b' },
     activateSubscription: jest.fn(),

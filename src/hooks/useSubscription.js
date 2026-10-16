@@ -6,16 +6,46 @@ const TRIAL_DAYS = 14;
 
 const normalize = (data) => (Array.isArray(data) ? data[0] : data) || null;
 
-// Hesabu hali halisi kutoka tarehe (bila kuandika kwenye database)
+// Hali (status) huthibitishwa server-side kupitia RPC get_my_subscription(),
+// inayotumia saa ya database. Client haihukumu expiry yenyewe.
+
+// Kumbuka kama RPC ipo kwenye database (ikikosekana, tusirudie kila mara)
+let rpcMissing = false;
+
+const isMissingFunction = (e) =>
+  !!e &&
+  (e.code === 'PGRST202' ||
+    e.code === '42883' ||
+    /could not find the function/i.test(e.message || ''));
+
+// Njia ya zamani (legacy) inayotumika TU kama RPC get_my_subscription
+// haijaapply-iwa bado kwenye database. Inaonya onyo kwenye console.
 const effectiveStatus = (sub) => {
   if (!sub) return null;
   const now = new Date();
   const trialEnd = sub.trial_end ? new Date(sub.trial_end) : null;
   const subEnd = sub.subscription_end ? new Date(sub.subscription_end) : null;
 
-  if (sub.status === 'trial' && trialEnd && now > trialEnd) return 'expired';
-  if (sub.status === 'active' && subEnd && now > subEnd) return 'expired';
+  if (sub.status === 'trial' && (!trialEnd || now > trialEnd)) return 'expired';
+  if (sub.status === 'active' && (!subEnd || now > subEnd)) return 'expired';
   return sub.status;
+};
+
+const fetchLegacy = async (userId) => {
+  const { data, error: err } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (err) throw err;
+
+  let sub = data;
+  if (!sub) {
+    const { data: created, error: cErr } = await supabase.rpc('ensure_subscription');
+    if (cErr) throw cErr;
+    sub = normalize(created);
+  }
+  return sub ? { ...sub, status: effectiveStatus(sub) } : null;
 };
 
 export function useSubscription(session) {
@@ -25,37 +55,57 @@ export function useSubscription(session) {
 
   const fetchSubscription = useCallback(async () => {
     if (!session?.user?.id) {
+      setSubscription(null);
       setLoading(false);
       return;
     }
-    try {
-      const { data, error: err } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
+    setLoading(true);
 
-      if (err) throw err;
+    // Server-side function: huhakikisha rekodi ipo na huweka 'expired'
+    // kwa kutumia saa ya database (haiwezi kuchezewa na client).
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        let sub = null;
 
-      let sub = data;
+        if (rpcMissing) {
+          sub = await fetchLegacy(session.user.id);
+        } else {
+          const { data, error: err } = await supabase.rpc('get_my_subscription');
+          if (err) {
+            if (isMissingFunction(err)) {
+              // RPC haijaapply-iwa kwenye database bado: tumia njia ya
+              // zamani ili app isifungwe, onyo likone kwenye console.
+              rpcMissing = true;
+              console.warn(
+                '[subscription] RPC get_my_subscription haiipo kwenye database. ' +
+                  'Endesha supabase/subscription_security.sql kwenye Supabase SQL Editor.'
+              );
+              sub = await fetchLegacy(session.user.id);
+            } else {
+              throw err;
+            }
+          } else {
+            sub = normalize(data) || null;
+          }
+        }
 
-      // Hana rekodi? Unda trial kwa usalama (server-side function)
-      if (!sub) {
-        const { data: created, error: cErr } = await supabase.rpc('ensure_subscription');
-        if (cErr) throw cErr;
-        sub = normalize(created);
+        setSubscription(sub);
+        setError(null);
+        setLoading(false);
+        return;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        }
       }
-
-      if (sub) {
-        setSubscription({ ...sub, status: effectiveStatus(sub) });
-      } else {
-        setSubscription(null);
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
     }
+
+    // Fail-closed: bado hatujapata hali halisi -> hakuna access.
+    setError(lastErr?.message || 'Imeshindwa kupata hali ya usajili');
+    setSubscription(null);
+    setLoading(false);
   }, [session]);
 
   useEffect(() => {
@@ -115,7 +165,7 @@ export function useSubscription(session) {
     });
     if (err) throw err;
     const sub = normalize(data);
-    if (sub) setSubscription({ ...sub, status: effectiveStatus(sub) });
+    if (sub) setSubscription(sub);
     await fetchSubscription();
     return true;
   };

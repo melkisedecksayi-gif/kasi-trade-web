@@ -73,7 +73,49 @@ begin
 end;
 $$;
 
--- 6) activate_subscription(code): huhakiki code kisha huwasha kwa muda
+-- 6) get_my_subscription(): hurudisha usajili halisi, huunda trial kama
+--    haipo, na huuweka 'expired' kwa saa ya database (server-side).
+create or replace function public.get_my_subscription()
+returns public.subscriptions
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  sub public.subscriptions;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  select * into sub from public.subscriptions where user_id = auth.uid();
+
+  if not found then
+    insert into public.subscriptions
+      (user_id, plan, status, trial_start, trial_end, amount)
+    values
+      (auth.uid(), 'monthly', 'trial', now(), now() + interval '14 days', 12000)
+    returning * into sub;
+  end if;
+
+  -- Expiry server-side: end date ikipita au ikiwa haipo, funga (fail-closed)
+  if sub.status = 'trial' and (sub.trial_end is null or now() > sub.trial_end) then
+    update public.subscriptions
+       set status = 'expired', updated_at = now()
+     where id = sub.id
+     returning * into sub;
+  elsif sub.status = 'active' and (sub.subscription_end is null or now() > sub.subscription_end) then
+    update public.subscriptions
+       set status = 'expired', updated_at = now()
+     where id = sub.id
+     returning * into sub;
+  end if;
+
+  return sub;
+end;
+$$;
+
+-- 6b) activate_subscription(code): huhakiki code kisha huwasha kwa muda
 create or replace function public.activate_subscription(p_code text)
 returns public.subscriptions
 language plpgsql
@@ -134,6 +176,7 @@ end;
 $$;
 
 grant execute on function public.ensure_subscription() to authenticated;
+grant execute on function public.get_my_subscription() to authenticated;
 grant execute on function public.activate_subscription(text) to authenticated;
 
 -- ============================================================

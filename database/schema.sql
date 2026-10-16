@@ -289,14 +289,51 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "User can view own subscription" ON subscriptions
   FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "User can update own subscription" ON subscriptions
-  FOR UPDATE USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "User can insert own subscription" ON subscriptions
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+-- HAWEZI kuandika subscription yake mwenyewe: status/subscription_end
+-- hubadilishwa na RPC za SECURITY DEFINER tu (ensure_subscription,
+-- get_my_subscription, activate_subscription - angalia
+-- supabase/subscription_security.sql ambayo lazima iendeshwe baada ya faili hii).
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+
+
+-- [10b] SERVER-SIDE SUBSCRIPTION STATUS (authoritative expiry + trial creation)
+CREATE OR REPLACE FUNCTION get_my_subscription()
+RETURNS subscriptions
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  sub subscriptions;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'not authenticated';
+  END IF;
+
+  SELECT * INTO sub FROM subscriptions WHERE user_id = auth.uid();
+
+  IF NOT FOUND THEN
+    INSERT INTO subscriptions (user_id, plan, status, trial_start, trial_end, amount)
+    VALUES (auth.uid(), 'monthly', 'trial', now(), now() + interval '14 days', 12000)
+    RETURNING * INTO sub;
+  END IF;
+
+  -- Expiry server-side: end date ikipita au ikiwa haipo, funga (fail-closed)
+  IF sub.status = 'trial' AND (sub.trial_end IS NULL OR now() > sub.trial_end) THEN
+    UPDATE subscriptions SET status = 'expired', updated_at = now()
+     WHERE id = sub.id RETURNING * INTO sub;
+  ELSIF sub.status = 'active' AND (sub.subscription_end IS NULL OR now() > sub.subscription_end) THEN
+    UPDATE subscriptions SET status = 'expired', updated_at = now()
+     WHERE id = sub.id RETURNING * INTO sub;
+  END IF;
+
+  RETURN sub;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_my_subscription() TO authenticated;
 
 
 -- [11] AUTO-CREATE PROFILE & TRIAL ON SIGNUP

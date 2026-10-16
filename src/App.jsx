@@ -470,8 +470,9 @@ function App() {
     return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Auth supabase={supabase} onAuthSuccess={handleLoginSuccess} /></ErrorBoundary></Suspense>;
   }
 
-  // Subscription gate: block the whole system when the subscription has expired
-  if (!subLoading && subscription && !canAccess) {
+  // Subscription gate: block the whole system unless the server confirms
+  // the subscription is valid. Fail-closed when the status is unknown.
+  if (!subLoading && !canAccess) {
     return (
       <Suspense fallback={spinnerFallback}>
         <ErrorBoundary isDarkMode={isDarkMode} lang={lang}>
