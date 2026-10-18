@@ -1,219 +1,439 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { translations } from '../translations';
+import React, { useState, useEffect } from 'react';
 import { THEME, getThemeColors } from '../theme';
-import ReceiptTemplates from './ReceiptTemplates';
-import Toast from './Toast';
 
-const LOW_STOCK_THRESHOLD = 5;
-const fmt = (val) => { if (val == null || val === '') return '0'; const n = Number(val); return isNaN(n) ? '0' : n.toLocaleString(); };
-
-const Sales = ({ supabase, lang, shopId, theme }) => {
-  const isDark = theme === 'dark';
-  const colors = getThemeColors(isDark);
-  const t = translations[lang].sales;
-  
+const Sales = ({ supabase, lang, shopId, theme, showToast }) => {
   const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [showReceiptSettings, setShowReceiptSettings] = useState(false);
-  const [lastSale, setLastSale] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [error, setError] = useState('');
-  const [toast, setToast] = useState(null);
-  const [optimisticCart, setOptimisticCart] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showSalesForm, setShowSalesForm] = useState(false);
+  const [recentSales, setRecentSales] = useState([]);
 
-  const showToast = useCallback((message, type = 'info') => {
-    setToast({ message, type, id: Date.now() });
-  }, []);
+  const colors = getThemeColors(theme === 'dark');
 
   useEffect(() => {
-    if (!supabase || !shopId) return;
-    let active = true;
-    const fetchProducts = async () => {
-      try {
-        const { data, error } = await supabase.from('products').select('*').eq('shop_id', shopId).order('name');
-        if (error) throw error;
-        if (active) setProducts(Array.isArray(data) ? data : []);
-      } catch (err) { if (active) setError(translations[lang].sales.saveError + err.message); }
-    };
     fetchProducts();
-    return () => { active = false; };
-  }, [supabase, shopId, lang]);
+    fetchRecentSales();
+  }, [shopId]);
 
-  const addToCart = useCallback((product) => {
-    if (!product?.id) return;
-    const stock = product.stock_quantity || 0;
-    if (stock <= 0) { showToast(`${product.name} imeisha stock!`, 'error'); return; }
-    if (stock < LOW_STOCK_THRESHOLD) showToast(`${product.name} ina stock chache (${stock})!`, 'warning');
-    
-    setOptimisticCart(prev => {
-      const exists = prev.find(i => i.id === product.id);
-      const price = product.selling_price || product.price || 0;
-      if (exists) {
-        if (exists.qty + 1 > stock) { showToast(`Stock haiitoshi!`, 'warning'); return prev.map(i => i.id === product.id ? { ...i, qty: stock } : i); }
-        return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
-      }
-      return [...prev, { ...product, qty: 1, price: Number(price), stock_limit: stock }];
-    });
-  }, [showToast]);
-
-  const updateQty = useCallback((id, delta) => {
-    setOptimisticCart(prev => prev.map(i => {
-      if (i.id === id) {
-        const newQty = Math.max(1, i.qty + delta);
-        if (newQty > i.stock_limit) { showToast(`Stock haiitoshi!`, 'warning'); return { ...i, qty: i.stock_limit }; }
-        return { ...i, qty: newQty };
-      }
-      return i;
-    }));
-  }, [showToast]);
-
-  const removeFromCart = useCallback((id) => {
-    setOptimisticCart(prev => prev.filter(i => i.id !== id));
-  }, []);
-
-  const totalAmount = optimisticCart.reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.qty || 1)), 0);
-
-  const handleCheckout = async () => {
-    if (!optimisticCart.length) return showToast('Kikapu kipo tupu!', 'warning');
-    if (!supabase || !shopId) return showToast('Database haiko tayari.', 'error');
-    
-    const stockIssues = optimisticCart.filter(item => item.qty > item.stock_limit);
-    if (stockIssues.length > 0) { showToast(`Bidhaa ${stockIssues.length} zina stock isiyotosha.`, 'error'); return; }
-    
-    setLoading(true); setError('');
+  const fetchProducts = async () => {
     try {
-      const recNo = `REC-${Date.now().toString().slice(-6)}`;
-      
-      const { error: dbErr } = await supabase.from('sales').insert({ 
-        shop_id: shopId, 
-        items: optimisticCart.map(({ stock_limit, ...rest }) => rest), 
-        total_amount: totalAmount, 
-        payment_method: paymentMethod, 
-        receipt_number: recNo, 
-        created_at: new Date().toISOString() 
-      });
-      if (dbErr) throw dbErr;
-      
-      for (const item of optimisticCart) {
-        await supabase.from('products').update({ stock_quantity: item.stock_limit - item.qty }).eq('id', item.id).eq('shop_id', shopId);
-      }
-      
-      setLastSale({ items: [...optimisticCart], total: totalAmount, receipt: recNo, date: new Date(), method: paymentMethod });
-      setShowReceipt(true); 
-      setOptimisticCart([]);
-      showToast('✅ Mauzo yamehifadhiwa!', 'success');
-    } catch (err) { 
-      setError(t.saveError + err.message); 
-      showToast(`❌ ${err.message}`, 'error'); 
-    } finally { 
-      setLoading(false); 
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('shop_id', shopId)
+        .gt('stock_quantity', 0);
+
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filtered = products.filter(p => 
-    (p.name||'').toLowerCase().includes(search.toLowerCase()) || 
-    (p.barcode && String(p.barcode).includes(search))
-  );
+  const fetchRecentSales = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sales')
+        .select('*')
+        .eq('shop_id', shopId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setRecentSales(data || []);
+    } catch (error) {
+      console.error('Error fetching sales:', error);
+    }
+  };
+
+  const addToCart = (product) => {
+    const existingItem = cart.find(item => item.id === product.id);
+    if (existingItem) {
+      setCart(cart.map(item =>
+        item.id === product.id
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ));
+    } else {
+      setCart([...cart, { ...product, quantity: 1 }]);
+    }
+  };
+
+  const removeFromCart = (productId) => {
+    setCart(cart.filter(item => item.id !== productId));
+  };
+
+  const updateQuantity = (productId, quantity) => {
+    if (quantity <= 0) {
+      removeFromCart(productId);
+    } else {
+      setCart(cart.map(item =>
+        item.id === productId ? { ...item, quantity } : item
+      ));
+    }
+  };
+
+  const calculateTotal = () => {
+    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) {
+      showToast(lang === 'sw' ? 'Kikapu ni tupu!' : 'Cart is empty!', 'warning');
+      return;
+    }
+
+    try {
+      const totalAmount = calculateTotal();
+      const receiptNumber = `RCP-${Date.now()}`;
+
+      // Pre-check stock availability before creating the sale
+      for (const item of cart) {
+        const { data: fresh, error: checkError } = await supabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', item.id)
+          .single();
+
+        if (checkError) throw checkError;
+        if (fresh.stock_quantity < item.quantity) {
+          showToast(
+            lang === 'sw'
+              ? `Hisa ya "${item.name}" imeisha! Ina ${fresh.stock_quantity} tu.`
+              : `Insufficient stock for "${item.name}"! Only ${fresh.stock_quantity} left.`,
+            'error'
+          );
+          return;
+        }
+      }
+
+      // Create sale record
+      const { data: saleData, error: saleError } = await supabase
+        .from('sales')
+        .insert([{
+          shop_id: shopId,
+          total_amount: totalAmount,
+          receipt_number: receiptNumber,
+          items: cart.map(item => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            subtotal: item.price * item.quantity
+          }))
+        }])
+        .select()
+        .single();
+
+      if (saleError) throw saleError;
+
+      // Decrement stock with oversell protection:
+      // re-read fresh stock, then update only if still sufficient (gte guard)
+      const stockUpdates = [];
+      for (const item of cart) {
+        const { data: current } = await supabase
+          .from('products')
+          .select('stock_quantity')
+          .eq('id', item.id)
+          .single();
+
+        const currentStock = current?.stock_quantity ?? 0;
+        if (currentStock < item.quantity) {
+          // Someone sold this between our pre-check and now — roll back the sale
+          await supabase.from('sales').delete().eq('id', saleData.id);
+          showToast(
+            lang === 'sw'
+              ? `"${item.name}" imeuzwa na mtu mwingine. Mauzo yamefutwa.`
+              : `"${item.name}" was just sold by someone else. Sale rolled back.`,
+            'error'
+          );
+          return;
+        }
+
+        stockUpdates.push({
+          id: item.id,
+          newStock: currentStock - item.quantity
+        });
+      }
+
+      // All stock verified — apply decrements with gte guard as final safety net
+      for (const update of stockUpdates) {
+        const { error: stockError } = await supabase
+          .from('products')
+          .update({ stock_quantity: update.newStock })
+          .eq('id', update.id)
+          .gte('stock_quantity', cart.find(c => c.id === update.id).quantity);
+
+        if (stockError) throw stockError;
+      }
+
+      showToast(
+        lang === 'sw' ? `Mauzo yamekamilika! Risiti: ${receiptNumber}` : `Sale completed! Receipt: ${receiptNumber}`,
+        'success'
+      );
+      setCart([]);
+      setShowSalesForm(false);
+      fetchProducts();
+      fetchRecentSales();
+    } catch (error) {
+      console.error('Error completing sale:', error);
+      showToast(lang === 'sw' ? 'Hitilafu ya kumalizia mauzo' : 'Error completing sale', 'error');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center', color: colors.text }}>
+        {lang === 'sw' ? 'Inapakia...' : 'Loading...'}
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '0', height: '100%' }}>
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      {error && <div style={{ padding: '16px', background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, borderRadius: '8px', textAlign: 'center' }}>{error}</div>}
-      
-      {/* ✅ RESPONSIVE GRID: Inajirekebisha kiotomatiki (stacked kwenye simu, side-by-side kwenye desktop) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-        
-        {/* SEARCH & PRODUCTS */}
-        <div style={{ background: colors.surface, borderRadius: '12px', padding: '20px', border: `1px solid ${colors.border}` }}>
-          <input type="text" placeholder={t.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '14px', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '16px' }} />
-          
-          <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-            {products.length === 0 ? <p style={{ textAlign: 'center', color: colors.textSec, marginTop: '40px' }}>{t.noProducts}</p> : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
-                {filtered.map(p => {
-                  const displayPrice = p.selling_price || p.price || 0;
-                  const stock = p.stock_quantity || 0;
-                  const isOut = stock <= 0;
-                  const isLow = stock > 0 && stock < LOW_STOCK_THRESHOLD;
-                  const stockColor = isOut ? THEME.colors.error : isLow ? THEME.colors.warning : THEME.colors.success;
-                  const stockLabel = isOut ? 'IMEISHA' : isLow ? `CHACHE (${stock})` : `${stock} PO`;
-                  return (
-                    <button key={p.id} onClick={() => !isOut && addToCart(p)} disabled={isOut} style={{ 
-                      background: colors.bg, border: `1px solid ${isOut ? '#7f1d1d' : colors.border}`, borderRadius: '10px', padding: '12px', 
-                      cursor: isOut ? 'not-allowed' : 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', 
-                      opacity: isOut ? 0.6 : 1 
-                    }}>
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: colors.text }}>{p.name}</span>
-                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: displayPrice > 0 ? THEME.colors.success : THEME.colors.error }}>{fmt(displayPrice)} TSh</span>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', color: stockColor, background: `${stockColor}20`, padding: '2px 8px', borderRadius: '12px' }}>{stockLabel}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* CART */}
-        <div style={{ background: colors.surface, borderRadius: '12px', padding: '20px', border: `1px solid ${colors.border}`, display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ margin: '0 0 16px', color: colors.text }}>{t.cart} ({optimisticCart.length})</h3>
-          <div style={{ flex: 1, overflowY: 'auto', marginBottom: '16px', maxHeight: '40vh' }}>
-            {optimisticCart.length === 0 ? <p style={{ color: colors.textSec, textAlign: 'center', marginTop: '40px' }}>{t.emptyCart}</p> : optimisticCart.map(i => (
-              <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${colors.border}`, padding: '12px 0' }}>
-                <div>
-                  <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: '500', color: colors.text }}>{i.name}</p>
-                  <p style={{ margin: 0, fontSize: '12px', color: colors.textSec }}>{fmt(i.price)} x {i.qty} = <strong>{fmt((i.price||0)*(i.qty||1))}</strong></p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button onClick={() => updateQty(i.id, -1)} style={{ background: colors.bg, color: colors.text, border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>-</button>
-                  <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center', color: colors.text }}>{i.qty}</span>
-                  <button onClick={() => updateQty(i.id, 1)} style={{ background: colors.bg, color: colors.text, border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>+</button>
-                  <button onClick={() => removeFromCart(i.id)} style={{ background: isDark ? '#451a1a' : '#fef2f2', color: THEME.colors.error, border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer' }}>🗑️</button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ borderTop: `2px solid ${colors.border}`, paddingTop: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}><span style={{ color: colors.text }}>{t.grandTotal}</span><span style={{ color: THEME.colors.success }}>{fmt(totalAmount)} TSh</span></div>
-            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '12px', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '8px' }}>
-              <option value="Cash">{t.cash}</option><option value="M-Pesa">{t.mpesa}</option><option value="Bank">{t.bank}</option>
-            </select>
-            <button onClick={handleCheckout} disabled={loading || !optimisticCart.length} style={{ width: '100%', padding: '14px', background: loading || !optimisticCart.length ? '#64748b' : THEME.colors.primary, color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: loading || !optimisticCart.length ? 'not-allowed' : 'pointer' }}>{loading ? t.processing : t.checkout}</button>
-          </div>
-        </div>
+    <div style={{ padding: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h2 style={{ margin: 0, color: colors.text }}>
+          {lang === 'sw' ? 'Mauzo' : 'Sales'}
+        </h2>
+        <button
+          onClick={() => setShowSalesForm(!showSalesForm)}
+          style={{
+            padding: '10px 20px',
+            background: THEME.colors?.primary || '#3b82f6',
+            color: '#fff',
+            border: 'none',
+            borderRadius: THEME.radius?.md || '8px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          {showSalesForm ? (lang === 'sw' ? 'Funga' : 'Close') : (lang === 'sw' ? '+ Mauzo Mapya' : '+ New Sale')}
+        </button>
       </div>
 
-      {/* RECEIPT MODAL */}
-      {showReceipt && lastSale && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowReceipt(false)}>
-          <div style={{ background: isDark ? '#1e293b' : '#fff', padding: '24px', borderRadius: '16px', width: '95%', maxWidth: '320px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ textAlign: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: `2px solid ${isDark ? '#334155' : THEME.colors.primary}` }}>
-              <h2 style={{ margin: '0 0 4px', color: colors.text, fontSize: '20px' }}>{t.receipt.company}</h2>
-              <p style={{ margin: '0', fontSize: '12px', color: colors.textSec }}>📞 +255 622 995 734</p>
+      {showSalesForm && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+          {/* Products List */}
+          <div style={{
+            background: colors.surface,
+            padding: '20px',
+            borderRadius: THEME.radius?.lg || '12px',
+            border: `1px solid ${colors.border}`
+          }}>
+            <h3 style={{ margin: '0 0 16px', color: colors.text }}>
+              {lang === 'sw' ? 'Bidhaa Zinazopatikana' : 'Available Products'}
+            </h3>
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              {products.map(product => (
+                <div
+                  key={product.id}
+                  style={{
+                    padding: '12px',
+                    borderBottom: `1px solid ${colors.border}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ color: colors.text, fontWeight: '600' }}>{product.name}</div>
+                    <div style={{ color: colors.textSec, fontSize: '13px' }}>
+                      {parseFloat(product.price).toLocaleString()} TSh | Stock: {product.stock_quantity}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => addToCart(product)}
+                    style={{
+                      padding: '6px 12px',
+                      background: THEME.colors?.success || '#22c55e',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px'
+                    }}
+                  >
+                    + {lang === 'sw' ? 'Ongeza' : 'Add'}
+                  </button>
+                </div>
+              ))}
             </div>
-            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: '0 0 4px', color: colors.text, fontSize: '16px' }}>{t.receipt.title}</h3>
-              <p style={{ margin: '0', fontSize: '11px', color: colors.textSec }}>{t.receipt.date}: {lastSale.date.toLocaleString()}<br/>{t.receipt.number}: #{lastSale.receipt}</p>
+          </div>
+
+          {/* Cart */}
+          <div style={{
+            background: colors.surface,
+            padding: '20px',
+            borderRadius: THEME.radius?.lg || '12px',
+            border: `1px solid ${colors.border}`
+          }}>
+            <h3 style={{ margin: '0 0 16px', color: colors.text }}>
+              {lang === 'sw' ? 'Kikapu' : 'Cart'} ({cart.length})
+            </h3>
+            <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '16px' }}>
+              {cart.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: colors.textSec }}>
+                  {lang === 'sw' ? 'Kikapu ni tupu' : 'Cart is empty'}
+                </div>
+              ) : (
+                cart.map(item => (
+                  <div
+                    key={item.id}
+                    style={{
+                      padding: '12px',
+                      borderBottom: `1px solid ${colors.border}`,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: colors.text, fontWeight: '600' }}>{item.name}</div>
+                      <div style={{ color: colors.textSec, fontSize: '13px' }}>
+                        {parseFloat(item.price).toLocaleString()} TSh
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          background: colors.bg,
+                          color: colors.text,
+                          border: `1px solid ${colors.border}`,
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        -
+                      </button>
+                      <span style={{ color: colors.text, minWidth: '30px', textAlign: 'center' }}>
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          background: colors.bg,
+                          color: colors.text,
+                          border: `1px solid ${colors.border}`,
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        +
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        style={{
+                          padding: '6px 10px',
+                          background: THEME.colors?.error || '#ef4444',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          marginLeft: '8px'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-            <hr style={{ border: `1px dashed ${colors.border}`, margin: '12px 0' }} />
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '12px' }}>
-              <thead><tr style={{ borderBottom: `2px solid ${colors.text}` }}><th style={{ textAlign: 'left', padding: '4px 0', color: colors.text }}>{t.receipt.item}</th><th style={{ textAlign: 'center', padding: '4px 0', color: colors.text }}>{t.receipt.quantity}</th><th style={{ textAlign: 'right', padding: '4px 0', color: colors.text }}>{t.receipt.subtotal}</th></tr></thead>
-              <tbody>{lastSale.items.map((i, idx) => (<tr key={idx}><td style={{ padding: '6px 0', borderBottom: `1px solid ${colors.border}`, color: colors.textSec }}>{i.name || '-'}</td><td style={{ textAlign: 'center', padding: '6px 0', borderBottom: `1px solid ${colors.border}`, color: colors.textSec }}>{i.qty || 1}</td><td style={{ textAlign: 'right', padding: '6px 0', borderBottom: `1px solid ${colors.border}`, color: colors.text }}>{fmt((i.price||0)*(i.qty||1))}</td></tr>))}</tbody>
-            </table>
-            <hr style={{ border: `1px dashed ${colors.border}`, margin: '12px 0' }} />
-            <div style={{ background: isDark ? '#0f172a' : '#f8fafc', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px' }}><span style={{ color: colors.text }}>{t.receipt.grandTotal}</span><span style={{ color: THEME.colors.success, fontSize: '18px' }}>{fmt(lastSale.total)} TSh</span></div>
+            <div style={{
+              padding: '16px',
+              background: colors.bg,
+              borderRadius: '8px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', color: colors.text }}>
+                <span>{lang === 'sw' ? 'Jumla:' : 'Total:'}</span>
+                <span>{calculateTotal().toLocaleString()} TSh</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => { window.print(); setShowReceipt(false); }} style={{ flex: 1, padding: '12px', background: THEME.colors.primary, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>{t.receipt.print}</button>
-              <button onClick={() => setShowReceipt(false)} style={{ flex: 1, padding: '12px', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>{t.receipt.close}</button>
-            </div>
+            <button
+              onClick={handleCheckout}
+              disabled={cart.length === 0}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: cart.length === 0 ? '#94a3b8' : THEME.colors?.success || '#22c55e',
+                color: '#fff',
+                border: 'none',
+                borderRadius: THEME.radius?.md || '8px',
+                cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                fontWeight: '700',
+                fontSize: '16px'
+              }}
+            >
+              {lang === 'sw' ? 'Malizia Mauzo' : 'Complete Sale'}
+            </button>
           </div>
         </div>
       )}
-      <ReceiptTemplates isOpen={showReceiptSettings} onClose={() => setShowReceiptSettings(false)} receiptData={lastSale} lang={lang} />
+
+      {/* Recent Sales */}
+      <div style={{
+        background: colors.surface,
+        borderRadius: THEME.radius?.lg || '12px',
+        border: `1px solid ${colors.border}`,
+        overflow: 'hidden'
+      }}>
+        <h3 style={{ margin: 0, padding: '20px', color: colors.text, borderBottom: `1px solid ${colors.border}` }}>
+          {lang === 'sw' ? 'Mauzo ya Hivi Karibuni' : 'Recent Sales'}
+        </h3>
+        {recentSales.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: colors.textSec }}>
+            {lang === 'sw' ? 'Hakuna mauzo bado' : 'No sales yet'}
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
+                  <th style={{ padding: '12px', textAlign: 'left', color: colors.textSec, fontSize: '13px' }}>
+                    {lang === 'sw' ? 'Risiti' : 'Receipt'}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: colors.textSec, fontSize: '13px' }}>
+                    {lang === 'sw' ? 'Tarehe' : 'Date'}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: colors.textSec, fontSize: '13px' }}>
+                    {lang === 'sw' ? 'Bidhaa' : 'Items'}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'right', color: colors.textSec, fontSize: '13px' }}>
+                    {lang === 'sw' ? 'Jumla' : 'Total'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentSales.map(sale => (
+                  <tr key={sale.id} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                    <td style={{ padding: '12px', color: colors.text, fontFamily: 'monospace' }}>
+                      #{sale.receipt_number}
+                    </td>
+                    <td style={{ padding: '12px', color: colors.text }}>
+                      {new Date(sale.created_at).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '12px', color: colors.text }}>
+                      {sale.items?.length || 0} {lang === 'sw' ? 'bidhaa' : 'items'}
+                    </td>
+                    <td style={{ padding: '12px', color: THEME.colors?.success || '#22c55e', fontWeight: 'bold', textAlign: 'right' }}>
+                      {parseFloat(sale.total_amount).toLocaleString()} TSh
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

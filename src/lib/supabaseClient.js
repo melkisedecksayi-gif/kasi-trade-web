@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-// 🔑 DukaPOS - Supabase Configuration
-const supabaseUrl = 'https://wajlksmnomxeeohakqsr.supabase.co'
-const supabaseAnonKey = 'sb_publishable_ycFY4baMarFOF1NF_dGSdA_lcquz000'
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing REACT_APP_SUPABASE_URL or REACT_APP_SUPABASE_ANON_KEY in environment variables')
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)

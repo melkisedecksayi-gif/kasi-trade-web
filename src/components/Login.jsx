@@ -39,8 +39,12 @@ const Login = ({ supabase, onLoginSuccess }) => {
         showToast(currentText.success || 'Success', 'success');
         if (onLoginSuccess) onLoginSuccess();
       } else {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { role: 'cashier' } } });
+        const { data: signUpData, error } = await supabase.auth.signUp({ email, password, options: { data: { role: 'cashier' } } });
         if (error) throw error;
+        // Anzisha trial ya siku 14 (wiki 2) mara moja kama session ipo
+        if (signUpData?.session) {
+          await supabase.rpc('ensure_subscription');
+        }
         showToast(currentText.success || 'Success', 'success');
         setIsLogin(true);
       }
@@ -131,7 +135,7 @@ const Login = ({ supabase, onLoginSuccess }) => {
               <label style={{ display: 'block', marginBottom: '8px', color: colors.text, fontSize: '14px', fontWeight: '600' }}>{forgotText.emailLabel || (lang === 'sw' ? 'Barua Pepe' : 'Email Address')}</label>
               <input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required style={{ width: '100%', padding: '14px', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: THEME.radius.md, fontSize: '15px', boxSizing: 'border-box' }} placeholder="user@duka.com" />
             </div>
-            <button type="submit" disabled={loading} style={{ width: '100%', padding: '16px', background: loading ? '#64a3b8' : THEME.colors.primary, color: '#fff', border: 'none', borderRadius: THEME.radius.md, fontSize: '16px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer', boxSizing: 'border-box' }}>
+            <button type="submit" disabled={loading} style={{ width: '100%', padding: '16px', background: loading ? '#64748b' : THEME.colors.primary, color: '#fff', border: 'none', borderRadius: THEME.radius.md, fontSize: '16px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer', boxSizing: 'border-box' }}>
               {loading ? (lang === 'sw' ? '⏳ Inatuma...' : '⏳ Sending...') : (forgotText.submit || (lang === 'sw' ? ' Tuma Link' : '📧 Send Link'))}
             </button>
           </form>

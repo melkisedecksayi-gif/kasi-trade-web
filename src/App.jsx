@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import { supabase } from './lib/supabaseClient';
 import Login from './components/Login';
 import UpdatePassword from './components/UpdatePassword';
 import Dashboard from './components/Dashboard';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -56,14 +57,26 @@ function App() {
   }
 
   if (currentView === 'update-password') {
-    return <UpdatePassword supabase={supabase} onPasswordUpdated={handlePasswordUpdated} />;
+    return (
+      <ErrorBoundary>
+        <UpdatePassword supabase={supabase} onPasswordUpdated={handlePasswordUpdated} />
+      </ErrorBoundary>
+    );
   }
 
   if (!session) {
-    return <Login supabase={supabase} onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <ErrorBoundary>
+        <Login supabase={supabase} onLoginSuccess={handleLoginSuccess} />
+      </ErrorBoundary>
+    );
   }
 
-  return <Dashboard session={session} supabase={supabase} />;
+  return (
+    <ErrorBoundary>
+      <Dashboard session={session} supabase={supabase} />
+    </ErrorBoundary>
+  );
 }
 
 export default App;

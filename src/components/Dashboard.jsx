@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Products from './Products';
 import Sales from './Sales';
 import Reports from './Reports';
+import Billing from './Billing';
+import Paywall from './Paywall';
 import { translations } from '../translations';
 import { THEME, getThemeColors } from '../theme';
 import Toast from './Toast';
+import { useSubscription, PRO_PRICE_TSH } from '../lib/subscription';
 
 const Skeleton = ({ width = '100%', height = '20px', count = 1, style = {} }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: THEME.space?.m || '12px', ...style }}>
@@ -49,13 +52,15 @@ const Dashboard = ({ session, supabase }) => {
         sales: { title: 'Sales' },
         reports: { title: 'Reports' },
         help: { title: 'Help' },
-        nav: { dashboard: '🏠 Dashboard', products: '📦 Products', sales: '🛒 Sales', reports: '📈 Reports', settings: '⚙️ Settings', help: '❓ Help', logout: '🚪 Logout' },
+        nav: { dashboard: '🏠 Dashboard', products: ' Products', sales: '🛒 Sales', reports: '📈 Reports', settings: '️ Settings', help: '❓ Help', logout: '🚪 Logout' },
         general: { welcome: 'Welcome', loading: 'Loading...' }
       });
   
   const mainRef = useRef(null);
   const colors = getThemeColors(theme === 'dark');
   const effectiveRole = userRole === 'admin' ? viewMode : 'cashier';
+  const subState = useSubscription(supabase, shopId);
+  const subLocked = !subState.loading && subState.locked;
 
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type, id: Date.now() });
@@ -101,15 +106,26 @@ const Dashboard = ({ session, supabase }) => {
       if (!shopId || view !== 'dashboard') return;
       try {
         setLoading(true);
-        const today = new Date().toISOString().split('T')[0];
-        const { data: salesData } = await supabase.from('sales').select('total_amount').eq('shop_id', shopId).gte('created_at', `${today}T00:00:00`).lt('created_at', `${today}T23:59:59`);
-        const totalSales = salesData?.reduce((s, i) => s + (i.total_amount || 0), 0) || 0;
-        const { data: productsData } = await supabase.from('products').select('id').eq('shop_id', shopId);
-        setStats({ totalSales, totalProducts: productsData?.length || 0 });
-        const { data: recent } = await supabase.from('sales').select('created_at, total_amount, receipt_number, items').eq('shop_id', shopId).order('created_at', { ascending: false }).limit(5);
-        setRecentSales(recent || []);
-        const { data: low } = await supabase.from('products').select('name, stock_quantity').eq('shop_id', shopId).lt('stock_quantity', 5).order('stock_quantity', { ascending: true }).limit(5);
-        setLowStockProducts(low || []);
+        // Local-date boundaries (Tanzania is UTC+3; UTC-based dates shift near midnight)
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+        const [salesRes, productsRes, recentRes, lowRes] = await Promise.all([
+          supabase.from('sales').select('total_amount').eq('shop_id', shopId)
+            .gte('created_at', startOfDay.toISOString())
+            .lt('created_at', startOfTomorrow.toISOString()),
+          supabase.from('products').select('id').eq('shop_id', shopId),
+          supabase.from('sales').select('created_at, total_amount, receipt_number, items')
+            .eq('shop_id', shopId).order('created_at', { ascending: false }).limit(5),
+          supabase.from('products').select('name, stock_quantity').eq('shop_id', shopId)
+            .lt('stock_quantity', 5).order('stock_quantity', { ascending: true }).limit(5),
+        ]);
+
+        const totalSales = salesRes.data?.reduce((s, i) => s + (i.total_amount || 0), 0) || 0;
+        setStats({ totalSales, totalProducts: productsRes.data?.length || 0 });
+        setRecentSales(recentRes.data || []);
+        setLowStockProducts(lowRes.data || []);
       } catch (e) { showToast('⚠️ Hitilafu ya kupakia data', 'warning'); } 
       finally { setLoading(false); }
     };
@@ -118,7 +134,7 @@ const Dashboard = ({ session, supabase }) => {
 
   const handleLogout = async () => { 
     try { await supabase.auth.signOut(); showToast('✅ Umetoka kikamilifu', 'success'); } 
-    catch(e) { showToast('❌ Hitilafu ya kutoka', 'error'); }
+    catch(e) { showToast(' Hitilafu ya kutoka', 'error'); }
   };
 
   const handleResetSystem = async () => {
@@ -145,9 +161,9 @@ const Dashboard = ({ session, supabase }) => {
   const allNavItems = [
     { id: 'dashboard', label: t.nav?.dashboard || '🏠 Dashboard', shortcut: 'Alt+D', roles: ['admin', 'cashier'] },
     { id: 'products', label: t.nav?.products || '📦 Products', shortcut: 'Alt+P', roles: ['admin', 'cashier'] },
-    { id: 'sales', label: t.nav?.sales || '🛒 Sales', shortcut: 'Alt+S', roles: ['admin', 'cashier'] },
+    { id: 'sales', label: t.nav?.sales || ' Sales', shortcut: 'Alt+S', roles: ['admin', 'cashier'] },
     { id: 'reports', label: t.nav?.reports || '📈 Reports', shortcut: 'Alt+R', roles: ['admin'] },
-    { id: 'settings', label: t.nav?.settings || '⚙️ Settings', shortcut: 'Alt+T', roles: ['admin', 'cashier'] },
+    { id: 'settings', label: t.nav?.settings || '️ Settings', shortcut: 'Alt+T', roles: ['admin', 'cashier'] },
     { id: 'help', label: t.nav?.help || '❓ Help', shortcut: 'Alt+H', roles: ['admin', 'cashier'] },
   ];
   const navItems = allNavItems.filter(item => item.roles.includes(effectiveRole));
@@ -190,7 +206,7 @@ const Dashboard = ({ session, supabase }) => {
         overflowX: 'hidden', overflowY: 'auto', transition: 'all 0.35s', zIndex: 999, boxShadow: sidebarOpen ? THEME.shadow?.lg || '0 10px 15px rgba(0,0,0,0.1)' : 'none' 
       }}>
         
-        {/* ✅ LOGO BOX - BOX NDogo SANA KWA SIMU, LOGO KUBWA */}
+        {/* ✅ LOGO BOX - Compact box, BIG logo */}
         <div style={{ 
           padding: sidebarOpen ? '10px' : '0',
           borderBottom: sidebarOpen ? `1px solid ${THEME.colors?.borderDark || '#334155'}` : 'none',
@@ -214,7 +230,7 @@ const Dashboard = ({ session, supabase }) => {
               src="/logo.png" 
               alt="KasiTrade Logo" 
               style={{ 
-                height: isMobile ? '110px' : '120px',
+                height: isMobile ? '110px' : '120px', 
                 width: 'auto', 
                 maxWidth: '100%', 
                 objectFit: 'contain',
@@ -241,7 +257,7 @@ const Dashboard = ({ session, supabase }) => {
           })}
         </nav>
         <div style={{ padding: sidebarOpen ? '20px 15px' : '0', borderTop: sidebarOpen ? `1px solid ${THEME.colors?.borderDark || '#334155'}` : 'none' }}>
-          <button onClick={handleLogout} className="btn-micro" style={{ width: '100%', padding: '14px', background: THEME.colors?.error || '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '600', fontSize: '16px' }}>{t.nav?.logout || ' Logout'}</button>
+          <button onClick={handleLogout} className="btn-micro" style={{ width: '100%', padding: '14px', background: THEME.colors?.error || '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '600', fontSize: '16px' }}>{t.nav?.logout || '🚪 Logout'}</button>
         </div>
       </aside>
 
@@ -267,6 +283,16 @@ const Dashboard = ({ session, supabase }) => {
             <span style={{ padding: '6px 16px', background: effectiveRole === 'admin' ? THEME.colors?.primary || '#3b82f6' : THEME.colors?.success || '#22c55e', color: '#fff', borderRadius: '20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               {effectiveRole === 'admin' ? '👑 Admin' : '🛒 Cashier'}
             </span>
+            {!subState.loading && (
+              <span
+                onClick={() => handleNavClick('settings')}
+                className="btn-micro"
+                title={lang === 'sw' ? 'Usajili & Malipo' : 'Subscription & Billing'}
+                style={{ padding: '6px 14px', background: subState.isPro ? THEME.colors?.success || '#22c55e' : (subState.daysLeft <= 3 ? THEME.colors?.error || '#ef4444' : THEME.colors?.warning || '#f59e0b'), color: '#fff', borderRadius: '20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer', border: 'none' }}
+              >
+                {subState.isPro ? `⭐ PRO` : `🆓 ${lang === 'sw' ? 'Jaribio' : 'Trial'} · ${subState.daysLeft}${lang === 'sw' ? 's' : 'd'}`}
+              </span>
+            )}
             <button onClick={() => setLang(l => l === 'sw' ? 'en' : 'sw')} className="btn-micro" style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: isMobile ? '22px' : '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px', borderRadius: '50%', transition: 'transform 0.2s' }}>
               {lang === 'sw' ? '🇹🇿' : '🇺🇸'}
             </button>
@@ -274,10 +300,25 @@ const Dashboard = ({ session, supabase }) => {
         </header>
 
         <div id="main-content" ref={mainRef} tabIndex="-1" style={{ outline: 'none' }} key={animKey} className="anim-page">
-          {view === 'dashboard' && (
+          {!subLocked && !subState.loading && !subState.isPro && view === 'dashboard' && (
+            <div onClick={() => handleNavClick('settings')} className="btn-micro" style={{ marginBottom: '16px', padding: '12px 18px', borderRadius: THEME.radius?.md || '8px', background: theme === 'dark' ? '#422006' : '#fef3c7', border: `1px solid ${THEME.colors?.warning || '#f59e0b'}`, color: theme === 'dark' ? '#fcd34d' : '#92400e', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}>
+              ⏳ {lang === 'sw' ? `Una wiki 2 za majaribio bure. Lipia TZS ${PRO_PRICE_TSH.toLocaleString()} kuendelea.` : `You have a 2-week free trial. Pay TZS ${PRO_PRICE_TSH.toLocaleString()} to continue.`}{subState.daysLeft > 0 ? (lang === 'sw' ? ` (Siku ${subState.daysLeft} zilizobaki)` : ` (${subState.daysLeft} days left)`) : ''}
+            </div>
+          )}
+          {subLocked && view !== 'settings' && view !== 'help' && (
+            <Paywall
+              subState={subState}
+              lang={lang}
+              theme={theme}
+              userRole={userRole}
+              onPaid={() => { showToast(lang === 'sw' ? '🎉 Karibu PRO!' : '🎉 Welcome to PRO!', 'success'); setView('dashboard'); }}
+              onLogout={handleLogout}
+            />
+          )}
+          {view === 'dashboard' && !subLocked && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '16px' : '32px' }}>
               <div style={{ background: colors.surface, padding: isMobile ? '20px' : '25px', borderRadius: THEME.radius?.lg || '12px', boxShadow: THEME.shadow?.sm || '0 1px 3px rgba(0,0,0,0.1)', border: `1px solid ${colors.border}` }} className="card-micro">
-                <h2 style={{ margin: '0 0 8px', color: colors.text, fontSize: isMobile ? '1.1rem' : '1.3rem' }}>{t.general?.welcome || 'Welcome'}, {session?.user?.email?.split('@')[0] || 'User'}! 👋</h2>
+                <h2 style={{ margin: '0 0 8px', color: colors.text, fontSize: isMobile ? '1.1rem' : '1.3rem' }}>{t.general?.welcome || 'Welcome'}, {session?.user?.email?.split('@')[0] || 'User'}! </h2>
                 <p style={{ color: colors.textSec, margin: '0 0 24px' }}>{t.dashboard?.subtitle || 'Welcome to your sales system'}</p>
                 {loading ? (
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '16px' }}>
@@ -286,7 +327,7 @@ const Dashboard = ({ session, supabase }) => {
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '16px' }}>
                     <button onClick={() => handleNavClick('sales')} className="btn-micro" style={{ background: THEME.colors?.primary || '#3b82f6', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>{t.nav?.sales || '🛒 Sales'}</button>
-                    <button onClick={() => handleNavClick('products')} className="btn-micro" style={{ background: THEME.colors?.success || '#22c55e', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>{t.nav?.products || ' Products'}</button>
+                    <button onClick={() => handleNavClick('products')} className="btn-micro" style={{ background: THEME.colors?.success || '#22c55e', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>{t.nav?.products || '📦 Products'}</button>
                     {effectiveRole === 'admin' && (
                       <button onClick={() => handleNavClick('reports')} className="btn-micro" style={{ background: THEME.colors?.warning || '#f59e0b', color: '#fff', border: 'none', padding: '20px', borderRadius: THEME.radius?.lg || '12px', fontWeight: 'bold', fontSize: '15px' }}>{t.nav?.reports || '📈 Reports'}</button>
                     )}
@@ -345,11 +386,11 @@ const Dashboard = ({ session, supabase }) => {
             </div>
           )}
 
-          {view === 'products' && <Products supabase={supabase} lang={lang} shopId={shopId} theme={theme} showToast={showToast} userRole={effectiveRole} />}
-          {view === 'sales' && <Sales supabase={supabase} lang={lang} shopId={shopId} theme={theme} />}
-          {view === 'reports' && effectiveRole === 'admin' && <Reports supabase={supabase} lang={lang} shopId={shopId} theme={theme} showToast={showToast} />}
+          {view === 'products' && !subLocked && <Products supabase={supabase} lang={lang} shopId={shopId} theme={theme} showToast={showToast} userRole={effectiveRole} />}
+          {view === 'sales' && !subLocked && <Sales supabase={supabase} lang={lang} shopId={shopId} theme={theme} showToast={showToast} />}
+          {view === 'reports' && effectiveRole === 'admin' && !subLocked && <Reports supabase={supabase} lang={lang} shopId={shopId} theme={theme} showToast={showToast} />}
           
-          {view === 'reports' && effectiveRole !== 'admin' && (
+          {view === 'reports' && effectiveRole !== 'admin' && !subLocked && (
             <div style={{ textAlign: 'center', padding: '60px', background: colors.surface, borderRadius: THEME.radius?.lg || '12px', border: `1px solid ${colors.border}` }}>
               <h3 style={{ color: THEME.colors?.warning || '#f59e0b' }}> Huna ruhusa ya kutazama ripoti.</h3>
               <button onClick={() => handleNavClick('dashboard')} style={{ marginTop: '15px', padding: '10px 20px', background: THEME.colors?.primary || '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Rudi Dashboard</button>
@@ -368,8 +409,8 @@ const Dashboard = ({ session, supabase }) => {
               <div style={{ background: colors.surface, padding: '24px', borderRadius: THEME.radius?.lg || '12px', border: `1px solid ${colors.border}` }} className="card-micro">
                 <h3 style={{ margin: '0 0 24px', color: colors.text, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>🌍 {lang === 'sw' ? 'Lugha' : 'Language'}</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                  <button onClick={() => setLang('sw')} className="btn-micro" style={{ padding: '20px', background: lang === 'sw' ? THEME.colors?.primary || '#3b82f6' : colors.bg, color: lang === 'sw' ? '#fff' : colors.text, border: `2px solid ${lang === 'sw' ? THEME.colors?.primary || '#3b82f6' : colors.border}`, borderRadius: THEME.radius?.md || '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }}>🇹🇿 Kiswahili</button>
-                  <button onClick={() => setLang('en')} className="btn-micro" style={{ padding: '20px', background: lang === 'en' ? THEME.colors?.primary || '#3b82f6' : colors.bg, color: lang === 'en' ? '#fff' : colors.text, border: `2px solid ${lang === 'en' ? THEME.colors?.primary || '#3b82f6' : colors.border}`, borderRadius: THEME.radius?.md || '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }}>🇺 English</button>
+                  <button onClick={() => setLang('sw')} className="btn-micro" style={{ padding: '20px', background: lang === 'sw' ? THEME.colors?.primary || '#3b82f6' : colors.bg, color: lang === 'sw' ? '#fff' : colors.text, border: `2px solid ${lang === 'sw' ? THEME.colors?.primary || '#3b82f6' : colors.border}`, borderRadius: THEME.radius?.md || '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }}>🇿 Kiswahili</button>
+                  <button onClick={() => setLang('en')} className="btn-micro" style={{ padding: '20px', background: lang === 'en' ? THEME.colors?.primary || '#3b82f6' : colors.bg, color: lang === 'en' ? '#fff' : colors.text, border: `2px solid ${lang === 'en' ? THEME.colors?.primary || '#3b82f6' : colors.border}`, borderRadius: THEME.radius?.md || '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px' }}>🇺🇸 English</button>
                 </div>
               </div>
               {userRole === 'admin' && (
@@ -413,6 +454,14 @@ const Dashboard = ({ session, supabase }) => {
                   </div>
                 </>
               )}
+              <Billing
+                subState={subState}
+                lang={lang}
+                theme={theme}
+                isMobile={isMobile}
+                userRole={userRole}
+                onPaid={() => { showToast(lang === 'sw' ? '🎉 Malipo yamekamilika! Karibu PRO.' : '🎉 Payment complete! Welcome to PRO.', 'success'); setView('dashboard'); }}
+              />
               <div style={{ background: colors.surface, padding: '24px', borderRadius: THEME.radius?.lg || '12px', border: `1px solid ${colors.border}` }} className="card-micro">
                 <h3 style={{ margin: '0 0 24px', color: colors.text, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>👤 {lang === 'sw' ? 'Akaunti' : 'Account'}</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
