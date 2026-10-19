@@ -9,9 +9,7 @@ import { publicEncrypt, constants } from "node:crypto";
 
 const API_KEY = Deno.env.get("VODACOM_API_KEY") ?? "";
 const PUBLIC_KEY = Deno.env.get("VODACOM_PUBLIC_KEY") ?? "";
-// Sandbox ya Vodacom (vodafoneGHA) inatumia shortcode "000000" na sarafu GHS.
-// Production itahitaji shortcode halisi — wakati huo badilisha hapa.
-const SHORTCODE = "000000";
+const SHORTCODE = Deno.env.get("VODACOM_SHORTCODE") ?? "000000";
 const BASE_URL = "https://openapi.m-pesa.com/sandbox/ipg/v2/vodafoneGHA";
 const PRO_DAYS = 30;
 
@@ -87,7 +85,6 @@ async function fetchSessionId(): Promise<string | null> {
     console.error("mpesa-push: getSession haikurudisha SessionID", body);
     return null;
   }
-  console.log(`mpesa-push: SessionID imepatikana (urefu=${String(sessionId).length}): ${sessionId}`);
   return String(sessionId);
 }
 
@@ -136,8 +133,8 @@ async function chargeVodacom({ admin, paymentId, phone, amount, thirdPartyId }: 
         },
         body: JSON.stringify({
           input_Amount: String(amount),
-          input_Country: "GHA",
-          input_Currency: "GHS",
+          input_Country: "TZA",
+          input_Currency: "TZS",
           input_CustomerMSISDN: phone,
           input_ServiceProviderCode: SHORTCODE,
           input_ThirdPartyConversationID: thirdPartyId,
