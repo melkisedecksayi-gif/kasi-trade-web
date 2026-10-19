@@ -13,9 +13,12 @@ const SHORTCODE = Deno.env.get("VODACOM_SHORTCODE") ?? "000000";
 const BASE_URL = "https://openapi.m-pesa.com/sandbox/ipg/v2/vodafoneGHA";
 const PRO_DAYS = 30;
 
-// SessionID mpya mara nyingi "haijaiva" mara moja: tunatuma c2b mara moja,
-// kisha kurudia kwa 5s, 10s, 15s ikiwa SessionID bado haiko tayari.
-const RETRY_DELAYS_MS = [5000, 10000, 15000];
+// Vodacom mara nyingi hurudisha "Bad Session Key" kama c2b inatumwa mara moja
+// au SessionID imeisha muda. Utaratibu: subiri 5s kabla ya kila c2b; ikiwa
+// bado Bad Session Key, tengeneze SessionID MPYA kabisa na ujaribu tena
+// (mara 5 jumla — jumla ya sekunde 25 za subiri).
+const SESSION_WARMUP_MS = 5000;
+const BAD_SESSION_RETRIES = 5;
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -65,40 +68,62 @@ type ChargeParams = {
   thirdPartyId: string;
 };
 
-function isSessionNotReady(status: number, body: Record<string, unknown>): boolean {
-  if (status === 401) return true;
-  const code = String(body.output_ResponseCode ?? body.ResponseCode ?? "");
-  const desc = String(body.output_ResponseDesc ?? body.ResponseDesc ?? "");
-  return code === "INS-6" || /session/i.test(desc);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// SessionID MPYA kila jaribio — usiabirisha ile ya awali.
+async function fetchSessionId(): Promise<string | null> {
+  const sessionRes = await fetch(`${BASE_URL}/getSession/`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${encryptApiKey()}`,
+      Origin: "*",
+    },
+  });
+  const body = await sessionRes.json().catch(() => ({}));
+  const sessionId = body.output_SessionID ?? body.SessionID;
+  if (!sessionId) {
+    console.error("mpesa-push: getSession haikurudisha SessionID", body);
+    return null;
+  }
+  return String(sessionId);
 }
 
-// Kazi NYUMA YA PAZIA: hupata SessionID, hutuma c2bPayment (retry 5/10/15),
-// kisha husasisha pending_payments. Hakuna Response hapa — hulaza DB tu.
-async function chargeVodacom({ admin, paymentId, phone, amount, thirdPartyId }: ChargeParams): Promise<void> {
-  try {
-    // ---- 1. getSession: Authorization: Bearer <RSA(API_KEY) base64> ----
-    const sessionRes = await fetch(`${BASE_URL}/getSession/`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${encryptApiKey()}`,
-        Origin: "*",
-      },
-    });
-    const sessionBody = await sessionRes.json().catch(() => ({}));
-    const sessionId = sessionBody.output_SessionID ?? sessionBody.SessionID;
-    if (!sessionId) {
-      console.error("mpesa-push: SessionID haipatikani", sessionBody);
-      await admin.from("pending_payments").update({ status: "failed" }).eq("id", paymentId);
-      return;
-    }
+// Vodacom hurudisha: HTTP 401, code INS-6, au ujumbe kama
+// output_error/output_ResponseDesc: "Bad Session Key".
+function isBadSessionError(status: number, body: Record<string, unknown>): boolean {
+  if (status === 401) return true;
+  const code = String(body.output_ResponseCode ?? body.ResponseCode ?? "");
+  const err = String(body.output_error ?? body.error ?? "");
+  const desc = String(body.output_ResponseDesc ?? body.ResponseDesc ?? "");
+  return code === "INS-6" || /bad session key|session/i.test(`${err} ${desc}`);
+}
 
-    // ---- 2. c2bPayment/singleStage: mara moja, kisha retry 5s/10s/15s ----
-    let c2bBody: Record<string, unknown> = {};
-    let sessionNotReady = false;
-    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
-      if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt - 1]));
+// Kazi NYUMA YA PAZIA: kila jaribio hupata SessionID MPYA mpya, husubiri
+// 5s (warm-up), kisha hutuma c2bPayment. "Bad Session Key" → SessionID mpya
+// na ujaribu tena (mara 5). Hakuna Response hapa — hulaza DB tu.
+async function chargeVodacom({ admin, paymentId, phone, amount, thirdPartyId }: ChargeParams): Promise<void> {
+  const markFailed = async () => {
+    await admin.from("pending_payments").update({ status: "failed" }).eq("id", paymentId);
+  };
+
+  try {
+    for (let attempt = 1; attempt <= BAD_SESSION_RETRIES; attempt += 1) {
+      // ---- 1. SessionID MPYA kabisa kwa kila jaribio ----
+      const sessionId = await fetchSessionId();
+      if (!sessionId) {
+        if (attempt === BAD_SESSION_RETRIES) {
+          console.error(`mpesa-push: SessionID haipatikani baada ya jaribio ${attempt}/${BAD_SESSION_RETRIES}`);
+          await markFailed();
+          return;
+        }
+        await sleep(SESSION_WARMUP_MS);
+        continue;
       }
+
+      // ---- 2. Subiri 5s ili SessionID iwe "live" kabla ya c2b ----
+      await sleep(SESSION_WARMUP_MS);
+
+      // ---- 3. c2bPayment/singleStage ----
       const c2bRes = await fetch(`${BASE_URL}/c2bPayment/singleStage/`, {
         method: "POST",
         headers: {
@@ -117,40 +142,49 @@ async function chargeVodacom({ admin, paymentId, phone, amount, thirdPartyId }: 
           input_PurchasedItemsDesc: "Duka POS Subscription",
         }),
       });
-      c2bBody = await c2bRes.json().catch(() => ({}));
-      sessionNotReady = isSessionNotReady(c2bRes.status, c2bBody);
-      if (!sessionNotReady) break;
-    }
+      const c2bBody = await c2bRes.json().catch(() => ({}));
 
-    if (sessionNotReady) {
-      console.error("mpesa-push: SessionID bado haijawa tayari baada ya retry zote", c2bBody);
-      await admin.from("pending_payments").update({ status: "failed" }).eq("id", paymentId);
+      // "Bad Session Key" / session imeisha muda → SessionID mpya + jaribu tena
+      if (isBadSessionError(c2bRes.status, c2bBody)) {
+        console.error(
+          `mpesa-push: "Bad Session Key" (jaribio ${attempt}/${BAD_SESSION_RETRIES}) — SessionID mpya inatengenezwa`,
+          c2bBody,
+        );
+        if (attempt === BAD_SESSION_RETRIES) {
+          await markFailed();
+          return;
+        }
+        continue;
+      }
+
+      // Jibu la kawaida kutoka Vodacom (success au kosa lingine)
+      const ok = String(c2bBody.output_ResponseCode ?? c2bBody.ResponseCode ?? "") === "INS-0";
+      const providerReceipt =
+        c2bBody.TransactionID ?? c2bBody.output_TransactionID ?? null;
+
+      await admin
+        .from("pending_payments")
+        .update({
+          provider_receipt: providerReceipt,
+          ...(ok ? {} : { status: "failed" }),
+        })
+        .eq("id", paymentId);
+
+      if (!ok) {
+        console.error("mpesa-push: Vodacom imekataa ombi la malipo", c2bBody);
+      }
+      console.log(`mpesa-push: kazi ya Vodacom imekamilika nyuma ya pazia (paymentId=${paymentId}, attempt=${attempt}/${BAD_SESSION_RETRIES}, ok=${ok}, receipt=${providerReceipt})`);
       return;
     }
-
-    const ok = String(c2bBody.output_ResponseCode ?? c2bBody.ResponseCode ?? "") === "INS-0";
-    const providerReceipt =
-      c2bBody.TransactionID ?? c2bBody.output_TransactionID ?? null;
-
-    await admin
-      .from("pending_payments")
-      .update({
-        provider_receipt: providerReceipt,
-        ...(ok ? {} : { status: "failed" }),
-      })
-      .eq("id", paymentId);
-
-    if (!ok) {
-      console.error("mpesa-push: Vodacom imekataa ombi la malipo", c2bBody);
-    }
-    console.log(`mpesa-push: kazi ya Vodacom imekamilika nyuma ya pazia (paymentId=${paymentId}, ok=${ok}, receipt=${providerReceipt})`);
   } catch (e) {
     console.error("mpesa-push: kazi imefeli nyuma ya pazia", e);
-    try {
-      await admin.from("pending_payments").update({ status: "failed" }).eq("id", paymentId);
-    } catch {
-      // DB update nayo imefeli — kosa limeandikwa console tayari
-    }
+  }
+
+  try {
+    await markFailed();
+    console.error(`mpesa-push: malipo yamefeli (paymentId=${paymentId})`);
+  } catch {
+    // DB update nayo imefeli — kosa limeandikwa console tayari
   }
 }
 
