@@ -31,14 +31,19 @@ function json(data: unknown, status = 200): Response {
 }
 
 // RSA-encrypt API key kwa public key (PKCS#1 v1.5) → base64
+// Deno (Supabase Edge) haina global `Buffer` — tunatumia TextEncoder + btoa.
 function encryptApiKey(): string {
   const pem = PUBLIC_KEY.includes("BEGIN")
     ? PUBLIC_KEY
     : `-----BEGIN PUBLIC KEY-----\n${PUBLIC_KEY.match(/.{1,64}/g)?.join("\n") ?? PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
-  return publicEncrypt(
+  const encrypted = publicEncrypt(
     { key: pem, padding: constants.RSA_PKCS1_PADDING },
-    Buffer.from(API_KEY, "utf8"),
-  ).toString("base64");
+    new TextEncoder().encode(API_KEY),
+  );
+  const bytes = new Uint8Array(encrypted);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
 // 0712345678 / 712345678 / 255712345678 → 255712345678

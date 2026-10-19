@@ -21,17 +21,22 @@ export function stripBearer(token: string): string {
   return token.replace(/^Bearer\s+/i, "").trim();
 }
 
+// Deno (Supabase Edge) haina global `Buffer` — tunatumia TextEncoder + btoa.
 export function encryptApiKey(): string {
   const pem = publicKeyPem.includes("BEGIN")
     ? publicKeyPem
     : `-----BEGIN PUBLIC KEY-----\n${publicKeyPem}\n-----END PUBLIC KEY-----`;
-  return publicEncrypt(
+  const encrypted = publicEncrypt(
     {
       key: pem,
       padding: constants.RSA_PKCS1_PADDING,
     },
-    Buffer.from(apiKey, "utf8"),
-  ).toString("base64");
+    new TextEncoder().encode(apiKey),
+  );
+  const bytes = new Uint8Array(encrypted);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
 export async function getSessionId(force = false): Promise<string> {
