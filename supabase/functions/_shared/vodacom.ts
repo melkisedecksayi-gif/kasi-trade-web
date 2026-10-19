@@ -1,5 +1,5 @@
-// Vodacom M-Pesa Tanzania Open API (SAND box / production)
-// Si Safaricom Daraja — TZ inatumia openapi.m-pesa.com
+// Vodacom M-Pesa Open API — Sandbox vodafoneGHA (Country: GHA, sarafu: GHS)
+// Si Safaricom Daraja — inatumia openapi.m-pesa.com
 import { publicEncrypt, constants } from "node:crypto";
 
 const BASE_HOST = "openapi.m-pesa.com";
@@ -11,7 +11,9 @@ const basePath = env === "production" ? LIVE_PATH : SANDBOX_PATH;
 
 const apiKey = Deno.env.get("VODACOM_API_KEY") ?? "";
 const publicKeyPem = Deno.env.get("VODACOM_PUBLIC_KEY") ?? "";
-export const shortcode = Deno.env.get("VODACOM_SHORTCODE") ?? "";
+// Sandbox (vodafoneGHA) inatumia ServiceProviderCode "000000".
+// Production itahitaji shortcode halisi.
+export const shortcode = "000000";
 export const mpesaAmount = Number(Deno.env.get("MPESA_AMOUNT") ?? "12000");
 
 let cachedSession: { id: string; at: number } | null = null;
@@ -55,6 +57,7 @@ export async function getSessionId(force = false): Promise<string> {
   if (!sessionId) {
     throw new Error(`Vodacom getSession imeshindwa: ${JSON.stringify(body)}`);
   }
+  console.log(`vodacom: SessionID imepatikana (urefu=${String(sessionId).length}): ${sessionId}`);
   cachedSession = { id: String(sessionId), at: Date.now() };
   return cachedSession.id;
 }
@@ -95,8 +98,8 @@ export async function c2bSingleStage(input: {
 }): Promise<C2BResult> {
   return await vodacomFetch("c2bPayment/singleStage/", "POST", {
     input_Amount: String(input.amount),
-    input_Country: "TZA",
-    input_Currency: "TZS",
+    input_Country: "GHA",
+    input_Currency: "GHS",
     input_CustomerMSISDN: input.customerMsisdn,
     input_ServiceProviderCode: shortcode,
     input_ThirdPartyConversationID: input.thirdPartyConversationId,
@@ -121,7 +124,7 @@ export async function queryTransactionStatus(input: {
     input_QueryReference: input.queryReference,
     input_ServiceProviderCode: shortcode,
     input_ThirdPartyConversationID: input.thirdPartyConversationId,
-    input_Country: "TZA",
+    input_Country: "GHA",
   });
 }
 
