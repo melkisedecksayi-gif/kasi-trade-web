@@ -4,6 +4,12 @@ import { supabase } from '../supabaseClient';
 const MONTHLY_PRICE = 12000;
 const TRIAL_DAYS = 14;
 
+const EDGE_BASE = `${process.env.REACT_APP_SUPABASE_URL}/functions/v1`;
+// mpesa-push inasubiri ~30s (SessionID ya Vodacom), kisha prompt ya simu.
+// Poll mpesa-status kwa mita ~2.5 dakika jumla.
+const MPESA_POLL_INTERVAL_MS = 5000;
+const MPESA_POLL_MAX_ATTEMPTS = 30;
+
 const normalize = (data) => (Array.isArray(data) ? data[0] : data) || null;
 
 // Hali (status) huthibitishwa server-side kupitia RPC get_my_subscription(),
@@ -170,6 +176,56 @@ export function useSubscription(session) {
     return true;
   };
 
+  // M-Pesa C2B: mpesa-push (STK/C2B prompt) → polling mpesa-status.
+  // Ukikamilika, mpesa-status ndiyo huweka subscriptions='active' server-side;
+  // hapa tunarefresh kupitia get_my_subscription ili gate ijisashe.
+  const startMpesaPayment = async (phone) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new Error('Huna ruhusa');
+
+    const pushRes = await fetch(`${EDGE_BASE}/mpesa-push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ phone, amount: MONTHLY_PRICE }),
+    });
+    const pushData = await pushRes.json().catch(() => ({}));
+    if (!pushRes.ok) {
+      throw new Error(pushData.error || 'Imeshindikana kuanzisha malipo ya M-Pesa');
+    }
+
+    for (let attempt = 0; attempt < MPESA_POLL_MAX_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, MPESA_POLL_INTERVAL_MS));
+
+      const statusRes = await fetch(`${EDGE_BASE}/mpesa-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ paymentId: pushData.paymentId }),
+      });
+      const statusData = await statusRes.json().catch(() => ({}));
+      if (!statusRes.ok) continue;
+
+      if (statusData.status === 'completed') {
+        setSubscription(normalize(statusData.subscription));
+        await fetchSubscription();
+        return { success: true };
+      }
+      if (statusData.status === 'failed') {
+        throw new Error('Malipo yamekataliwa');
+      }
+    }
+
+    throw new Error(
+      'Malipo hayajakamilika bado. Thibitisha kwenye simu yako au jaribu tena.'
+    );
+  };
+
   const canAccess = () => {
     if (!subscription) return false;
     return subscription.status === 'trial' || subscription.status === 'active';
@@ -184,6 +240,7 @@ export function useSubscription(session) {
     statusText: getStatusText,
     statusBadge: getStatusBadge(),
     activateSubscription,
+    startMpesaPayment,
     refresh: fetchSubscription,
     MONTHLY_PRICE,
     TRIAL_DAYS,

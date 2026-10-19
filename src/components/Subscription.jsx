@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import getStyles from '../stylePresets';
 import PAYMENT from '../config/payment';
 
-const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining, statusBadge, activateSubscription, refresh, MONTHLY_PRICE }) => {
-  const [paymentStep, setPaymentStep] = useState('select'); // select | confirm | done
+const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining, statusBadge, startMpesaPayment, refresh, MONTHLY_PRICE }) => {
+  const [paymentStep, setPaymentStep] = useState('select'); // select | done
   const [paymentMethod, setPaymentMethod] = useState('mobile');
-  const [code, setCode] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,19 +21,34 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
     return new Intl.NumberFormat('sw-TZ', { style: 'currency', currency: 'TZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amt).replace(/\sTSh/i, 'TSh ');
   };
 
+  const normalizePhone = (raw) => {
+    const digits = String(raw || '').replace(/[\s\-()]/g, '');
+    if (/^255\d{9}$/.test(digits)) return digits;
+    if (/^0\d{9}$/.test(digits)) return `255${digits.slice(1)}`;
+    if (/^[78]\d{8}$/.test(digits)) return `255${digits}`;
+    return null;
+  };
+
   const handleSubmitPayment = async () => {
-    if (!code.trim()) {
-      setError(isSw ? 'Ingiza code ya kuwasha uliyopewa' : 'Enter the activation code you were given');
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      setError(isSw ? 'Ingiza namba sahihi ya simu (mfano: 0712345678)' : 'Enter a valid phone number (e.g. 0712345678)');
+      return;
+    }
+    if (typeof startMpesaPayment !== 'function') {
+      setError(isSw ? 'Malipo ya M-Pesa hayapatikani kwa sasa. Wasiliana na msaada.' : 'M-Pesa payments are unavailable right now. Contact support.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      await activateSubscription(code.trim());
-      setPaymentStep('done');
-      if (refresh) refresh();
+      const result = await startMpesaPayment(normalizedPhone);
+      if (result?.success !== false) {
+        setPaymentStep('done');
+        if (refresh) refresh();
+      }
     } catch (e) {
-      setError(e.message || (isSw ? 'Imeshindwa kuwasha. Jaribu tena.' : 'Activation failed. Try again.'));
+      setError(e.message || (isSw ? 'Imeshindwa kutuma ombi la malipo. Jaribu tena.' : 'Failed to initiate payment. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -261,19 +276,33 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
               </div>
 
               <div style={{ marginBottom: '14px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: th.text || '#0f172a', marginBottom: '6px' }}>
-                  {isSw ? 'Code ya Kuwasha Akaunti' : 'Account Activation Code'}
-                </div>
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder={isSw ? 'Mf: KASI-2026-AAAA' : 'e.g. KASI-2026-AAAA'}
-                  style={inputStyle}
-                />
-                <div style={{ fontSize: '11px', color: th.textMuted || '#94a3b8', marginTop: '4px' }}>
-                  {isSw ? 'Baada ya kulipa, wasiliana na admin upate code ya kuwasha.' : 'After payment, contact admin to get your activation code.'}
-                </div>
+                {paymentMethod === 'mobile' ? (
+                  <>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: th.text || '#0f172a', marginBottom: '6px' }}>
+                      {isSw ? 'Namba ya Simu (M-Pesa)' : 'Phone Number (M-Pesa)'}
+                    </div>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder={isSw ? 'Mf: 0712345678' : 'e.g. 0712345678'}
+                      disabled={loading}
+                      style={inputStyle}
+                    />
+                    <div style={{ fontSize: '11px', color: th.textMuted || '#94a3b8', marginTop: '4px' }}>
+                      {isSw
+                        ? `Utapokea ombi la malipo kwenye simu hii. Kiasi: ${formatCurrency(MONTHLY_PRICE)}.`
+                        : `You will receive a payment prompt on this phone. Amount: ${formatCurrency(MONTHLY_PRICE)}.`}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: '12px', color: th.textMuted || '#94a3b8', lineHeight: '1.6' }}>
+                    {isSw
+                      ? 'Baada ya kulipa kwa njia hii, wasiliana na msaada ili akaunti yako iwashwe.'
+                      : 'After paying via this method, contact support to activate your account.'}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -286,12 +315,18 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
               </div>
             )}
 
-            <button onClick={handleSubmitPayment} disabled={loading} style={btnPrimary}>
-              {loading
-                ? (isSw ? 'Inasubiri...' : 'Processing...')
-                : (isSw ? 'Washa Akaunti' : 'Activate Account')
-              }
-            </button>
+            {paymentMethod === 'mobile' ? (
+              <button onClick={handleSubmitPayment} disabled={loading} style={btnPrimary}>
+                {loading
+                  ? (isSw ? 'Inasubiri M-Pesa...' : 'Waiting for M-Pesa...')
+                  : (isSw ? `Lipa ${formatCurrency(MONTHLY_PRICE)}` : `Pay ${formatCurrency(MONTHLY_PRICE)}`)
+                }
+              </button>
+            ) : (
+              <button onClick={() => { window.location.href = `tel:${PAYMENT.support}`; }} style={btnPrimary}>
+                {isSw ? `Piga Msaada: ${PAYMENT.support}` : `Call Support: ${PAYMENT.support}`}
+              </button>
+            )}
 
             <p style={{ textAlign: 'center', fontSize: '11px', color: th.textMuted || '#94a3b8', marginTop: '12px' }}>
               {isSw ? `Kwa msaada piga: ${PAYMENT.support}` : `For support call: ${PAYMENT.support}`}
