@@ -5,11 +5,11 @@ import PAYMENT from '../config/payment';
 // Mitandao ya wallet inayopitia AzamPay. `id` ndiyo thamani ya `provider` ya AzamPay.
 // `prefixes` hutumika kupendekeza mtandao kutokana na namba ya simu (mteja anaweza kubadili).
 const NETWORKS = [
-  { id: 'Mpesa', label: 'M-Pesa', icon: '/networks/mpesa.svg', prefixes: ['74', '75', '76'] },
-  { id: 'Airtel', label: 'Airtel Money', icon: '/networks/airtel.svg', prefixes: ['68', '69', '78'] },
-  { id: 'Tigo', label: 'Tigo Pesa / Mixx', icon: '/networks/tigo.svg', prefixes: ['65', '67', '71', '77'] },
-  { id: 'Halopesa', label: 'HaloPesa', icon: '/networks/halopesa.svg', prefixes: ['61', '62'] },
-  { id: 'Azampesa', label: 'AzamPesa', icon: '/networks/azampesa.svg', prefixes: [] },
+  { id: 'Mpesa', label: 'M-Pesa', icon: '/networks/mpesa.png', prefixes: ['74', '75', '76'] },
+  { id: 'Airtel', label: 'Airtel Money', icon: '/networks/airtelmoney.png', prefixes: ['68', '69', '78'] },
+  { id: 'Tigo', label: 'Tigo Pesa / Mixx', icon: '/networks/tigo.png', prefixes: ['65', '67', '71', '77'] },
+  { id: 'Halopesa', label: 'HaloPesa', icon: '/networks/halopesa.png', prefixes: ['61', '62'] },
+  { id: 'Azampesa', label: 'AzamPesa', icon: '/networks/azampesa.png', prefixes: [] },
 ];
 
 const detectNetwork = (normalizedPhone) => {
@@ -307,7 +307,16 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
                             aria-hidden="true"
                             width="24"
                             height="24"
-                            style={{ width: '24px', height: '24px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0 }}
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              objectFit: 'contain',
+                              borderRadius: '6px',
+                              background: '#ffffff',
+                              padding: '2px',
+                              boxSizing: 'border-box',
+                              flexShrink: 0,
+                            }}
                             onError={(e) => { e.target.style.display = 'none'; }}
                           />
                           <span>{n.label}</span>
