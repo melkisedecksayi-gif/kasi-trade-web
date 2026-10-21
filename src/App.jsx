@@ -385,7 +385,11 @@ function App() {
     'Escape': () => { setIsSidebarOpen(false); setActivePage('dashboard'); },
   });
 
-  if (loading || (session && subLoading)) {
+  // Wakati mtumiaji yuko kwenye skrini ya Login (currentView === 'login'), usionyeshe spinner
+  // ya subscription: signInWithPassword ikifanikiwa, SIGNED_IN huweka `session` na subscription
+  // huanza kupakia. Spinner ingeondoa <Auth> (ikapoteza hatua ya OTP) na kuirudisha kama fomu
+  // mpya ya Login — "redirect loop". Subscription inasubiriwa baada ya OTP (currentView = 'app').
+  if (loading || (session && subLoading && currentView !== 'login')) {
     return (
       <div className="initial-loader">
         <div className="initial-spinner" />

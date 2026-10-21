@@ -12,6 +12,9 @@ jest.mock('../utils/logger', () => ({
   default: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+// Kupakia Dashboard mara ya kwanza kunaweza kuchelewa chini ya mzigo wa suite nzima.
+jest.setTimeout(30000);
+
 const LOW_PRODUCTS = [
   { name: 'Sukari', stock: 2 },
   { name: 'Mchele', stock: 4 },

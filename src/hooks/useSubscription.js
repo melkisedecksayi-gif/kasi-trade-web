@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 
 const MONTHLY_PRICE = 12000;
@@ -58,14 +58,22 @@ export function useSubscription(session) {
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // `session` hupata object mpya kila SIGNED_IN (pia tab ikirudi mbele) na TOKEN_REFRESHED.
+  // Kutumia `session` kama dependency na kuweka loading=true kila mara kulifanya App nzima
+  // ibadilishwe na spinner mara kwa mara. Tunafuatilia mtumiaji, si object ya session.
+  const userId = session?.user?.id || null;
+  const loadedForRef = useRef(null);
 
   const fetchSubscription = useCallback(async () => {
-    if (!session?.user?.id) {
+    if (!userId) {
+      loadedForRef.current = null;
       setSubscription(null);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Loader kwa mtumiaji mpya tu. Refresh za nyuma (token, tab focus, baada ya malipo) ni za kimya.
+    const silent = loadedForRef.current === userId;
+    if (!silent) setLoading(true);
 
     // Server-side function: huhakikisha rekodi ipo na huweka 'expired'
     // kwa kutumia saa ya database (haiwezi kuchezewa na client).
@@ -75,7 +83,7 @@ export function useSubscription(session) {
         let sub = null;
 
         if (rpcMissing) {
-          sub = await fetchLegacy(session.user.id);
+          sub = await fetchLegacy(userId);
         } else {
           const { data, error: err } = await supabase.rpc('get_my_subscription');
           if (err) {
@@ -87,7 +95,7 @@ export function useSubscription(session) {
                 '[subscription] RPC get_my_subscription haiipo kwenye database. ' +
                   'Endesha supabase/subscription_security.sql kwenye Supabase SQL Editor.'
               );
-              sub = await fetchLegacy(session.user.id);
+              sub = await fetchLegacy(userId);
             } else {
               throw err;
             }
@@ -96,6 +104,7 @@ export function useSubscription(session) {
           }
         }
 
+        loadedForRef.current = userId;
         setSubscription(sub);
         setError(null);
         setLoading(false);
@@ -108,11 +117,15 @@ export function useSubscription(session) {
       }
     }
 
+    // Refresh ya kimya imeshindwa: hali ya awali ilishathibitishwa na seva, kwa hiyo usimfungie
+    // mtumiaji nje kwa hitilafu ya muda mfupi ya mtandao.
+    if (silent) return;
+
     // Fail-closed: bado hatujapata hali halisi -> hakuna access.
     setError(lastErr?.message || 'Imeshindwa kupata hali ya usajili');
     setSubscription(null);
     setLoading(false);
-  }, [session]);
+  }, [userId]);
 
   useEffect(() => {
     fetchSubscription();
