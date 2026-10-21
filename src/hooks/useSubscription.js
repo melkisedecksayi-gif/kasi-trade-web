@@ -5,10 +5,10 @@ const MONTHLY_PRICE = 12000;
 const TRIAL_DAYS = 14;
 
 const EDGE_BASE = `${process.env.REACT_APP_SUPABASE_URL}/functions/v1`;
-// mpesa-push inasubiri ~30s (SessionID ya Vodacom), kisha prompt ya simu.
-// Poll mpesa-status kwa mita ~2.5 dakika jumla.
-const MPESA_POLL_INTERVAL_MS = 5000;
-const MPESA_POLL_MAX_ATTEMPTS = 30;
+// azampay-push hurudi mara moja; prompt ya malipo hufika kwenye simu muda mfupi baadaye.
+// Poll azampay-status kwa muda wa ~2.5 dakika jumla (matokeo huandikwa na azampay-callback).
+const PAYMENT_POLL_INTERVAL_MS = 5000;
+const PAYMENT_POLL_MAX_ATTEMPTS = 30;
 
 const normalize = (data) => (Array.isArray(data) ? data[0] : data) || null;
 
@@ -176,31 +176,33 @@ export function useSubscription(session) {
     return true;
   };
 
-  // M-Pesa C2B: mpesa-push (STK/C2B prompt) → polling mpesa-status.
-  // Ukikamilika, mpesa-status ndiyo huweka subscriptions='active' server-side;
-  // hapa tunarefresh kupitia get_my_subscription ili gate ijisashe.
-  const startMpesaPayment = async (phone) => {
+  // Malipo ya simu kupitia AzamPay (Mpesa, Airtel, Tigo, Halopesa, Azampesa):
+  // azampay-push (prompt kwenye simu) → polling azampay-status.
+  // Ukikamilika, azampay-callback ndiyo huweka subscriptions='active' server-side
+  // (complete_payment); hapa tunarefresh kupitia get_my_subscription ili gate ijisashe.
+  const startMobilePayment = async (phone, provider) => {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
     if (!token) throw new Error('Huna ruhusa');
 
-    const pushRes = await fetch(`${EDGE_BASE}/mpesa-push`, {
+    const pushRes = await fetch(`${EDGE_BASE}/azampay-push`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ phone, amount: MONTHLY_PRICE }),
+      // Kiasi huamuliwa na server — client hutuma namba ya simu na mtandao pekee.
+      body: JSON.stringify({ phone, provider }),
     });
     const pushData = await pushRes.json().catch(() => ({}));
     if (!pushRes.ok) {
-      throw new Error(pushData.error || 'Imeshindikana kuanzisha malipo ya M-Pesa');
+      throw new Error(pushData.error || 'Imeshindikana kuanzisha malipo');
     }
 
-    for (let attempt = 0; attempt < MPESA_POLL_MAX_ATTEMPTS; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, MPESA_POLL_INTERVAL_MS));
+    for (let attempt = 0; attempt < PAYMENT_POLL_MAX_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, PAYMENT_POLL_INTERVAL_MS));
 
-      const statusRes = await fetch(`${EDGE_BASE}/mpesa-status`, {
+      const statusRes = await fetch(`${EDGE_BASE}/azampay-status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -217,7 +219,7 @@ export function useSubscription(session) {
         return { success: true };
       }
       if (statusData.status === 'failed') {
-        throw new Error('Malipo yamekataliwa');
+        throw new Error(statusData.reason || 'Malipo yamekataliwa');
       }
     }
 
@@ -240,7 +242,7 @@ export function useSubscription(session) {
     statusText: getStatusText,
     statusBadge: getStatusBadge(),
     activateSubscription,
-    startMpesaPayment,
+    startMobilePayment,
     refresh: fetchSubscription,
     MONTHLY_PRICE,
     TRIAL_DAYS,

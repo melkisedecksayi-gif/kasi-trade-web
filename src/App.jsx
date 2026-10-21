@@ -55,7 +55,7 @@ function App() {
   const [showAI, setShowAI] = useState(false);
   const autoSentRef = useRef({});
 
-  const { subscription, loading: subLoading, daysRemaining, statusBadge, startMpesaPayment, refresh: refreshSub, MONTHLY_PRICE, canAccess } = useSubscription(session);
+  const { subscription, loading: subLoading, daysRemaining, statusBadge, startMobilePayment, refresh: refreshSub, MONTHLY_PRICE, canAccess } = useSubscription(session);
 
   const handleSendEmailOTP = async () => {
     if (!session?.user?.email) return;
@@ -479,7 +479,7 @@ function App() {
           <SubscriptionPage
             lang={lang} isDarkMode={isDarkMode} theme={theme}
             subscription={subscription} daysRemaining={daysRemaining}
-            statusBadge={statusBadge} startMpesaPayment={startMpesaPayment}
+            statusBadge={statusBadge} startMobilePayment={startMobilePayment}
             refresh={refreshSub} MONTHLY_PRICE={MONTHLY_PRICE}
           />
         </ErrorBoundary>
@@ -532,7 +532,7 @@ function App() {
         <SubscriptionPage
           lang={lang} isDarkMode={isDarkMode} theme={theme}
           subscription={subscription} daysRemaining={daysRemaining}
-          statusBadge={statusBadge} startMpesaPayment={startMpesaPayment}
+          statusBadge={statusBadge} startMobilePayment={startMobilePayment}
           refresh={refreshSub} MONTHLY_PRICE={MONTHLY_PRICE}
         />
       );

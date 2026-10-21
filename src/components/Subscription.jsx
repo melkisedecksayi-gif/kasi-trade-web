@@ -2,10 +2,29 @@ import React, { useState } from 'react';
 import getStyles from '../stylePresets';
 import PAYMENT from '../config/payment';
 
-const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining, statusBadge, startMpesaPayment, refresh, MONTHLY_PRICE }) => {
+// Mitandao ya wallet inayopitia AzamPay. `id` ndiyo thamani ya `provider` ya AzamPay.
+// `prefixes` hutumika kupendekeza mtandao kutokana na namba ya simu (mteja anaweza kubadili).
+const NETWORKS = [
+  { id: 'Mpesa', label: 'M-Pesa', prefixes: ['74', '75', '76'] },
+  { id: 'Airtel', label: 'Airtel Money', prefixes: ['68', '69', '78'] },
+  { id: 'Tigo', label: 'Tigo Pesa / Mixx', prefixes: ['65', '67', '71', '77'] },
+  { id: 'Halopesa', label: 'HaloPesa', prefixes: ['61', '62'] },
+  { id: 'Azampesa', label: 'AzamPesa', prefixes: [] },
+];
+
+const detectNetwork = (normalizedPhone) => {
+  if (!normalizedPhone) return null;
+  const prefix = normalizedPhone.slice(3, 5); // 255 7X...
+  const hit = NETWORKS.find((n) => n.prefixes.includes(prefix));
+  return hit ? hit.id : null;
+};
+
+const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining, statusBadge, startMobilePayment, refresh, MONTHLY_PRICE }) => {
   const [paymentStep, setPaymentStep] = useState('select'); // select | done
   const [paymentMethod, setPaymentMethod] = useState('mobile');
   const [phone, setPhone] = useState('');
+  const [network, setNetwork] = useState('Mpesa');
+  const [networkChosen, setNetworkChosen] = useState(false); // mteja amechagua mwenyewe
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -29,20 +48,35 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
     return null;
   };
 
+  const handlePhoneChange = (value) => {
+    setPhone(value);
+    if (!networkChosen) {
+      const guess = detectNetwork(normalizePhone(value));
+      if (guess) setNetwork(guess);
+    }
+  };
+
+  const handleSelectNetwork = (id) => {
+    setNetwork(id);
+    setNetworkChosen(true);
+  };
+
+  const networkLabel = (NETWORKS.find((n) => n.id === network) || NETWORKS[0]).label;
+
   const handleSubmitPayment = async () => {
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
       setError(isSw ? 'Ingiza namba sahihi ya simu (mfano: 0712345678)' : 'Enter a valid phone number (e.g. 0712345678)');
       return;
     }
-    if (typeof startMpesaPayment !== 'function') {
-      setError(isSw ? 'Malipo ya M-Pesa hayapatikani kwa sasa. Wasiliana na msaada.' : 'M-Pesa payments are unavailable right now. Contact support.');
+    if (typeof startMobilePayment !== 'function') {
+      setError(isSw ? 'Malipo ya simu hayapatikani kwa sasa. Wasiliana na msaada.' : 'Mobile payments are unavailable right now. Contact support.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const result = await startMpesaPayment(normalizedPhone);
+      const result = await startMobilePayment(normalizedPhone, network);
       if (result?.success !== false) {
         setPaymentStep('done');
         if (refresh) refresh();
@@ -195,7 +229,7 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '14px' }}>
                 {[
-                  { id: 'mobile', label: 'M-Pesa / Tigo Pesa / Airtel', short: isSw ? 'Simu' : 'Mobile' },
+                  { id: 'mobile', label: 'Mobile Money', short: isSw ? 'Simu' : 'Mobile' },
                   { id: 'bank', label: isSw ? 'Benki' : 'Bank Transfer', short: isSw ? 'Benki' : 'Bank' },
                   { id: 'cash', label: isSw ? 'Taslimu (Ofisini)' : 'Cash (Office)', short: isSw ? 'Taslimu' : 'Cash' },
                 ].map((method) => (
@@ -233,16 +267,32 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
               }}>
                 {paymentMethod === 'mobile' && (
                   <div>
-                    <div style={{ fontWeight: '700', marginBottom: '6px', color: '#6366f1' }}>
+                    <div style={{ fontWeight: '700', marginBottom: '8px', color: '#6366f1' }}>
                       {isSw ? 'Lipa kupitia Simu:' : 'Pay via Mobile Money:'}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{isSw ? 'Namba ya Malipo:' : 'Payment Number:'}</span>
-                      <span style={{ fontWeight: '700' }}>{PAYMENT.mobile.number}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{isSw ? 'Jina:' : 'Name:'}</span>
-                      <span style={{ fontWeight: '700' }}>{PAYMENT.mobile.name}</span>
+                    <div role="radiogroup" aria-label={isSw ? 'Mtandao wa simu' : 'Mobile network'} style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {NETWORKS.map((n) => (
+                        <button
+                          key={n.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={network === n.id}
+                          disabled={loading}
+                          onClick={() => handleSelectNetwork(n.id)}
+                          style={{
+                            padding: '8px 10px',
+                            border: `2px solid ${network === n.id ? '#6366f1' : (th.border || '#e2e8f0')}`,
+                            borderRadius: '8px',
+                            background: network === n.id ? 'rgba(99,102,241,0.12)' : 'transparent',
+                            color: network === n.id ? '#6366f1' : (th.text || '#0f172a'),
+                            fontWeight: network === n.id ? '700' : '500',
+                            fontSize: '12px',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {n.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -279,13 +329,13 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
                 {paymentMethod === 'mobile' ? (
                   <>
                     <div style={{ fontSize: '12px', fontWeight: '600', color: th.text || '#0f172a', marginBottom: '6px' }}>
-                      {isSw ? 'Namba ya Simu (M-Pesa)' : 'Phone Number (M-Pesa)'}
+                      {isSw ? `Namba ya Simu (${networkLabel})` : `Phone Number (${networkLabel})`}
                     </div>
                     <input
                       type="tel"
                       inputMode="tel"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
                       placeholder={isSw ? 'Mf: 0712345678' : 'e.g. 0712345678'}
                       disabled={loading}
                       style={inputStyle}
@@ -318,7 +368,7 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
             {paymentMethod === 'mobile' ? (
               <button onClick={handleSubmitPayment} disabled={loading} style={btnPrimary}>
                 {loading
-                  ? (isSw ? 'Inasubiri M-Pesa...' : 'Waiting for M-Pesa...')
+                  ? (isSw ? `Inasubiri ${networkLabel}...` : `Waiting for ${networkLabel}...`)
                   : (isSw ? `Lipa ${formatCurrency(MONTHLY_PRICE)}` : `Pay ${formatCurrency(MONTHLY_PRICE)}`)
                 }
               </button>

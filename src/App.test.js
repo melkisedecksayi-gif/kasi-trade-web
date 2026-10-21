@@ -11,7 +11,7 @@ jest.mock('./hooks/useSubscription', () => ({
     daysRemaining: 0,
     statusBadge: { bg: '#f1f5f9', color: '#64748b' },
     activateSubscription: jest.fn(),
-    startMpesaPayment: jest.fn(),
+    startMobilePayment: jest.fn(),
     refresh: jest.fn(),
     MONTHLY_PRICE: 12000,
   }),
