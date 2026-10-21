@@ -1,8 +1,10 @@
 import logger from '../utils/logger';
+import { supabase } from '../supabaseClient';
 
-const DEFAULT_API_KEY = 'zs_4b512fd0330fe8a586617f5b89b41ff9300de57f7bb21c2b';
-const DEFAULT_SENDER_ID = 'KasiTRADE';
-const API_URL = 'https://meseji.co.tz/api/v1/sms/send';
+// SMS zote hupita kwenye Edge Function `send-sms`. API key ya mtoa huduma (MESEJI_API_KEY)
+// ipo kwenye secrets za Supabase pekee — HAIPASWI kuwa kwenye code ya frontend.
+const SEND_SMS_FUNCTION = 'send-sms';
+const REQUEST_TIMEOUT_MS = 20000;
 
 const rateLimiter = {
   records: {},
@@ -73,89 +75,95 @@ export const generatePasswordResetOTPMessage = (code, lang = 'sw') => {
   return t(code);
 };
 
-export const sendSMS = async ({ to, message, sender, apiKey }) => {
-  const cleanTo = formatPhone(to);
-  if (!cleanTo) return { success: false, error: 'Invalid phone number' };
+// Hutuma ombi kwenda Edge Function `send-sms`.
+// payload: { kind: 'otp'|'password_reset'|'welcome'|'custom', to, ... } (angalia
+// supabase/functions/send-sms). Inarudisha { success, data } au { success:false, error, retryable }.
+const invokeSendSms = async (payload) => {
+  const cleanTo = formatPhone(payload.to);
+  if (!cleanTo) return { success: false, error: 'Invalid phone number', retryable: false };
 
   const phoneWithoutPlus = cleanTo.startsWith('+') ? cleanTo.slice(1) : cleanTo;
-  const key = apiKey || DEFAULT_API_KEY;
-  const sid = sender || DEFAULT_SENDER_ID;
 
   if (!rateLimiter.canSend(phoneWithoutPlus)) {
-    return { success: false, error: 'Too many messages sent - please wait' };
+    return { success: false, error: 'Too many messages sent - please wait', retryable: false };
   }
 
+  let timer;
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-      },
-      body: JSON.stringify({
-        sender_id: sid,
-        message: message,
-        contacts: phoneWithoutPlus,
-      }),
-      signal: controller.signal,
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Request timeout')), REQUEST_TIMEOUT_MS);
     });
+    const { data, error } = await Promise.race([
+      supabase.functions.invoke(SEND_SMS_FUNCTION, { body: { ...payload, to: phoneWithoutPlus } }),
+      timeout,
+    ]);
 
-    clearTimeout(timeout);
-
-    const text = await response.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = { message: text }; }
-
-    if (!response.ok) {
-      throw new Error(data.message || data.error || `HTTP ${response.status}`);
+    if (error) {
+      // FunctionsHttpError: ina Response kwenye error.context (status + ujumbe wa seva)
+      const status = error.context?.status;
+      let message = error.message;
+      try {
+        const body = await error.context.json();
+        if (body?.error) message = body.error;
+      } catch (e) { /* si JSON */ }
+      return { success: false, error: message, retryable: !status || status >= 500 };
     }
-
-    return { success: true, data };
+    if (data?.success === false) {
+      return { success: false, error: data.error || 'SMS failed', retryable: false };
+    }
+    return { success: true, data: data?.data ?? data };
   } catch (error) {
-    if (error.name === 'AbortError') {
-      return { success: false, error: 'Request timeout' };
+    if (error.message === 'Request timeout') {
+      return { success: false, error: 'Request timeout', retryable: true };
     }
     logger.error('SMSService', 'SMS send error:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, retryable: true };
+  } finally {
+    clearTimeout(timer);
   }
 };
 
-export const sendSMSWithRetry = async (params, maxRetries = 3, delayMs = 1000) => {
+// `sender` na `apiKey` zilikuwepo zamani; sasa zinapuuzwa (key ipo kwenye seva pekee).
+export const sendSMS = async ({ to, message }) =>
+  invokeSendSms({ kind: 'custom', to, message });
+
+// Rudia tu kwa makosa ya mtandao/seva (5xx). Makosa ya 4xx (kikomo cha kasi, namba mbaya,
+// huna ruhusa) hayarudiwi — kurudia kungeongeza tu matumizi ya kikomo.
+const withRetry = async (send, maxRetries, delayMs) => {
+  let last = { success: false, error: 'Failed after all retries' };
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const result = await sendSMS(params);
-    if (result.success) return result;
+    last = await send();
+    if (last.success || last.retryable === false) return last;
     if (attempt < maxRetries - 1) {
       await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
     }
   }
-  return { success: false, error: 'Failed after all retries' };
+  return last.error ? last : { success: false, error: 'Failed after all retries' };
 };
 
+export const sendSMSWithRetry = async (params, maxRetries = 3, delayMs = 1000) =>
+  withRetry(() => sendSMS(params), maxRetries, delayMs);
+
+// Ujumbe wa OTP / welcome / password reset hutengenezwa na SERVER (kutoka kwenye code na jina
+// tu), kwa hiyo hizi zinafanya kazi hata kabla mtumiaji hajaingia.
 export const sendWelcomeSMS = async ({ phone, businessName, lang = 'sw' }) => {
   if (!phone) return { success: false, error: 'No phone number provided' };
-  const message = generateWelcomeMessage(businessName, lang);
-  return sendSMSWithRetry({ to: phone, message });
+  return withRetry(() => invokeSendSms({ kind: 'welcome', to: phone, businessName, lang }), 3, 1000);
 };
 
 export const sendOTPSMS = async ({ phone, code, lang = 'sw' }) => {
   if (!phone) return { success: false, error: 'No phone number provided' };
-  const message = generateOTPMessage(code, lang);
-  return sendSMSWithRetry({ to: phone, message });
+  return withRetry(() => invokeSendSms({ kind: 'otp', to: phone, code, lang }), 3, 1000);
 };
 
 export const sendPasswordResetOTPSMS = async ({ phone, code, lang = 'sw' }) => {
   if (!phone) return { success: false, error: 'No phone number provided' };
-  const message = generatePasswordResetOTPMessage(code, lang);
-  return sendSMSWithRetry({ to: phone, message });
+  return withRetry(() => invokeSendSms({ kind: 'password_reset', to: phone, code, lang }), 3, 1000);
 };
-
-export const sendBulkSMS = async ({ recipients, message, sender, apiKey }) => {
+export const sendBulkSMS = async ({ recipients, message }) => {
   const results = [];
   for (const recipient of recipients) {
-    const result = await sendSMSWithRetry({ to: recipient, message, sender, apiKey });
+    const result = await sendSMSWithRetry({ to: recipient, message });
     results.push({ recipient, ...result });
     if (recipients.length > 1) {
       await new Promise(resolve => setTimeout(resolve, 500));
