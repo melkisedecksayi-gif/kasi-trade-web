@@ -3,12 +3,34 @@ import { Icons } from './Icons';
 import { FancyDonut } from './Charts';
 import getStyles from '../stylePresets';
 import logger from '../utils/logger';
+import { sendLowStockAlertSms } from '../services/stockAlertSms';
 
 const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage }) => {
   const [stats, setStats] = useState({ todaySales: 0, todayProfit: 0, productsCount: 0, customersCount: 0, lowStock: 0 });
   const [categoryData, setCategoryData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stockSmsSending, setStockSmsSending] = useState(false);
+  const [stockSmsMsg, setStockSmsMsg] = useState(null); // { ok, text }
   const isSw = lang === 'sw';
+
+  // SMS ya stock hutumwa TU kwa kubonyeza kitufe (si wakati ukurasa unapopakia).
+  const handleSendStockSms = async () => {
+    if (stockSmsSending) return;
+    setStockSmsSending(true);
+    setStockSmsMsg(null);
+    const res = await sendLowStockAlertSms({ supabase, currentShop, lang });
+    const texts = {
+      no_low_stock: isSw ? 'Hakuna bidhaa zilizo chini ya kiwango.' : 'No products below the threshold.',
+      no_phone: isSw ? 'Weka namba ya simu kwenye Mipangilio ya SMS kwanza.' : 'Set a phone number in SMS Settings first.',
+      send_failed: isSw ? 'SMS imeshindwa kutumwa. Jaribu tena.' : 'SMS failed to send. Try again.',
+      error: isSw ? 'Hitilafu imetokea. Jaribu tena.' : 'Something went wrong. Try again.',
+      no_shop: isSw ? 'Chagua duka kwanza.' : 'Select a shop first.',
+    };
+    setStockSmsMsg(res.success
+      ? { ok: true, text: isSw ? `SMS imetumwa (bidhaa ${res.count}).` : `SMS sent (${res.count} products).` }
+      : { ok: false, text: texts[res.reason] || texts.error });
+    setStockSmsSending(false);
+  };
   const s = getStyles(isDarkMode);
   const t = s.t;
 
@@ -163,6 +185,27 @@ const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage }) =
                   <Icons.Alert size={14} /> {stats.lowStock} {isSw ? 'bidhaa chache' : 'low stock'}
                 </div>
               )}
+              <div style={{ marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleSendStockSms}
+                  disabled={stockSmsSending}
+                  style={{
+                    padding: '6px 10px', borderRadius: '8px', border: `1px solid ${t.border}`,
+                    background: 'transparent', color: t.text, fontSize: '11px', fontWeight: 600,
+                    cursor: stockSmsSending ? 'not-allowed' : 'pointer', opacity: stockSmsSending ? 0.6 : 1,
+                  }}
+                >
+                  {stockSmsSending
+                    ? (isSw ? 'Inatuma...' : 'Sending...')
+                    : (isSw ? 'Tuma SMS ya Stock' : 'Send Stock SMS')}
+                </button>
+                {stockSmsMsg && (
+                  <div role="status" style={{ marginTop: '6px', fontSize: '11px', color: stockSmsMsg.ok ? '#10b981' : '#ef4444' }}>
+                    {stockSmsMsg.text}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

@@ -150,7 +150,6 @@ function App() {
     if (!currentShop?.id) return;
 
     let autoCloseInterval;
-    let lowStockInterval;
     let birthdayInterval;
 
     const getSmsSettings = () => {
@@ -171,6 +170,7 @@ function App() {
         const today = now.toISOString().split('T')[0];
         const sentKey = `close_${currentShop.id}_${today}`;
         if (autoSentRef.current[sentKey]) return;
+        if (await alreadySentToday('auto_close', today)) { autoSentRef.current[sentKey] = true; return; }
 
         let phone = currentShop?.phone || '';
         if (!phone) {
@@ -236,39 +236,18 @@ function App() {
       } catch (e) { logger.warn('App', 'Auto close SMS error:', e); }
     };
 
-    const checkLowStock = async () => {
-      try {
-        const sms = getSmsSettings();
-        const threshold = sms.low_stock_threshold || 10;
-        const today = new Date().toISOString().split('T')[0];
-        const alertKey = `stock_${currentShop.id}_${today}`;
-        if (autoSentRef.current[alertKey]) return;
+    // SMS ya stock HAITUMWI hapa. Ilikuwa inatumwa kila ukurasa unapopakia (autoSentRef ni
+    // memory tu, hurudi tupu kila refresh). Sasa inatumwa tu kwa kitufe cha Dashboard
+    // (services/stockAlertSms.js).
 
-        const { data: lowProducts } = await supabase.from('products')
-          .select('name, stock').eq('shop_id', currentShop.id).lt('stock', threshold).limit(10);
-        if (!lowProducts?.length) return;
-
-        let phone = currentShop?.phone || '';
-        if (!phone) {
-          const { data: profile } = await supabase.from('profiles').select('phone').eq('id', currentShop.owner_id).maybeSingle();
-          phone = profile?.phone || '';
-        }
-        if (!phone) return;
-
-        const productList = lowProducts.map(p => `${p.name} (${p.stock})`).join(', ');
-        const msg = lang === 'sw'
-          ? `TAHADHARI STOCK\n\nBidhaa zifuatazo ziko chini ya ${threshold}:\n${productList}\n\n${currentShop?.shop_name || 'KasiTRADE'}`
-          : `LOW STOCK ALERT\n\nProducts below ${threshold}:\n${productList}\n\n${currentShop?.shop_name || 'KasiTRADE'}`;
-
-        const result = await sendSMS({ to: phone, message: msg });
-        if (result.success) {
-          await supabase.from('sms_logs').insert({
-            shop_id: currentShop.id, recipient: phone, message: msg, type: 'low_stock',
-            status: 'sent', provider_response: JSON.stringify(result.data).slice(0, 500)
-          });
-        }
-        autoSentRef.current[alertKey] = true;
-      } catch (e) { logger.warn('App', 'Low stock SMS error:', e); }
+    // autoSentRef hupotea kila refresh, kwa hiyo hii inahakikisha kwenye database kama SMS ya
+    // aina hii tayari ilitumwa leo (inazuia kutuma tena kila mtu anapofungua ukurasa).
+    const alreadySentToday = async (type, today) => {
+      const { count, error } = await supabase.from('sms_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('shop_id', currentShop.id).eq('type', type).gte('created_at', today);
+      if (error) return true; // hatuna uhakika -> usitume (salama zaidi kuliko kutuma mara mbili)
+      return (count || 0) > 0;
     };
 
     const checkBirthdays = async () => {
@@ -278,6 +257,7 @@ function App() {
         const todayStr = today.toISOString().split('T')[0];
         const alertKey = `birthday_${currentShop.id}_${todayStr}`;
         if (autoSentRef.current[alertKey]) return;
+        if (await alreadySentToday('birthday', todayStr)) { autoSentRef.current[alertKey] = true; return; }
 
         const { data: bdayCustomers } = await supabase.from('customers')
           .select('id, name, phone, birthday').eq('shop_id', currentShop.id)
@@ -311,15 +291,12 @@ function App() {
     };
 
     autoCloseInterval = setInterval(checkAutoClose, 60000);
-    lowStockInterval = setInterval(checkLowStock, 300000);
     birthdayInterval = setInterval(checkBirthdays, 3600000);
     checkAutoClose();
-    checkLowStock();
     checkBirthdays();
 
     return () => {
       clearInterval(autoCloseInterval);
-      clearInterval(lowStockInterval);
       clearInterval(birthdayInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
