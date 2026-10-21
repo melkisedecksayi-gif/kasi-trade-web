@@ -5,11 +5,11 @@ import PAYMENT from '../config/payment';
 // Mitandao ya wallet inayopitia AzamPay. `id` ndiyo thamani ya `provider` ya AzamPay.
 // `prefixes` hutumika kupendekeza mtandao kutokana na namba ya simu (mteja anaweza kubadili).
 const NETWORKS = [
-  { id: 'Mpesa', label: 'M-Pesa', prefixes: ['74', '75', '76'] },
-  { id: 'Airtel', label: 'Airtel Money', prefixes: ['68', '69', '78'] },
-  { id: 'Tigo', label: 'Tigo Pesa / Mixx', prefixes: ['65', '67', '71', '77'] },
-  { id: 'Halopesa', label: 'HaloPesa', prefixes: ['61', '62'] },
-  { id: 'Azampesa', label: 'AzamPesa', prefixes: [] },
+  { id: 'Mpesa', label: 'M-Pesa', icon: '/networks/mpesa.svg', prefixes: ['74', '75', '76'] },
+  { id: 'Airtel', label: 'Airtel Money', icon: '/networks/airtel.svg', prefixes: ['68', '69', '78'] },
+  { id: 'Tigo', label: 'Tigo Pesa / Mixx', icon: '/networks/tigo.svg', prefixes: ['65', '67', '71', '77'] },
+  { id: 'Halopesa', label: 'HaloPesa', icon: '/networks/halopesa.svg', prefixes: ['61', '62'] },
+  { id: 'Azampesa', label: 'AzamPesa', icon: '/networks/azampesa.svg', prefixes: [] },
 ];
 
 const detectNetwork = (normalizedPhone) => {
@@ -126,7 +126,14 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isDarkMode ? '#0f172a' : '#f8fafc', padding: '20px' }}>
       <div style={cardStyle}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <img src="/Logo.png" alt="KasiTRADE" style={{ width: '140px', height: 'auto', marginBottom: '16px' }} onError={(e) => { e.target.style.display = 'none'; }} />
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '20px' }}>
+            <img
+              src="/Logo.png"
+              alt="KasiTRADE"
+              style={{ width: '140px', maxWidth: '60%', height: 'auto', objectFit: 'contain', display: 'block' }}
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          </div>
           <h2 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: '800', color: th.text || '#0f172a' }}>
             {isSw ? 'Usajili wa Mfumo' : 'System Subscription'}
           </h2>
@@ -280,9 +287,13 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
                           disabled={loading}
                           onClick={() => handleSelectNetwork(n.id)}
                           style={{
-                            padding: '8px 10px',
+                            display: 'flex',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 12px',
                             border: `2px solid ${network === n.id ? '#6366f1' : (th.border || '#e2e8f0')}`,
-                            borderRadius: '8px',
+                            borderRadius: '10px',
                             background: network === n.id ? 'rgba(99,102,241,0.12)' : 'transparent',
                             color: network === n.id ? '#6366f1' : (th.text || '#0f172a'),
                             fontWeight: network === n.id ? '700' : '500',
@@ -290,7 +301,16 @@ const SubscriptionPage = ({ lang, isDarkMode, theme, subscription, daysRemaining
                             cursor: loading ? 'not-allowed' : 'pointer',
                           }}
                         >
-                          {n.label}
+                          <img
+                            src={n.icon}
+                            alt=""
+                            aria-hidden="true"
+                            width="24"
+                            height="24"
+                            style={{ width: '24px', height: '24px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0 }}
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                          <span>{n.label}</span>
                         </button>
                       ))}
                     </div>
