@@ -625,7 +625,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
     try {
       const { data } = await supabase
         .from('products')
-        .select('id, name, category, cost_price, selling_price')
+        .select('id, name, category, cost_price:buy_price, selling_price:sell_price')
         .eq('shop_id', currentShop.id);
       return data || [];
     } catch (err) {

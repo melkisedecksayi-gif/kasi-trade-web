@@ -312,9 +312,19 @@ function App() {
   const fetchShops = async () => {
     try {
       const uid = session.user.id;
+      // Hakikisha client ina JWT halali KWELI (si state tu). Vinginevyo maombi
+      // yanaenda kama `anon` (auth.uid() = null) na RLS inakataa/kuficha kila kitu,
+      // na tungejaribu kuunda duka bila sababu (42501).
+      const { data: live } = await supabase.auth.getSession();
+      if (!live?.session?.access_token || live.session.user?.id !== uid) {
+        logger.warn('App', 'fetchShops skipped: no live auth session yet');
+        return;
+      }
       const { data: shopData, error: shopErr } = await supabase.from('shops').select('*').eq('owner_id', uid);
       if (shopErr) {
+        // Usiunde duka jipya kama kusoma kumeshindikana
         logger.error('App', 'Shops fetch error:', shopErr);
+        return;
       }
       if (shopData && shopData.length > 0) {
         setShops(shopData);
@@ -325,7 +335,7 @@ function App() {
       }
       let profile = null;
       try {
-        const { data: pf } = await supabase.from('profiles').select('*').single();
+        const { data: pf } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
         profile = pf;
       } catch (e) {}
       const shopName = profile?.business_name || session.user.email?.split('@')[0] || 'Duka Langu';
