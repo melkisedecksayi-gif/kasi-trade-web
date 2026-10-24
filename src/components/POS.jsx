@@ -7,6 +7,7 @@ import { printReceipt } from '../utils/print';
 import { sendSMS } from '../services/smsService';
 import getStyles from '../stylePresets';
 import logger from '../utils/logger';
+import { checkoutWithStock, newCheckoutRequestId } from '../services/posCheckout';
 
 const CATEGORIES = [
   { key: 'all', labelSw: 'Zote', labelEn: 'All', color: '#6366f1' },
@@ -35,6 +36,8 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
   const [processing, setProcessing] = useState(false);
   const searchRef = useRef(null);
   const checkoutRef = useRef(null);
+  const requestIdRef = useRef(null);
+  const checkoutInFlightRef = useRef(false);
   const isSw = lang === 'sw';
   const th = getStyles(isDarkMode).t;
 
@@ -112,48 +115,98 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
 
   const getFinalTotal = () => Math.max(0, getTotal() - getDiscountAmount());
 
+  // Request ID ileile inatumika ikiwa mauzo hayajathibitishwa.
+  useEffect(() => {
+    requestIdRef.current = null;
+  }, [cart, discountType, discountValue, paymentMethod, currentShop?.id]);
+
   const handleCheckout = async () => {
-    if (cart.length === 0 || processing) return;
+    if (cart.length === 0 || checkoutInFlightRef.current || !currentShop?.id) return;
+
+    checkoutInFlightRef.current = true;
     setProcessing(true);
+
     const phone = customerPhone.trim();
-    const discount = getDiscountAmount();
-    const finalTotal = getFinalTotal();
+
     try {
-      const total = finalTotal;
-      const subtotal = getTotal();
-      const profit = cart.reduce((sum, item) => sum + ((item.sell_price - item.buy_price) * item.quantity), 0) - discount;
-      const { error: transactionError } = await supabase.from('transactions').insert([{
-        shop_id: currentShop.id, total_amount: total, profit: profit, discount: discount,
-        payment_method: paymentMethod, items_count: cart.reduce((sum, item) => sum + item.quantity, 0)
-      }]).select().single();
-      if (transactionError) throw transactionError;
-      playSaleBeep();
-      for (const item of cart) {
-        await supabase.from('products').update({ stock: item.stock - item.quantity }).eq('id', item.id);
+      if (!requestIdRef.current) {
+        requestIdRef.current = newCheckoutRequestId();
       }
-      const receiptData = { items: [...cart], total: finalTotal, subtotal: subtotal, discount: discount, discountType: discountType, date: new Date().toISOString() };
-      setNotify({ msg: lang === 'sw' ? 'Mauzo Yamefanikiwa!' : 'Sale Completed!', type: 'success', total: finalTotal, receipt: receiptData });
 
-      const soldItems = [...cart];
-      const soldTotal = total;
-      setCart([]); setShowCheckout(false); setCustomerPhone(''); setCustomerEmail(''); setDiscountType('none'); setDiscountValue(''); fetchProducts();
+      const sale = await checkoutWithStock({
+        supabase,
+        shopId: currentShop.id,
+        cart,
+        discount: getDiscountAmount(),
+        paymentMethod,
+        requestId: requestIdRef.current,
+      });
 
-      if (phone) {
-        const itemsList = soldItems.map(i => `${i.quantity}x ${i.name} TSh ${(i.sell_price * i.quantity).toLocaleString()}`).join(', ');
-        const smsMsg = `${isSw ? 'Asante kwa ununuzi wako!' : 'Thank you for your purchase!'}\n${currentShop?.shop_name || 'KasiTRADE'}\n${itemsList}\n${isSw ? 'Jumla' : 'Total'}: TSh ${soldTotal.toLocaleString()}\n${isSw ? 'Karibu tena!' : 'Welcome again!'}`;
+      const receiptItems = sale.items.map(item => ({
+        ...item,
+        sell_price: Number(item.sell_price),
+        buy_price: Number(item.buy_price),
+        quantity: Number(item.quantity),
+      }));
+
+      const total = Number(sale.total);
+      const subtotal = Number(sale.subtotal);
+      const discount = Number(sale.discount);
+
+      const receiptData = {
+        items: receiptItems,
+        total,
+        subtotal,
+        discount,
+        discountType,
+        date: sale.created_at || new Date().toISOString(),
+      };
+
+      playSaleBeep();
+
+      setNotify({
+        msg: isSw ? 'Mauzo Yamefanikiwa!' : 'Sale Completed!',
+        type: 'success',
+        total,
+        receipt: receiptData,
+      });
+
+      requestIdRef.current = null;
+      setCart([]);
+      setShowCheckout(false);
+      setCustomerPhone('');
+      setCustomerEmail('');
+      setDiscountType('none');
+      setDiscountValue('');
+      fetchProducts();
+
+      if (phone && !sale.already_processed) {
+        const itemsList = receiptItems
+          .map(i => `${i.quantity}x ${i.name} TSh ${(i.sell_price * i.quantity).toLocaleString()}`)
+          .join(', ');
+
+        const smsMsg = `${isSw ? 'Asante kwa ununuzi wako!' : 'Thank you for your purchase!'}\n${currentShop?.shop_name || 'KasiTRADE'}\n${itemsList}\n${isSw ? 'Jumla' : 'Total'}: TSh ${total.toLocaleString()}\n${isSw ? 'Karibu tena!' : 'Welcome again!'}`;
+
         sendSMS({ to: phone, message: smsMsg }).catch(() => {});
       }
-
     } catch (err) {
-      setNotify({ msg: err.message || (lang === 'sw' ? 'Hitilafu imetokea' : 'Error occurred'), type: 'error', total: 0 });
-      if (phone) {
-        const failMsg = `${isSw ? 'Samahani, malipo yameshindikana.' : 'Sorry, payment failed.'}\n${currentShop?.shop_name || 'KasiTRADE'}\n${isSw ? 'Tafadhali wasiliana nasi.' : 'Please contact us.'}`;
-        sendSMS({ to: phone, message: failMsg }).catch(() => {});
-      }
+      logger.error('POS', 'Checkout failed:', err);
+
+      setNotify({
+        msg: err.message || (isSw
+          ? 'Imeshindikana kuthibitisha mauzo. Jaribu tena bila kubadili bidhaa.'
+          : 'Could not confirm the sale. Retry without changing the cart.'),
+        type: 'error',
+        total: 0,
+      });
+
+      fetchProducts();
+    } finally {
+      checkoutInFlightRef.current = false;
+      setProcessing(false);
     }
-    finally { setProcessing(false); }
   };
-  checkoutRef.current = handleCheckout;
+    checkoutRef.current = handleCheckout;
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name?.toLowerCase()?.includes(searchQuery.toLowerCase());
