@@ -220,24 +220,43 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme, globalSearch
       return;
     }
 
+    const stockValue = formData.stock === '' ? 0 : Number(formData.stock);
+
+    if (!Number.isInteger(stockValue) || stockValue < 0 ||
+        !Number.isFinite(Number(formData.buy_price)) || Number(formData.buy_price) < 0 ||
+        !Number.isFinite(Number(formData.sell_price)) || Number(formData.sell_price) < 0) {
+      showToast(lang === 'sw' ? 'Weka stock na bei halali.' : 'Enter valid stock and prices.', 'error');
+      return;
+    }
+
     const productData = {
       shop_id: currentShop.id,
       name: formData.name,
       category: formData.category,
       buy_price: parseFloat(formData.buy_price),
       sell_price: parseFloat(formData.sell_price),
-      stock: parseInt(formData.stock) || 0
+      stock: stockValue
     };
 
     try {
       if (editingProduct) {
-        const { error } = await supabase
-          .from('products')
-          .update(productData)
-          .eq('id', editingProduct.id);
+        const { data, error } = await supabase.rpc('update_product_with_stock', {
+          p_shop_id: currentShop.id,
+          p_product_id: editingProduct.id,
+          p_expected_stock: editingProduct.stock,
+          p_new_stock: stockValue,
+          p_name: productData.name,
+          p_category: productData.category,
+          p_buy_price: productData.buy_price,
+          p_sell_price: productData.sell_price
+        });
 
         if (error) throw error;
-        setProducts(products.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p));
+
+        setProducts(prev => prev.map(p =>
+          p.id === editingProduct.id ? data : p
+        ));
+
         showToast(lang === 'sw' ? 'Bidhaa imesasishwa!' : 'Product updated!', 'success');
       } else {
         const { data, error } = await supabase
@@ -254,6 +273,7 @@ const Products = ({ lang, supabase, currentShop, isDarkMode, theme, globalSearch
       resetForm();
     } catch (err) {
       showToast((lang === 'sw' ? 'Hitilafu: ' : 'Error: ') + err.message, 'error');
+      fetchProducts();
     }
   };
 

@@ -664,7 +664,40 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         }
       }
 
-      return allData;
+      const itemsByTransaction = {};
+
+      for (let i = 0; i < allData.length; i += 150) {
+        const ids = allData.slice(i, i + 150).map(tx => tx.id);
+        let itemOffset = 0;
+        const itemPageSize = 1000;
+        let moreItems = true;
+
+        while (moreItems) {
+          const { data: lines, error: itemsError } = await supabase
+            .from('transaction_items')
+            .select('transaction_id, product_id, product_name, quantity, total_price')
+            .in('transaction_id', ids)
+            .order('id')
+            .range(itemOffset, itemOffset + itemPageSize - 1);
+
+          if (itemsError) throw itemsError;
+
+          (lines || []).forEach(line => {
+            if (!itemsByTransaction[line.transaction_id]) {
+              itemsByTransaction[line.transaction_id] = [];
+            }
+            itemsByTransaction[line.transaction_id].push(line);
+          });
+
+          moreItems = (lines || []).length === itemPageSize;
+          itemOffset += itemPageSize;
+        }
+      }
+
+      return allData.map(tx => ({
+        ...tx,
+        items: itemsByTransaction[tx.id] || []
+      }));
     } catch (err) {
       logger.error('Reports', 'Error fetching transactions:', err);
       return [];
@@ -782,7 +815,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
   }, [transactions, activeTab, customStart, customEnd]);
 
   const topProductsData = useMemo(() => {
-    if (!transactions.length || !products.length) return [];
+    if (!transactions.length) return [];
 
     const productMap = {};
     products.forEach(p => {
@@ -794,10 +827,17 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       if (Array.isArray(items)) {
         items.forEach(item => {
           const pid = item.product_id || item.id;
-          if (pid && productMap[pid]) {
-            productMap[pid].sales += Number(item.total || item.price * item.quantity || 0);
-            productMap[pid].quantity += Number(item.quantity || 1);
+          const key = pid || `deleted:${item.product_name || 'Unknown'}`;
+          if (!productMap[key]) {
+            productMap[key] = {
+              name: item.product_name || 'Unknown',
+              sales: 0,
+              quantity: 0,
+              category: 'Uncategorized'
+            };
           }
+          productMap[key].sales += Number(item.total_price ?? item.total ?? 0);
+          productMap[key].quantity += Number(item.quantity || 0);
         });
       }
     });
@@ -809,7 +849,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
   }, [transactions, products]);
 
   const categoryData = useMemo(() => {
-    if (!transactions.length || !products.length) return [];
+    if (!transactions.length) return [];
 
     const categoryMap = {};
     products.forEach(p => {
@@ -824,9 +864,10 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
           const pid = item.product_id || item.id;
           const product = products.find(p => p.id === pid);
           const cat = product ? product.category || 'Uncategorized' : 'Uncategorized';
-          if (categoryMap[cat]) {
-            categoryMap[cat].value += Number(item.total || item.price * item.quantity || 0);
+          if (!categoryMap[cat]) {
+            categoryMap[cat] = { name: cat, value: 0 };
           }
+          categoryMap[cat].value += Number(item.total_price ?? item.total ?? 0);
         });
       }
     });
@@ -1040,8 +1081,8 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         (items || []).forEach(item => {
           const name = item.product_name || 'Unknown';
           if (!productMap[name]) productMap[name] = { name, total: 0, quantity: 0 };
-          productMap[name].total += item.total_price || 0;
-          productMap[name].quantity += item.quantity || 0;
+          productMap[name].total += Number(item.total_price) || 0;
+          productMap[name].quantity += Number(item.quantity) || 0;
         });
         topProducts = Object.values(productMap).sort((a, b) => b.total - a.total).slice(0, 5);
         totalExpenses = (expData || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
