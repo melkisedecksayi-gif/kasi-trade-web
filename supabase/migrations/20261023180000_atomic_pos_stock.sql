@@ -5,6 +5,11 @@
 -- v2 FIX: creates stock_movements on databases where that table was not installed.
 -- Entire migration is atomic: a SQL error rolls back all changes.
 BEGIN;
+-- Columns required for POS and Sales Reports
+ALTER TABLE public.transaction_items
+    ADD COLUMN IF NOT EXISTS product_name TEXT,
+    ADD COLUMN IF NOT EXISTS buy_price NUMERIC DEFAULT 0;
+
 
 create table if not exists public.stock_movements (
   id uuid primary key default gen_random_uuid(),
