@@ -333,28 +333,12 @@ function App() {
         setCurrentShop(target || shopData[0]);
         return;
       }
-      let profile = null;
-      try {
-        const { data: pf } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-        profile = pf;
-      } catch (e) {}
-      const shopName = profile?.business_name || session.user.email?.split('@')[0] || 'Duka Langu';
-      const { data: newShop, error: insErr } = await supabase
-        .from('shops')
-        .insert({
-          owner_id: uid, shop_name: shopName, business_type: profile?.business_type || 'duka',
-          phone: profile?.phone || '', region: profile?.region || '',
-          district: profile?.district || '', ward: profile?.ward || ''
-        })
-        .select().single();
-      if (insErr) {
-        logger.error('App', 'Shop insert error:', insErr);
-        return;
-      }
-      if (newShop) {
-        setShops([newShop]); setCurrentShop(newShop);
-        localStorage.setItem('current_shop_id', newShop.id);
-      }
+      if (!shopData || shopData.length === 0) {
+  setShops([]);
+  setCurrentShop(null);
+  setActivePage('settings');
+  return;
+}
     } catch (err) {
       logger.error('App', 'Shop fetch error:', err);
     }
