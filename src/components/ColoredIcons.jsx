@@ -1,11 +1,11 @@
 import React from 'react';
 
 export const CI = {
-  Money: ({ size = 24 }) => (
+Money: ({ size = 24, color = '#10b981' }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" fill="#10b981" opacity="0.15"/>
-      <circle cx="12" cy="12" r="10" stroke="#10b981" strokeWidth="1.5"/>
-      <path d="M12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3H10.5a1.5 1.5 0 0 0 0 3H15" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="12" cy="12" r="10" fill={color} opacity="0.15"/>
+      <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="1.5"/>
+      <path d="M12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3H10.5a1.5 1.5 0 0 0 0 3H15" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ),
   Package: ({ size = 24 }) => (
