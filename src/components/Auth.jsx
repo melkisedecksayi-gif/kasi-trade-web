@@ -70,7 +70,19 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
   const [otpVerified, setOtpVerified] = useState(false);
   const [authUser, setAuthUser] = useState(null);
   const otpInputRef = useRef(null);
+useEffect(() => {
+  const handlePageShow = (event) => {
+    if (event.persisted) {
+      setLoading(false);
+    }
+  };
 
+  window.addEventListener('pageshow', handlePageShow);
+
+  return () => {
+    window.removeEventListener('pageshow', handlePageShow);
+  };
+}, []);
   useEffect(() => {
     setEmail('');
     setPassword('');
@@ -250,7 +262,7 @@ const Auth = ({ supabase, onAuthSuccess, theme }) => {
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
-      if (!otpNeeded) setLoading(false);
+      setLoading(false);
     }
   };
 
