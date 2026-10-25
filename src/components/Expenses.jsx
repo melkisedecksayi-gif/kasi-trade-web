@@ -312,10 +312,10 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
               alignItems: 'center',
               gap: '12px'
             }}>
-              <CI.Money size={28} />
+              <CI.Money size={28} color="#6957F5" />
               {lang === 'sw' ? 'Gharama' : 'Expenses'}
               <span style={{
-                background: 'linear-gradient(135deg, #ef4444, #f59e0b)',
+                background: 'linear-gradient(135deg, #6957F5, #8B5CF6)',
                 color: '#fff',
                 padding: '4px 12px',
                 borderRadius: '20px',
@@ -355,7 +355,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
               onClick={openAddModal}
               style={{
                 padding: '12px 24px',
-                background: 'linear-gradient(135deg, #ef4444 0%, #f59e0b 100%)',
+background: 'linear-gradient(135deg, #6957F5 0%, #8B5CF6 100%)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '12px',
@@ -394,7 +394,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                 <div style={{ fontSize: '13px', color: th.textMuted, fontWeight: '500', marginBottom: '8px' }}>
                   {lang === 'sw' ? 'Jumla ya Gharama (Mwezi Huu)' : 'Total Expenses (This Month)'}
                 </div>
-                <div style={{ fontSize: '26px', fontWeight: '800', color: '#ef4444', marginBottom: '4px' }}>
+                <div style={{ fontSize: '26px', fontWeight: '800',color: '#6957F5',marginBottom: '4px' }}>
                   {formatCurrency(stats.totalMonth)}
                 </div>
                 <div style={{ fontSize: '12px', color: th.textMuted }}>
@@ -411,7 +411,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                 <div style={{ fontSize: '13px', color: th.textMuted, fontWeight: '500', marginBottom: '8px' }}>
                   {lang === 'sw' ? 'Wastani wa Kila Siku' : 'Daily Average'}
                 </div>
-                <div style={{ fontSize: '26px', fontWeight: '800', color: '#3b82f6', marginBottom: '4px' }}>
+                <div style={{ fontSize: '26px', fontWeight: '800', color: '#6957F5', marginBottom: '4px' }}>
                   {formatCurrency(stats.dailyAverage)}
                 </div>
                 <div style={{ fontSize: '12px', color: th.textMuted }}>
@@ -426,9 +426,9 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                 border: `1px solid ${th.border}`
               }}>
                 <div style={{ fontSize: '13px', color: th.textMuted, fontWeight: '500', marginBottom: '8px' }}>
-                  {lang === 'sw' ? 'Gharama Kubwa Zaidi' : 'Largest Expense'}
+                  {lang === 'sfw' ? 'Gharama Kubwa Zaidi' : 'Largest Expense'}
                 </div>
-                <div style={{ fontSize: '26px', fontWeight: '800', color: '#f59e0b', marginBottom: '4px' }}>
+                <div style={{ fontSize: '26px', fontWeight: '800', color: '#6957F5', marginBottom: '4px' }}>
                   {stats.largestExpense ? formatCurrency(stats.largestExpense.amount) : formatCurrency(0)}
                 </div>
                 <div style={{ fontSize: '12px', color: th.textMuted, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -631,7 +631,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                 borderRadius: '16px',
                 border: `1px solid ${th.border}`
               }}>
-                <CI.Money size={64} />
+               <CI.Money size={64} color="#6957F5" />
                 <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: th.text }}>
                   {lang === 'sw' ? 'Hakuna gharama' : 'No expenses found'}
                 </h3>
@@ -645,7 +645,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                     onClick={openAddModal}
                     style={{
                       padding: '12px 24px',
-                      background: 'linear-gradient(135deg, #ef4444, #f59e0b)',
+                      background: 'linear-gradient(135deg, #6957F5, #8B5CF6)',
                       color: '#fff',
                       border: 'none',
                       borderRadius: '12px',
@@ -1013,7 +1013,7 @@ const Expenses = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                   style={{
                     flex: 2,
                     padding: '14px',
-                    background: 'linear-gradient(135deg, #ef4444, #f59e0b)',
+                    background: 'linear-gradient(135deg, #6957F5, #8B5CF6)',
                     color: '#fff',
                     border: 'none',
                     borderRadius: '12px',
