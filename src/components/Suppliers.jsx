@@ -133,7 +133,8 @@ const Suppliers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
         const { error } = await supabase
           .from('suppliers')
           .update(supplierData)
-          .eq('id', editingSupplier.id);
+         .eq('id', editingSupplier.id)
+.eq('shop_id', currentShop.id);
 
         if (error) throw error;
         setSuppliers(suppliers.map(s => s.id === editingSupplier.id ? { ...s, ...supplierData } : s));
@@ -161,7 +162,8 @@ const Suppliers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       const { error } = await supabase
         .from('suppliers')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+.eq('shop_id', currentShop.id);
 
       if (error) throw error;
       setSuppliers(suppliers.filter(s => s.id !== id));
@@ -180,8 +182,8 @@ const Suppliers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       const { error } = await supabase
         .from('suppliers')
         .delete()
-        .in('id', selectedSuppliers);
-
+        .in('id', selectedSuppliers)
+.eq('shop_id', currentShop.id);
       if (error) throw error;
       const count = selectedSuppliers.length;
       setSuppliers(suppliers.filter(s => !selectedSuppliers.includes(s.id)));
