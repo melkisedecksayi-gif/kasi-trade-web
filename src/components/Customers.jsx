@@ -88,7 +88,11 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     district: '',
     notes: '',
     birthday: '',
-    balance: ''
+
+balance: '',
+debt_due_date: '',
+debt_sms_enabled: false
+
   });
 
   const showToast = (message, type = 'success') => {
@@ -149,8 +153,12 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       region: '',
       district: '',
       notes: '',
-      birthday: '',
-      balance: ''
+
+birthday: '',
+balance: '',
+debt_due_date: '',
+debt_sms_enabled: false
+
     });
     setEditingCustomer(null);
   };
@@ -171,7 +179,11 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       district: customer.district || '',
       notes: customer.notes || '',
       birthday: customer.birthday || '',
-      balance: customer.balance ? String(customer.balance) : ''
+
+balance: customer.balance ? String(customer.balance) : '',
+debt_due_date: customer.debt_due_date || '',
+debt_sms_enabled: customer.debt_sms_enabled === true
+
     });
     setShowModal(true);
   };
@@ -183,6 +195,33 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       return;
     }
 
+    const balance = formData.balance === ''
+      ? 0
+      : Number(formData.balance);
+
+    if (!Number.isFinite(balance) || balance < 0) {
+      showToast(
+        'Tafadhali weka kiasi sahihi cha deni',
+        'error'
+      );
+      return;
+    }
+
+    const debtSmsEnabled =
+      balance > 0 && formData.debt_sms_enabled === true;
+
+    if (
+      debtSmsEnabled &&
+      (!formData.phone.trim() || !formData.debt_due_date)
+    ) {
+      showToast(
+        'Weka namba ya simu na tarehe ya kulipa deni',
+        'error'
+      );
+      return;
+    }
+
+
     const customerData = {
       shop_id: currentShop.id,
       name: formData.name.trim(),
@@ -193,7 +232,13 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
       district: formData.district.trim() || null,
       notes: formData.notes.trim() || null,
       birthday: formData.birthday || null,
-      balance: formData.balance ? Number(formData.balance) : 0
+
+balance,
+debt_due_date: balance > 0
+  ? (formData.debt_due_date || null)
+  : null,
+debt_sms_enabled: debtSmsEnabled
+
     };
 
     try {
@@ -1071,6 +1116,62 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
                   />
                 </div>
               </div>
+
+<div>
+  <label style={{
+    display: 'block',
+    marginBottom: '8px',
+    fontWeight: '600',
+    color: th.text
+  }}>
+    {lang === 'sw'
+      ? 'Tarehe ya Kulipa Deni'
+      : 'Debt Due Date'}
+  </label>
+
+  <input
+    type="date"
+    value={formData.debt_due_date}
+    disabled={!(Number(formData.balance) > 0)}
+    onChange={(e) => setFormData({
+      ...formData,
+      debt_due_date: e.target.value
+    })}
+    style={{
+      width: '100%',
+      padding: '12px',
+      border: `2px solid ${th.border}`,
+      borderRadius: '10px',
+      background: th.bg,
+      color: th.text,
+      boxSizing: 'border-box'
+    }}
+  />
+</div><div style={{ marginTop: '14px' }}>
+  <label style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    color: th.text,
+    cursor: 'pointer'
+  }}>
+    <input
+      type="checkbox"
+      checked={formData.debt_sms_enabled}
+      disabled={!(Number(formData.balance) > 0)}
+      onChange={(e) => setFormData({
+        ...formData,
+        debt_sms_enabled: e.target.checked
+      })}
+    />
+
+    <span>
+      {lang === 'sw'
+        ? 'Mteja amekubali kupokea SMS za kumbusho la deni'
+        : 'Customer agreed to receive debt reminder SMS'}
+    </span>
+  </label>
+</div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button
