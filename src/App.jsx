@@ -3,7 +3,8 @@ import { supabase } from './supabaseClient';
 import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
-import { sendSMS, generateReportSMS } from './services/smsService';
+import { sendSMS } from './services/smsService';
+import { generateReportSMS } from './services/reportSmsFormatter';
 import logger from './utils/logger';
 import ErrorBoundary from './components/ErrorBoundary';
 import Toast from './components/Toast';
@@ -222,8 +223,12 @@ function App() {
         } catch (e) {}
 
         const reportData = {
-          shopName: currentShop?.shop_name || '', date: today,
-          totalRevenue, totalProfit, totalTransactions: totalTx,
+  shopName: currentShop?.shop_name || '',
+  date: today,
+  reportType: 'eod',
+  startDate: new Date(),
+  endDate: new Date(),
+  totalRevenue, totalProfit, totalTransactions: totalTx,
           avgOrderValue: totalTx > 0 ? totalRevenue / totalTx : 0,
           productsSold, customerCount: uniqueCustomers.size,
           paymentBreakdown, topProducts,
