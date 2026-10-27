@@ -11,6 +11,7 @@ import Sidebar, { SIDEBAR_WIDTH } from './components/layout/Sidebar';
 import Footer from './components/Footer';
 import AIAssistant from './components/AIAssistant';
 import './design.css';
+import { createDeterministicSmsRequestKey } from './services/smsIdempotency';
 
 const Landing = lazy(() => import('./components/Landing'));
 const Auth = lazy(() => import('./components/Auth'));
@@ -167,7 +168,11 @@ function App() {
         const closeTime = sms.auto_close_time || '22:00';
         if (currentTime < closeTime) return;
 
-        const today = now.toISOString().split('T')[0];
+        const today = [
+  now.getFullYear(),
+  String(now.getMonth() + 1).padStart(2, '0'),
+  String(now.getDate()).padStart(2, '0')
+].join('-');
         const sentKey = `close_${currentShop.id}_${today}`;
         if (autoSentRef.current[sentKey]) return;
         if (await alreadySentToday('auto_close', today)) { autoSentRef.current[sentKey] = true; return; }
@@ -225,7 +230,18 @@ function App() {
           salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
         };
         const message = generateReportSMS(reportData, lang);
-        const result = await sendSMS({ to: phone, message });
+        const requestKey = await createDeterministicSmsRequestKey({
+  shopId: currentShop.id,
+  kind: 'auto_close',
+  date: today,
+  recipient: phone
+});
+
+const result = await sendSMS({
+  to: phone,
+  message,
+  requestKey
+});
         if (result.success) {
           await supabase.from('sms_logs').insert({
             shop_id: currentShop.id, recipient: phone, message, type: 'auto_close',
@@ -254,10 +270,13 @@ function App() {
       try {
         const today = new Date();
         const todayMonth = today.getMonth() + 1;
-        const todayStr = today.toISOString().split('T')[0];
-        const alertKey = `birthday_${currentShop.id}_${todayStr}`;
-        if (autoSentRef.current[alertKey]) return;
-        if (await alreadySentToday('birthday', todayStr)) { autoSentRef.current[alertKey] = true; return; }
+        const todayStr = [
+  today.getFullYear(),
+  String(today.getMonth() + 1).padStart(2, '0'),
+  String(today.getDate()).padStart(2, '0')
+].join('-');
+
+
 
         const { data: bdayCustomers } = await supabase.from('customers')
           .select('id, name, phone, birthday').eq('shop_id', currentShop.id)
@@ -279,14 +298,48 @@ function App() {
         if (!recipients.length) return;
 
         for (const recipient of recipients) {
-          const result = await sendSMS({ to: recipient, message: msg });
+          const startOfDay = new Date(
+  today.getFullYear(), today.getMonth(), today.getDate()
+).toISOString();
+
+const endOfDay = new Date(
+  today.getFullYear(), today.getMonth(), today.getDate() + 1
+).toISOString();
+
+const { count, error: logError } = await supabase
+  .from('sms_logs')
+  .select('id', { count: 'exact', head: true })
+  .eq('shop_id', currentShop.id)
+  .eq('type', 'birthday')
+  .eq('recipient', recipient)
+  .eq('status', 'sent')
+  .gte('created_at', startOfDay)
+  .lt('created_at', endOfDay);
+
+if (logError) {
+  logger.warn('App', 'Birthday SMS log check failed:', logError);
+  continue;
+}
+
+if (count > 0) continue;
+        const requestKey = await createDeterministicSmsRequestKey({
+  shopId: currentShop.id,
+  kind: 'birthday',
+  date: todayStr,
+  recipient
+});
+
+const result = await sendSMS({
+  to: recipient,
+  message: msg,
+  requestKey
+});
           await supabase.from('sms_logs').insert({
             shop_id: currentShop.id, recipient, message: msg, type: 'birthday',
             status: result.success ? 'sent' : 'failed',
             provider_response: result.success ? JSON.stringify(result.data)?.slice(0, 500) : (result.error?.slice(0, 500) || '')
           });
         }
-        autoSentRef.current[alertKey] = true;
       } catch (e) { logger.warn('App', 'Birthday SMS error:', e); }
     };
 

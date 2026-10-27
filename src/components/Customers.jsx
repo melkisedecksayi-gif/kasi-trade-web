@@ -223,7 +223,11 @@ const Customers = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
           const welcomeMsg = lang === 'sw'
             ? `Karibu ${customerData.name} kwenye ${currentShop?.shop_name || 'duka letu'}! Asante kwa kujisajili nasi. Tutakutumia taarifa za ofa na huduma zetu.`
             : `Welcome ${customerData.name} to ${currentShop?.shop_name || 'our shop'}! Thank you for registering with us. We will keep you updated on offers and services.`;
-          sendSMS({ to: customerData.phone, message: welcomeMsg }).catch(() => {});
+          sendSMS({
+  to: customerData.phone,
+  message: welcomeMsg,
+  requestKey: data.id
+}).catch(() => {});
         }
       }
       setShowModal(false);

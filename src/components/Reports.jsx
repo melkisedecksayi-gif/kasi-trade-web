@@ -1,10 +1,11 @@
+import { useRef } from 'react';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Icons } from './Icons';
 import { sendSMS, generateReportSMS } from '../services/smsService';
 import { printReport } from '../utils/print';
 import getStyles from '../stylePresets';
 import logger from '../utils/logger';
-
+import { newCheckoutRequestId } from '../services/posCheckout';
 const GRADIENT_START = '#6366f1';
 const GRADIENT_END = '#8b5cf6';
 
@@ -610,6 +611,9 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
   const [showEodModal, setShowEodModal] = useState(false);
   const [eodPhone, setEodPhone] = useState('');
   const [eodSending, setEodSending] = useState(false);
+  const eodRequestKeyRef = useRef(null);
+  const reportSmsRequestKeyRef = useRef(null);
+  const reportSmsPayloadRef = useRef(null);
   const [eodResult, setEodResult] = useState(null);
 
   const periodTabs = useMemo(() => [
@@ -1006,8 +1010,24 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
       };
       const message = generateReportSMS(reportData, lang);
-      const result = await sendSMS({ to: smsPhone, message, apiKey });
+    const smsPayload = JSON.stringify({
+  to: smsPhone.trim(),
+  message
+});
 
+if (
+  !reportSmsRequestKeyRef.current ||
+  reportSmsPayloadRef.current !== smsPayload
+) {
+  reportSmsRequestKeyRef.current = newCheckoutRequestId();
+  reportSmsPayloadRef.current = smsPayload;
+}
+      const result = await sendSMS({
+  to: smsPhone,
+  message,
+  apiKey,
+  requestKey: reportSmsRequestKeyRef.current
+});
       if (result.success) {
         await supabase.from('sms_logs').insert({
           shop_id: currentShop.id,
@@ -1018,6 +1038,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
           provider_response: JSON.stringify(result.data).slice(0, 500)
         });
         setSmsResult({ success: true });
+        reportSmsRequestKeyRef.current = null;
       } else {
         await supabase.from('sms_logs').insert({
           shop_id: currentShop.id,
@@ -1037,10 +1058,12 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
   };
 
   const handleCloseDuka = async () => {
-    if (!eodPhone.trim()) return;
+    if (!eodPhone.trim() || eodSending) return;
     setEodSending(true);
     setEodResult(null);
-    try {
+    try {if (!eodRequestKeyRef.current) {
+  eodRequestKeyRef.current = newCheckoutRequestId();
+}
       const { start, end } = getDateRange('today');
       const todayTx = await fetchTransactions(start, end);
       const totalRevenue = todayTx.reduce((sum, tx) => sum + (Number(tx.total_amount) || 0), 0);
@@ -1088,7 +1111,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         totalExpenses = (expData || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
       } catch (e) {}
 
-      const apiKey = undefined;
+
 
       const reportData = {
         shopName: currentShop?.shop_name || '',
@@ -1105,9 +1128,14 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
       };
       const message = generateReportSMS(reportData, lang);
-      const result = await sendSMS({ to: eodPhone, message, apiKey });
+      const result = await sendSMS({
+  to: eodPhone,
+  message,
+  requestKey: eodRequestKeyRef.current
+});
 
       if (result.success) {
+        eodRequestKeyRef.current = null;
         await supabase.from('sms_logs').insert({
           shop_id: currentShop.id,
           recipient: eodPhone,

@@ -171,8 +171,8 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
         receipt: receiptData,
       });
 
-      requestIdRef.current = null;
-      setCart([]);
+      const smsRequestKey = requestIdRef.current;
+requestIdRef.current = null;
       setShowCheckout(false);
       setCustomerPhone('');
       setCustomerEmail('');
@@ -187,7 +187,11 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
 
         const smsMsg = `${isSw ? 'Asante kwa ununuzi wako!' : 'Thank you for your purchase!'}\n${currentShop?.shop_name || 'KasiTRADE'}\n${itemsList}\n${isSw ? 'Jumla' : 'Total'}: TSh ${total.toLocaleString()}\n${isSw ? 'Karibu tena!' : 'Welcome again!'}`;
 
-        sendSMS({ to: phone, message: smsMsg }).catch(() => {});
+        sendSMS({
+  to: phone,
+  message: smsMsg,
+  requestKey: smsRequestKey
+}).catch(() => {});
       }
     } catch (err) {
       logger.error('POS', 'Checkout failed:', err);

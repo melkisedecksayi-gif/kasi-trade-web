@@ -13,7 +13,7 @@
 //
 // Vikwazo: kikomo cha kasi kwa namba / IP / mtumiaji (jedwali sms_send_attempts),
 // namba za Tanzania pekee, urefu wa ujumbe <= 640.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json, normalizeTzPhone } from "../_shared/common.ts";
 
 const API_URL = "https://meseji.co.tz/api/v1/sms/send";
@@ -50,11 +50,11 @@ const TEMPLATES = {
       `Your password reset code is: ${code}. Do not share it. Expires in 5 minutes. - KasiTRADE`,
   },
 };
-
+// deno-lint-ignore no-control-regex
 const clean = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
 
 async function countSince(
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseClient,
   column: "phone" | "ip" | "user_id",
   value: string,
   sinceMs: number,
@@ -119,8 +119,54 @@ Deno.serve(async (req) => {
   } else {
     return json({ success: false, error: "kind si sahihi" }, 400);
   }
+// Kitambulisho cha kipekee cha ombi la SMS
+const requestKey =
+  kind === "custom" && typeof body.request_key === "string"
+    ? body.request_key.trim()
+    : "";
+    if (kind === "custom" && !requestKey) {
+  return json({
+    success: false,
+    error: "request_key inahitajika kwa Custom SMS",
+    retryable: false
+  }, 400);
+}
 
-  // ---- Kikomo cha kasi ----
+if (
+  requestKey &&
+  !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey)
+) {
+  return json(
+    { success: false, error: "request_key si UUID sahihi" },
+    400
+  );
+}
+  // Kagua request iliyopo kabla ya kutumia rate limit
+if (kind === "custom" && requestKey) {
+  const { data: existingRequest, error: checkError } = await admin
+    .from("sms_idempotency")
+    .select("status")
+    .eq("request_key", requestKey)
+    .maybeSingle();
+
+  if (checkError) {
+    console.error("SMS precheck failed:", checkError);
+    return json({
+      success: false,
+      error: "Imeshindikana kuhakiki ombi la SMS"
+    }, 503);
+  }
+
+  if (existingRequest) {
+  return json({
+    success: false,
+    error: `Ombi hili la SMS tayari lipo. Hali: ${existingRequest.status}`,
+    status: existingRequest.status,
+    retryable: false
+  }, 409);
+}
+}
+// ---- Kikomo cha kasi ----
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
   try {
     if ((await countSince(admin, "phone", to, WINDOW_MS)) >= (userId ? LIMITS.userPerPhone : LIMITS.anonPerPhone)) {
@@ -134,7 +180,18 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Maombi mengi mno. Jaribu baadaye." }, 429);
     }
 
-    await admin.from("sms_send_attempts").insert({ kind, phone: to, ip, user_id: userId });
+    const { error: attemptError } = await admin
+  .from("sms_send_attempts")
+  .insert({ kind, phone: to, ip, user_id: userId });
+
+if (attemptError) {
+  console.error("SMS rate limit recording failed:", attemptError);
+
+  return json({
+    success: false,
+    error: "Imeshindikana kuhakiki kikomo cha SMS"
+  }, 503);
+}
     // Usafishaji wa rekodi za zamani (kila ombi ~2%)
     if (Math.random() < 0.02) {
       await admin.from("sms_send_attempts").delete().lt("created_at", new Date(Date.now() - 24 * 3600 * 1000).toISOString());
@@ -144,7 +201,82 @@ Deno.serve(async (req) => {
     console.error("send-sms: rate limit check imeshindwa", e);
     return json({ success: false, error: "Hitilafu ya seva. Jaribu tena." }, 500);
   }
+// Zuia ombi lilelile la SMS kuchakatwa mara mbili
+if (kind === "custom" && requestKey) {
+  const payload = JSON.stringify({ kind, to, message });
 
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(payload)
+  );
+
+  const payloadHash = Array.from(
+    new Uint8Array(digest),
+    (byte) => byte.toString(16).padStart(2, "0")
+  ).join("");
+
+  const { error: reserveError } = await admin
+    .from("sms_idempotency")
+    .insert({
+      request_key: requestKey,
+      payload_hash: payloadHash,
+      kind,
+      user_id: userId,
+      status: "processing"
+    });
+
+  if (reserveError) {
+
+if (reserveError.code === "23505") {
+  const { data: existing, error: lookupError } = await admin
+    .from("sms_idempotency")
+    .select("payload_hash, status")
+    .eq("request_key", requestKey)
+    .maybeSingle();
+
+  if (lookupError || !existing) {
+    console.error("SMS idempotency lookup failed:", lookupError);
+    return json({
+      success: false,
+      error: "Imeshindikana kuhakiki ombi la SMS",
+      retryable: false
+    }, 503);
+  }
+
+  if (existing.payload_hash !== payloadHash) {
+    return json({
+      success: false,
+      error: "request_key imetumika kwa SMS tofauti",
+      retryable: false
+    }, 409);
+  }
+
+  const statusMessages: Record<string, string> = {
+  sent: "SMS hii tayari imekubaliwa na mtoa huduma",
+  processing: "Ombi hili la SMS bado linashughulikiwa",
+  failed: "Jaribio la awali la SMS lilishindwa",
+  unknown: "Matokeo ya SMS hayajulikani; hakiki kabla ya kutuma tena"
+};
+
+return json({
+  success: false,
+  error: statusMessages[existing.status] ||
+    "Ombi hili la SMS tayari limepokelewa",
+  status: existing.status,
+  retryable: false
+}, 409);
+}
+
+
+    console.error("SMS reservation failed:", reserveError);
+
+    return json({
+      success: false,
+      error: "Imeshindikana kuhifadhi ombi la SMS",
+      retryable: false
+    }, 503);
+  }
+}
   // ---- Tuma kupitia meseji.co.tz ----
   try {
     const res = await fetch(API_URL, {
@@ -158,14 +290,76 @@ Deno.serve(async (req) => {
     try { data = JSON.parse(text); } catch { data = { message: text }; }
 
     if (!res.ok) {
+if (kind === "custom" && requestKey) {
+  try {
+    const nextStatus = res.status >= 500 ? "unknown" : "failed";
+
+    const { error: statusError } = await admin
+      .from("sms_idempotency")
+      .update({
+        status: nextStatus,
+        error_code: `PROVIDER_HTTP_${res.status}`,
+        updated_at: new Date().toISOString(),
+        completed_at: new Date().toISOString()
+      })
+      .eq("request_key", requestKey)
+      .eq("status", "processing");
+
+    if (statusError) {
+      console.error("SMS status update failed:", statusError);
+    }
+  } catch (statusErr) {
+    console.error("SMS status update exception:", statusErr);
+  }
+}
+
       const d = data as { message?: string; error?: string };
       console.error("send-sms: meseji imekataa", res.status, text.slice(0, 300));
       return json({ success: false, error: d?.message || d?.error || `HTTP ${res.status}` }, 502);
     }
-    return json({ success: true, data });
+
+if (kind === "custom" && requestKey) {
+  const { error: statusError } = await admin
+    .from("sms_idempotency")
+    .update({
+      status: "sent",
+      updated_at: new Date().toISOString(),
+      completed_at: new Date().toISOString()
+    })
+    .eq("request_key", requestKey);
+
+  if (statusError) {
+    console.error("SMS status update failed:", statusError);
+  }
+}
+
+return json({ success: true, data });
+
   } catch (e) {
     console.error("send-sms: meseji haipatikani", e);
     const timeout = e instanceof DOMException && e.name === "TimeoutError";
+
+if (kind === "custom" && requestKey) {
+  try {
+    const { error: statusError } = await admin
+      .from("sms_idempotency")
+      .update({
+        status: "unknown",
+        error_code: timeout ? "PROVIDER_TIMEOUT" : "PROVIDER_NETWORK_ERROR",
+        updated_at: new Date().toISOString(),
+        completed_at: new Date().toISOString()
+      })
+      .eq("request_key", requestKey)
+      .eq("status", "processing");
+
+    if (statusError) {
+      console.error("SMS unknown status update failed:", statusError);
+    }
+  } catch (statusErr) {
+    console.error("SMS status update exception:", statusErr);
+  }
+}
+
     return json({ success: false, error: timeout ? "Request timeout" : "Huduma ya SMS haipatikani" }, 502);
   }
 });

@@ -1,6 +1,15 @@
 import { sendSMS, sendOTPSMS, sendWelcomeSMS, sendPasswordResetOTPSMS, sendBulkSMS } from './smsService';
 import { supabase } from '../supabaseClient';
+jest.mock('./posCheckout', () => {
+  let counter = 0;
 
+  return {
+    newCheckoutRequestId: jest.fn(() => {
+      counter += 1;
+      return `00000000-0000-4000-8000-${String(counter).padStart(12, '0')}`;
+    })
+  };
+});
 jest.mock('../supabaseClient', () => ({
   supabase: { functions: { invoke: jest.fn() } },
 }));
@@ -52,6 +61,32 @@ describe('smsService - hutumia Edge Function, si API key', () => {
     });
   });
 
+it('sendSMS hutuma requestKey kama request_key kwa Edge Function', async () => {
+  const requestKey = '550e8400-e29b-41d4-a716-446655440000';
+
+  invoke.mockResolvedValue({
+    data: { success: true },
+    error: null
+  });
+
+  await sendSMS({
+    to: uniquePhone(),
+    message: 'Risiti ya KasiTrade',
+    requestKey
+  });
+
+  expect(invoke).toHaveBeenCalledWith(
+    'send-sms',
+    {
+      body: expect.objectContaining({
+        kind: 'custom',
+        message: 'Risiti ya KasiTrade',
+        request_key: requestKey
+      })
+    }
+  );
+});
+
   it('sendSMS hupuuza sender/apiKey kutoka kwa mwito (hazitumwi)', async () => {
     invoke.mockResolvedValue({ data: { success: true, data: {} }, error: null });
     await sendSMS({ to: uniquePhone(), message: 'x', apiKey: 'secret', sender: 'Evil' });
@@ -81,7 +116,7 @@ describe('smsService - hutumia Edge Function, si API key', () => {
   it('hushika kosa la mtandao bila kutupa', async () => {
     invoke.mockRejectedValue(new Error('Failed to fetch'));
     const res = await sendSMS({ to: uniquePhone(), message: 'x' });
-    expect(res).toMatchObject({ success: false, error: 'Failed to fetch', retryable: true });
+    expect(res).toMatchObject({ success: false, error: 'Failed to fetch', retryable: false });
   });
 });
 
@@ -117,7 +152,7 @@ describe('smsService - OTP / welcome / password reset (seva inatengeneza ujumbe)
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
-  it('hurudia kwa kosa la seva (5xx) hadi mara 3', async () => {
+  it('HAIRUDII kutuma SMS baada ya kosa la seva (5xx)', async () => {
     jest.useFakeTimers();
     invoke.mockResolvedValue(httpError(502, { error: 'Huduma ya SMS haipatikani' }));
     const promise = sendOTPSMS({ phone: uniquePhone(), code: '123456' });
@@ -127,7 +162,7 @@ describe('smsService - OTP / welcome / password reset (seva inatengeneza ujumbe)
     }
     const res = await promise;
     expect(res.success).toBe(false);
-    expect(invoke).toHaveBeenCalledTimes(3);
+    expect(invoke).toHaveBeenCalledTimes(1);
   });
 });
 

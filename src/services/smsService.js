@@ -1,6 +1,6 @@
 import logger from '../utils/logger';
 import { supabase } from '../supabaseClient';
-
+import { newCheckoutRequestId } from './posCheckout';
 // SMS zote hupita kwenye Edge Function `send-sms`. API key ya mtoa huduma (MESEJI_API_KEY)
 // ipo kwenye secrets za Supabase pekee — HAIPASWI kuwa kwenye code ya frontend.
 const SEND_SMS_FUNCTION = 'send-sms';
@@ -100,33 +100,37 @@ const invokeSendSms = async (payload) => {
 
     if (error) {
       // FunctionsHttpError: ina Response kwenye error.context (status + ujumbe wa seva)
-      const status = error.context?.status;
+
       let message = error.message;
       try {
         const body = await error.context.json();
         if (body?.error) message = body.error;
       } catch (e) { /* si JSON */ }
-      return { success: false, error: message, retryable: !status || status >= 500 };
-    }
-    if (data?.success === false) {
+          return { success: false, error: message, retryable: false };
+  }
+  if (data?.success === false) {
       return { success: false, error: data.error || 'SMS failed', retryable: false };
     }
     return { success: true, data: data?.data ?? data };
   } catch (error) {
-    if (error.message === 'Request timeout') {
-      return { success: false, error: 'Request timeout', retryable: true };
+   if (error.message === 'Request timeout') {
+  return { success: false, error: 'Request timeout', retryable: false };
     }
     logger.error('SMSService', 'SMS send error:', error);
-    return { success: false, error: error.message, retryable: true };
+    return { success: false, error: error.message, retryable: false };
   } finally {
     clearTimeout(timer);
   }
 };
 
 // `sender` na `apiKey` zilikuwepo zamani; sasa zinapuuzwa (key ipo kwenye seva pekee).
-export const sendSMS = async ({ to, message }) =>
-  invokeSendSms({ kind: 'custom', to, message });
-
+export const sendSMS = async ({ to, message, requestKey }) =>
+  invokeSendSms({
+    kind: 'custom',
+    to,
+    message,
+    request_key: requestKey || newCheckoutRequestId(),
+  });
 // Rudia tu kwa makosa ya mtandao/seva (5xx). Makosa ya 4xx (kikomo cha kasi, namba mbaya,
 // huna ruhusa) hayarudiwi — kurudia kungeongeza tu matumizi ya kikomo.
 const withRetry = async (send, maxRetries, delayMs) => {
@@ -163,7 +167,13 @@ export const sendPasswordResetOTPSMS = async ({ phone, code, lang = 'sw' }) => {
 export const sendBulkSMS = async ({ recipients, message }) => {
   const results = [];
   for (const recipient of recipients) {
-    const result = await sendSMSWithRetry({ to: recipient, message });
+    const requestKey = newCheckoutRequestId();
+
+const result = await sendSMSWithRetry({
+  to: recipient,
+  message,
+  requestKey
+});
     results.push({ recipient, ...result });
     if (recipients.length > 1) {
       await new Promise(resolve => setTimeout(resolve, 500));
