@@ -141,11 +141,24 @@ if (
     400
   );
 }
+  // Hesabu payload hash kabla ya precheck ili request_key isitumike kwa ujumbe tofauti.
+  let payloadHash = "";
+  if (kind === "custom") {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(JSON.stringify({ kind, to, message }))
+    );
+    payloadHash = Array.from(
+      new Uint8Array(digest),
+      (byte) => byte.toString(16).padStart(2, "0")
+    ).join("");
+  }
+
   // Kagua request iliyopo kabla ya kutumia rate limit
 if (kind === "custom" && requestKey) {
   const { data: existingRequest, error: checkError } = await admin
     .from("sms_idempotency")
-    .select("status")
+    .select("status, payload_hash")
     .eq("request_key", requestKey)
     .maybeSingle();
 
@@ -158,13 +171,20 @@ if (kind === "custom" && requestKey) {
   }
 
   if (existingRequest) {
-  return json({
-    success: false,
-    error: `Ombi hili la SMS tayari lipo. Hali: ${existingRequest.status}`,
-    status: existingRequest.status,
-    retryable: false
-  }, 409);
-}
+    if (existingRequest.payload_hash !== payloadHash) {
+      return json({
+        success: false,
+        error: "request_key imetumika kwa SMS tofauti",
+        retryable: false
+      }, 409);
+    }
+    return json({
+      success: false,
+      error: `Ombi hili la SMS tayari lipo. Hali: ${existingRequest.status}`,
+      status: existingRequest.status,
+      retryable: false
+    }, 409);
+  }
 }
 // ---- Kikomo cha kasi ----
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
@@ -203,18 +223,6 @@ if (attemptError) {
   }
 // Zuia ombi lilelile la SMS kuchakatwa mara mbili
 if (kind === "custom" && requestKey) {
-  const payload = JSON.stringify({ kind, to, message });
-
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(payload)
-  );
-
-  const payloadHash = Array.from(
-    new Uint8Array(digest),
-    (byte) => byte.toString(16).padStart(2, "0")
-  ).join("");
-
   const { error: reserveError } = await admin
     .from("sms_idempotency")
     .insert({
