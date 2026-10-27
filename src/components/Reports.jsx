@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Icons } from './Icons';
-import { sendSMS, generateReportSMS } from '../services/smsService';
+import { sendSMS } from '../services/smsService';
+import { generateReportSMS } from '../services/reportSmsFormatter';
 import { printReport } from '../utils/print';
 import getStyles from '../stylePresets';
 import logger from '../utils/logger';
@@ -612,6 +613,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
   const [eodPhone, setEodPhone] = useState('');
   const [eodSending, setEodSending] = useState(false);
   const eodRequestKeyRef = useRef(null);
+  const eodSmsPayloadRef = useRef(null);
   const reportSmsRequestKeyRef = useRef(null);
   const reportSmsPayloadRef = useRef(null);
   const [eodResult, setEodResult] = useState(null);
@@ -961,12 +963,11 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
   };
 
   const handleSendSms = async () => {
-    if (!smsPhone.trim()) return;
+    if (!smsPhone.trim() || smsSending) return;
     setSmsSending(true);
     setSmsResult(null);
     try {
       const { start, end } = getDateRange(activeTab, customStart, customEnd);
-      const apiKey = undefined;
 
       const paymentBreakdown = {};
       const uniqueCustomers = new Set();
@@ -996,7 +997,10 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
       } catch (e) {}
 
       const reportData = {
-        shopName: currentShop?.shop_name || '',
+        shopName: currentShop?.shop_name || currentShop?.name || '',
+        startDate: start,
+        endDate: end,
+        reportType: 'sales',
         totalRevenue,
         totalProfit,
         totalTransactions: transactions.length,
@@ -1006,7 +1010,7 @@ const Reports = ({ lang = 'en', supabase, currentShop, isDarkMode = false, theme
         netProfit: totalProfit - totalExpenses,
         customerCount: uniqueCustomers.size,
         paymentBreakdown,
-        topProducts: topProductsData.map(p => ({ name: p.name, total: p.total, quantity: p.quantity })),
+        topProducts: topProductsData.map(p => ({ name: p.name, total: p.sales, quantity: p.quantity })),
         salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
       };
       const message = generateReportSMS(reportData, lang);
@@ -1025,7 +1029,6 @@ if (
       const result = await sendSMS({
   to: smsPhone,
   message,
-  apiKey,
   requestKey: reportSmsRequestKeyRef.current
 });
       if (result.success) {
@@ -1035,10 +1038,11 @@ if (
           message,
           type: 'report',
           status: 'sent',
-          provider_response: JSON.stringify(result.data).slice(0, 500)
+          provider_response: JSON.stringify(result.data ?? {}).slice(0, 500)
         });
         setSmsResult({ success: true });
         reportSmsRequestKeyRef.current = null;
+        reportSmsPayloadRef.current = null;
       } else {
         await supabase.from('sms_logs').insert({
           shop_id: currentShop.id,
@@ -1061,9 +1065,7 @@ if (
     if (!eodPhone.trim() || eodSending) return;
     setEodSending(true);
     setEodResult(null);
-    try {if (!eodRequestKeyRef.current) {
-  eodRequestKeyRef.current = newCheckoutRequestId();
-}
+    try {
       const { start, end } = getDateRange('today');
       const todayTx = await fetchTransactions(start, end);
       const totalRevenue = todayTx.reduce((sum, tx) => sum + (Number(tx.total_amount) || 0), 0);
@@ -1114,7 +1116,10 @@ if (
 
 
       const reportData = {
-        shopName: currentShop?.shop_name || '',
+        shopName: currentShop?.shop_name || currentShop?.name || '',
+        startDate: start,
+        endDate: end,
+        reportType: 'eod',
         totalRevenue,
         totalProfit,
         totalExpenses,
@@ -1128,6 +1133,11 @@ if (
         salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
       };
       const message = generateReportSMS(reportData, lang);
+      const eodSmsPayload = JSON.stringify({ shopId: currentShop.id, to: eodPhone.trim(), message });
+      if (!eodRequestKeyRef.current || eodSmsPayloadRef.current !== eodSmsPayload) {
+        eodRequestKeyRef.current = newCheckoutRequestId();
+        eodSmsPayloadRef.current = eodSmsPayload;
+      }
       const result = await sendSMS({
   to: eodPhone,
   message,
@@ -1136,13 +1146,14 @@ if (
 
       if (result.success) {
         eodRequestKeyRef.current = null;
+        eodSmsPayloadRef.current = null;
         await supabase.from('sms_logs').insert({
           shop_id: currentShop.id,
           recipient: eodPhone,
           message,
           type: 'report',
           status: 'sent',
-          provider_response: JSON.stringify(result.data).slice(0, 500)
+          provider_response: JSON.stringify(result.data ?? {}).slice(0, 500)
         });
         setEodResult({ success: true });
       } else {
@@ -1165,19 +1176,23 @@ if (
 
   if (loading) return <Skeleton isDarkMode={isDarkMode} />;
 
+  const smsPreviewRange = getDateRange(activeTab, customStart, customEnd);
   const smsPreviewData = (() => {
     if (!transactions?.length) return null;
     const r = transactions.reduce((s, tx) => s + (Number(tx.total_amount) || 0), 0);
     const p = transactions.reduce((s, tx) => s + (Number(tx.profit) || 0), 0);
     const items = transactions.reduce((s, tx) => s + (Number(tx.items_count) || 0), 0);
     return {
-      shopName: currentShop?.shop_name || '',
+      shopName: currentShop?.shop_name || currentShop?.name || '',
+      startDate: smsPreviewRange.start,
+      endDate: smsPreviewRange.end,
+      reportType: 'sales',
       totalRevenue: r,
       totalProfit: p,
       totalTransactions: transactions.length,
       avgOrderValue: transactions.length > 0 ? r / transactions.length : 0,
       productsSold: items,
-      topProducts: topProductsData.map(p => ({ name: p.name, total: p.total, quantity: p.quantity })),
+      topProducts: topProductsData.map(p => ({ name: p.name, total: p.sales, quantity: p.quantity })),
     };
   })();
 
@@ -1804,7 +1819,9 @@ if (
                     whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: '200px', overflowY: 'auto',
                     boxShadow: isDarkMode ? 'inset 0 2px 8px rgba(0,0,0,0.3)' : 'inset 0 2px 8px rgba(0,0,0,0.03)',
                   }}>
-                    {smsPreviewData ? generateReportSMS(smsPreviewData, lang) : (lang === 'sw' ? 'Hakuna data ya leo' : 'No data for today')}
+                    {smsPreviewData?.shopName
+                      ? generateReportSMS(smsPreviewData, lang)
+                      : (lang === 'sw' ? 'Hakuna data au jina la duka' : 'No data or shop name')}
                   </div>
                 </div>
               </div>
