@@ -54,6 +54,7 @@ export const sendLowStockAlertSms = async ({ supabase, currentShop, lang = 'sw',
     : requestKey;
 
 const result = await sendSMS({
+  shopId: currentShop.id, purpose: "stock_alert",
   to: phone,
   message,
   requestKey: resolvedRequestKey
@@ -68,7 +69,7 @@ const result = await sendSMS({
       message,
       type: 'low_stock',
       status: 'sent',
-      provider_response: JSON.stringify(result.data).slice(0, 500),
+      provider_response: JSON.stringify(result.data ?? {}).slice(0, 500),
     });
     return { success: true, count: lowProducts.length };
   } catch (e) {

@@ -13,6 +13,7 @@ import Footer from './components/Footer';
 import AIAssistant from './components/AIAssistant';
 import './design.css';
 import { createDeterministicSmsRequestKey } from './services/smsIdempotency';
+import MfaGate from './components/MfaGate';
 
 const Landing = lazy(() => import('./components/Landing'));
 const Auth = lazy(() => import('./components/Auth'));
@@ -29,6 +30,7 @@ const Settings = lazy(() => import('./components/Settings'));
 const Profile = lazy(() => import('./components/Profile'));
 const Help = lazy(() => import('./components/Help'));
 const InfoPage = lazy(() => import('./components/InfoPage'));
+
 
 function App() {
   const [session, setSession] = useState(null);
@@ -54,9 +56,11 @@ function App() {
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [showEmailOTP, setShowEmailOTP] = useState(false);
   const [emailOTPSending, setEmailOTPSending] = useState(false);
+  const emailOtpEnabled =
+  process.env.REACT_APP_REQUIRE_EMAIL_OTP === 'true';
   const [showAI, setShowAI] = useState(false);
   const autoSentRef = useRef({});
-
+const [mfaVerifiedToken, setMfaVerifiedToken] = useState(null);
   const { subscription, loading: subLoading, daysRemaining, statusBadge, startMobilePayment, refresh: refreshSub, MONTHLY_PRICE, canAccess } = useSubscription(session);
 
   const handleSendEmailOTP = async () => {
@@ -90,43 +94,89 @@ function App() {
 
   const theme = getThemeColors(isDarkMode);
 
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && hash.includes('type=recovery')) {
-      setCurrentView('update-password');
-    }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session && localStorage.getItem('app_otpPending')) {
-        await supabase.auth.signOut();
-        localStorage.removeItem('app_otpPending');
-        setCurrentView('login');
-        setLoading(false);
-        return;
+useEffect(() => {
+  const isRecovery = window.location.hash.includes('type=recovery');
+
+  if (isRecovery) {
+    setCurrentView('update-password');
+  }
+
+  const otpActive =
+    process.env.REACT_APP_REQUIRE_EMAIL_OTP === 'true';
+
+  // Ondoa OTP flags za zamani ikiwa OTP imezimwa.
+  if (!otpActive) {
+    localStorage.removeItem('app_otpPending');
+    localStorage.removeItem('app_googleOtpPending');
+  }
+
+  let mounted = true;
+
+  supabase.auth.getSession()
+    .then(({ data: { session }, error }) => {
+      if (!mounted) return;
+
+      if (error) {
+        console.error('Session error:', error);
       }
-      if (session && localStorage.getItem('app_googleOtpPending')) {
+
+      if (
+        otpActive &&
+        session &&
+        localStorage.getItem('app_googleOtpPending')
+      ) {
         setSession(session);
         setShowEmailOTP(true);
         setLoading(false);
         return;
       }
+
       setSession(session);
-      if (session) setCurrentView('app');
+
+      if (session && !isRecovery) {
+        setCurrentView('app');
+      }
+
+      setLoading(false);
+    })
+    .catch((error) => {
+      if (!mounted) return;
+      console.error('Session error:', error);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+  const { data: { subscription } } =
+    supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!mounted) return;
+
       setSession(newSession);
-      if (event === 'SIGNED_IN' && localStorage.getItem('app_googleOtpPending')) {
+
+      if (
+        otpActive &&
+        event === 'SIGNED_IN' &&
+        localStorage.getItem('app_googleOtpPending')
+      ) {
         localStorage.removeItem('app_googleOtpPending');
         setShowEmailOTP(false);
         setLoading(false);
         setCurrentView('app');
+      } else if (
+        !otpActive &&
+        event === 'SIGNED_IN' &&
+        !isRecovery
+      ) {
+        setCurrentView('app');
+        setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+  return () => {
+    mounted = false;
+    subscription.unsubscribe();
+  };
+}, []);
+
 
   useEffect(() => {
     if (session?.user) { fetchShops(); fetchAvatar(); }
@@ -361,7 +411,7 @@ const result = await sendSMS({
   }, [currentShop?.id, lang]);
 
   useEffect(() => {
-    if (showEmailOTP && session?.user?.email) {
+    if (emailOtpEnabled && showEmailOTP && session?.user?.email) {
       handleSendEmailOTP();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -452,7 +502,7 @@ const result = await sendSMS({
 
   const spinnerFallback = <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" style={{ width: '32px', height: '32px' }} /></div>;
 
-  if (showEmailOTP && session) {
+  if (emailOtpEnabled && showEmailOTP && session) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px' }}>
         <div style={{ background: 'rgba(255,255,255,0.98)', borderRadius: '20px', padding: '36px', width: '100%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
@@ -501,6 +551,23 @@ const result = await sendSMS({
   }
   if (currentView === 'login' || !session) {
     return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Auth supabase={supabase} onAuthSuccess={handleLoginSuccess} /></ErrorBoundary></Suspense>;
+  }
+
+  // MFA gate: disabled until staging and RLS are ready.
+  if (
+    process.env.REACT_APP_REQUIRE_MFA === 'true' &&
+    session &&
+    mfaVerifiedToken !== session.access_token
+  ) {
+    return (
+      <MfaGate
+        key={session.access_token}
+        supabase={supabase}
+        onVerified={() =>
+          setMfaVerifiedToken(session.access_token)
+        }
+      />
+    );
   }
 
   // Subscription gate: block the whole system unless the server confirms

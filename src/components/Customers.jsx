@@ -3,7 +3,7 @@ import { Icons } from './Icons';
 import Toast from './Toast';
 import { SkeletonList } from './Skeleton';
 import CSVImport from './CSVImport';
-import { sendSMS, sendBulkSMS, generateCustomerSMS } from '../services/smsService';
+import { sendBulkSMS, generateCustomerSMS } from '../services/smsService';
 import getStyles from '../stylePresets';
 import logger from '../utils/logger';
 
@@ -264,16 +264,8 @@ debt_sms_enabled: debtSmsEnabled
         computeStats(newCustomers);
         showToast(lang === 'sw' ? 'Mteja ameongezwa!' : 'Customer added!', 'success');
 
-        if (customerData.phone) {
-          const welcomeMsg = lang === 'sw'
-            ? `Karibu ${customerData.name} kwenye ${currentShop?.shop_name || 'duka letu'}! Asante kwa kujisajili nasi. Tutakutumia taarifa za ofa na huduma zetu.`
-            : `Welcome ${customerData.name} to ${currentShop?.shop_name || 'our shop'}! Thank you for registering with us. We will keep you updated on offers and services.`;
-          sendSMS({
-  to: customerData.phone,
-  message: welcomeMsg,
-  requestKey: data.id
-}).catch(() => {});
-        }
+        // No automatic welcome SMS: requires explicit consent and feature approval.
+
       }
       setShowModal(false);
       resetForm();

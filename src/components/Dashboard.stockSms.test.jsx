@@ -6,6 +6,7 @@ import { sendSMS } from '../services/smsService';
 jest.mock('../services/smsService', () => ({
   sendSMS: jest.fn(),
 }));
+jest.mock('../services/posCheckout', () => ({ newCheckoutRequestId: () => '11111111-1111-4111-8111-111111111111' }));
 jest.mock('./Charts', () => ({ FancyDonut: () => null }));
 jest.mock('../utils/logger', () => ({
   __esModule: true,

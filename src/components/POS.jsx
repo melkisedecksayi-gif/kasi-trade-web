@@ -4,7 +4,7 @@ import { Icons } from './Icons';
 import { getCategoryIcon } from '../data/categoryIcons';
 import { playSaleBeep } from '../utils/sound';
 import { printReceipt } from '../utils/print';
-import { sendSMS } from '../services/smsService';
+import { sendReceiptSMS } from '../services/smsService';
 import { readSaleReceiptSmsEnabled, saveSaleReceiptSmsEnabled } from '../services/shopSmsPreferences';
 import getStyles from '../stylePresets';
 import logger from '../utils/logger';
@@ -53,25 +53,35 @@ const POS = ({ lang, supabase, currentShop, isDarkMode, theme }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop]);
 
-  // Mpangilio wa SMS unatoka Supabase, na OFF ikiwa haujasomwa au umekosekana.
+  // SMS preferences: OFF until successfully loaded from Supabase.
   useEffect(() => {
     let active = true;
     setReceiptSmsEnabled(false);
     setReceiptSmsLoaded(false);
     setReceiptSmsError('');
-    if (!currentShop?.id) return () => { active = false; };
+
+    if (!currentShop?.id) {
+      return () => { active = false; };
+    }
 
     readSaleReceiptSmsEnabled(supabase, currentShop.id)
       .then(enabled => {
-        if (active) setReceiptSmsEnabled(enabled);
+        if (!active) return;
+        setReceiptSmsEnabled(enabled === true);
+        setReceiptSmsLoaded(true);
+        setReceiptSmsError('');
       })
       .catch(error => {
         logger.error('POS', 'Could not load receipt SMS setting:', error);
-        if (active) setReceiptSmsError(lang === 'sw'
-          ? 'Mpangilio wa SMS haujasomwa. SMS zimezimwa kwa usalama.'
-          : 'Could not load SMS settings. SMS are disabled for safety.');
-      })
-      .finally(() => { if (active) setReceiptSmsLoaded(true); });
+        if (!active) return;
+        setReceiptSmsEnabled(false);
+        setReceiptSmsLoaded(false);
+        setReceiptSmsError(
+          lang === 'sw'
+            ? 'Mpangilio wa SMS haujasomwa. SMS zimezimwa kwa usalama.'
+            : 'Could not load SMS settings. SMS are disabled for safety.'
+        );
+      });
 
     return () => { active = false; };
   }, [supabase, currentShop?.id, lang]);
@@ -235,21 +245,8 @@ requestIdRef.current = null;
           // Soma upya kwenye DB ili setting iliyozimwa kwenye kifaa kingine iheshimiwe.
           const shouldSend = await readSaleReceiptSmsEnabled(supabase, currentShop.id);
           if (shouldSend) {
-            const itemsList = receiptItems
-              .map(i => `${i.quantity}x ${i.name} TSh ${(i.sell_price * i.quantity).toLocaleString()}`)
-              .join(', ');
-            const shopName = String(currentShop?.shop_name || 'KasiTRADE').trim().slice(0, 70) || 'KasiTRADE';
-            const header = `${shopName}\n${isSw ? 'Asante kwa ununuzi!' : 'Thank you for your purchase!'}\n`;
-            const footer = `\n${isSw ? 'Jumla' : 'Total'}: TSh ${total.toLocaleString()}\nKasiTrade POS`;
-            // Kikomo cha Edge Function ni herufi 640; epuka SMS ndefu kupita kiasi.
-            const spaceForItems = Math.max(0, 640 - header.length - footer.length);
-            const summary = itemsList.length > spaceForItems && spaceForItems > 3
-              ? `${itemsList.slice(0, spaceForItems - 3)}...`
-              : itemsList.slice(0, spaceForItems);
-            const smsMsg = `${header}${summary}${footer}`;
-
             // Kutuma SMS kunafanyika bila kuzuia cashier kuendelea na mauzo.
-            sendSMS({ to: phone, message: smsMsg, requestKey: smsRequestKey })
+            sendReceiptSMS({ to: phone, shopId: currentShop.id, saleRequestId: smsRequestKey })
               .then(result => {
                 if (!result?.success) logger.error('POS', 'Receipt SMS not accepted:', result?.error);
               })

@@ -1027,6 +1027,7 @@ if (
   reportSmsPayloadRef.current = smsPayload;
 }
       const result = await sendSMS({
+  shopId: currentShop.id, purpose: "report",
   to: smsPhone,
   message,
   requestKey: reportSmsRequestKeyRef.current
@@ -1139,6 +1140,7 @@ if (
         eodSmsPayloadRef.current = eodSmsPayload;
       }
       const result = await sendSMS({
+  shopId: currentShop.id, purpose: "report",
   to: eodPhone,
   message,
   requestKey: eodRequestKeyRef.current
