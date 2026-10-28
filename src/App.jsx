@@ -3,7 +3,8 @@ import { supabase } from './supabaseClient';
 import { getThemeColors } from './theme';
 import useKeyboard from './hooks/useKeyboard';
 import { useSubscription } from './hooks/useSubscription';
-import { sendSMS, generateReportSMS } from './services/smsService';
+import { sendSMS } from './services/smsService';
+import { generateReportSMS } from './services/reportSmsFormatter';
 import logger from './utils/logger';
 import ErrorBoundary from './components/ErrorBoundary';
 import Toast from './components/Toast';
@@ -11,6 +12,8 @@ import Sidebar, { SIDEBAR_WIDTH } from './components/layout/Sidebar';
 import Footer from './components/Footer';
 import AIAssistant from './components/AIAssistant';
 import './design.css';
+import { createDeterministicSmsRequestKey } from './services/smsIdempotency';
+import MfaGate from './components/MfaGate';
 
 const Landing = lazy(() => import('./components/Landing'));
 const Auth = lazy(() => import('./components/Auth'));
@@ -27,6 +30,7 @@ const Settings = lazy(() => import('./components/Settings'));
 const Profile = lazy(() => import('./components/Profile'));
 const Help = lazy(() => import('./components/Help'));
 const InfoPage = lazy(() => import('./components/InfoPage'));
+
 
 function App() {
   const [session, setSession] = useState(null);
@@ -52,9 +56,11 @@ function App() {
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [showEmailOTP, setShowEmailOTP] = useState(false);
   const [emailOTPSending, setEmailOTPSending] = useState(false);
+  const emailOtpEnabled =
+  process.env.REACT_APP_REQUIRE_EMAIL_OTP === 'true';
   const [showAI, setShowAI] = useState(false);
   const autoSentRef = useRef({});
-
+const [mfaVerifiedToken, setMfaVerifiedToken] = useState(null);
   const { subscription, loading: subLoading, daysRemaining, statusBadge, startMobilePayment, refresh: refreshSub, MONTHLY_PRICE, canAccess } = useSubscription(session);
 
   const handleSendEmailOTP = async () => {
@@ -88,43 +94,89 @@ function App() {
 
   const theme = getThemeColors(isDarkMode);
 
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && hash.includes('type=recovery')) {
-      setCurrentView('update-password');
-    }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session && localStorage.getItem('app_otpPending')) {
-        await supabase.auth.signOut();
-        localStorage.removeItem('app_otpPending');
-        setCurrentView('login');
-        setLoading(false);
-        return;
+useEffect(() => {
+  const isRecovery = window.location.hash.includes('type=recovery');
+
+  if (isRecovery) {
+    setCurrentView('update-password');
+  }
+
+  const otpActive =
+    process.env.REACT_APP_REQUIRE_EMAIL_OTP === 'true';
+
+  // Ondoa OTP flags za zamani ikiwa OTP imezimwa.
+  if (!otpActive) {
+    localStorage.removeItem('app_otpPending');
+    localStorage.removeItem('app_googleOtpPending');
+  }
+
+  let mounted = true;
+
+  supabase.auth.getSession()
+    .then(({ data: { session }, error }) => {
+      if (!mounted) return;
+
+      if (error) {
+        console.error('Session error:', error);
       }
-      if (session && localStorage.getItem('app_googleOtpPending')) {
+
+      if (
+        otpActive &&
+        session &&
+        localStorage.getItem('app_googleOtpPending')
+      ) {
         setSession(session);
         setShowEmailOTP(true);
         setLoading(false);
         return;
       }
+
       setSession(session);
-      if (session) setCurrentView('app');
+
+      if (session && !isRecovery) {
+        setCurrentView('app');
+      }
+
+      setLoading(false);
+    })
+    .catch((error) => {
+      if (!mounted) return;
+      console.error('Session error:', error);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+  const { data: { subscription } } =
+    supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!mounted) return;
+
       setSession(newSession);
-      if (event === 'SIGNED_IN' && localStorage.getItem('app_googleOtpPending')) {
+
+      if (
+        otpActive &&
+        event === 'SIGNED_IN' &&
+        localStorage.getItem('app_googleOtpPending')
+      ) {
         localStorage.removeItem('app_googleOtpPending');
         setShowEmailOTP(false);
         setLoading(false);
         setCurrentView('app');
+      } else if (
+        !otpActive &&
+        event === 'SIGNED_IN' &&
+        !isRecovery
+      ) {
+        setCurrentView('app');
+        setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+  return () => {
+    mounted = false;
+    subscription.unsubscribe();
+  };
+}, []);
+
 
   useEffect(() => {
     if (session?.user) { fetchShops(); fetchAvatar(); }
@@ -167,7 +219,11 @@ function App() {
         const closeTime = sms.auto_close_time || '22:00';
         if (currentTime < closeTime) return;
 
-        const today = now.toISOString().split('T')[0];
+        const today = [
+  now.getFullYear(),
+  String(now.getMonth() + 1).padStart(2, '0'),
+  String(now.getDate()).padStart(2, '0')
+].join('-');
         const sentKey = `close_${currentShop.id}_${today}`;
         if (autoSentRef.current[sentKey]) return;
         if (await alreadySentToday('auto_close', today)) { autoSentRef.current[sentKey] = true; return; }
@@ -217,15 +273,30 @@ function App() {
         } catch (e) {}
 
         const reportData = {
-          shopName: currentShop?.shop_name || '', date: today,
-          totalRevenue, totalProfit, totalTransactions: totalTx,
+  shopName: currentShop?.shop_name || '',
+  date: today,
+  reportType: 'eod',
+  startDate: new Date(),
+  endDate: new Date(),
+  totalRevenue, totalProfit, totalTransactions: totalTx,
           avgOrderValue: totalTx > 0 ? totalRevenue / totalTx : 0,
           productsSold, customerCount: uniqueCustomers.size,
           paymentBreakdown, topProducts,
           salesSummary: { highest: highestSale, lowest: lowestSale, totalDiscount },
         };
         const message = generateReportSMS(reportData, lang);
-        const result = await sendSMS({ to: phone, message });
+        const requestKey = await createDeterministicSmsRequestKey({
+  shopId: currentShop.id,
+  kind: 'auto_close',
+  date: today,
+  recipient: phone
+});
+
+const result = await sendSMS({
+  to: phone,
+  message,
+  requestKey
+});
         if (result.success) {
           await supabase.from('sms_logs').insert({
             shop_id: currentShop.id, recipient: phone, message, type: 'auto_close',
@@ -254,10 +325,13 @@ function App() {
       try {
         const today = new Date();
         const todayMonth = today.getMonth() + 1;
-        const todayStr = today.toISOString().split('T')[0];
-        const alertKey = `birthday_${currentShop.id}_${todayStr}`;
-        if (autoSentRef.current[alertKey]) return;
-        if (await alreadySentToday('birthday', todayStr)) { autoSentRef.current[alertKey] = true; return; }
+        const todayStr = [
+  today.getFullYear(),
+  String(today.getMonth() + 1).padStart(2, '0'),
+  String(today.getDate()).padStart(2, '0')
+].join('-');
+
+
 
         const { data: bdayCustomers } = await supabase.from('customers')
           .select('id, name, phone, birthday').eq('shop_id', currentShop.id)
@@ -279,14 +353,48 @@ function App() {
         if (!recipients.length) return;
 
         for (const recipient of recipients) {
-          const result = await sendSMS({ to: recipient, message: msg });
+          const startOfDay = new Date(
+  today.getFullYear(), today.getMonth(), today.getDate()
+).toISOString();
+
+const endOfDay = new Date(
+  today.getFullYear(), today.getMonth(), today.getDate() + 1
+).toISOString();
+
+const { count, error: logError } = await supabase
+  .from('sms_logs')
+  .select('id', { count: 'exact', head: true })
+  .eq('shop_id', currentShop.id)
+  .eq('type', 'birthday')
+  .eq('recipient', recipient)
+  .eq('status', 'sent')
+  .gte('created_at', startOfDay)
+  .lt('created_at', endOfDay);
+
+if (logError) {
+  logger.warn('App', 'Birthday SMS log check failed:', logError);
+  continue;
+}
+
+if (count > 0) continue;
+        const requestKey = await createDeterministicSmsRequestKey({
+  shopId: currentShop.id,
+  kind: 'birthday',
+  date: todayStr,
+  recipient
+});
+
+const result = await sendSMS({
+  to: recipient,
+  message: msg,
+  requestKey
+});
           await supabase.from('sms_logs').insert({
             shop_id: currentShop.id, recipient, message: msg, type: 'birthday',
             status: result.success ? 'sent' : 'failed',
             provider_response: result.success ? JSON.stringify(result.data)?.slice(0, 500) : (result.error?.slice(0, 500) || '')
           });
         }
-        autoSentRef.current[alertKey] = true;
       } catch (e) { logger.warn('App', 'Birthday SMS error:', e); }
     };
 
@@ -303,7 +411,7 @@ function App() {
   }, [currentShop?.id, lang]);
 
   useEffect(() => {
-    if (showEmailOTP && session?.user?.email) {
+    if (emailOtpEnabled && showEmailOTP && session?.user?.email) {
       handleSendEmailOTP();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -394,7 +502,7 @@ function App() {
 
   const spinnerFallback = <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><div className="spinner" style={{ width: '32px', height: '32px' }} /></div>;
 
-  if (showEmailOTP && session) {
+  if (emailOtpEnabled && showEmailOTP && session) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px' }}>
         <div style={{ background: 'rgba(255,255,255,0.98)', borderRadius: '20px', padding: '36px', width: '100%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
@@ -443,6 +551,23 @@ function App() {
   }
   if (currentView === 'login' || !session) {
     return <Suspense fallback={spinnerFallback}><ErrorBoundary isDarkMode={isDarkMode} lang={lang}><Auth supabase={supabase} onAuthSuccess={handleLoginSuccess} /></ErrorBoundary></Suspense>;
+  }
+
+  // MFA gate: disabled until staging and RLS are ready.
+  if (
+    process.env.REACT_APP_REQUIRE_MFA === 'true' &&
+    session &&
+    mfaVerifiedToken !== session.access_token
+  ) {
+    return (
+      <MfaGate
+        key={session.access_token}
+        supabase={supabase}
+        onVerified={() =>
+          setMfaVerifiedToken(session.access_token)
+        }
+      />
+    );
   }
 
   // Subscription gate: block the whole system unless the server confirms

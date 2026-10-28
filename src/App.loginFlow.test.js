@@ -1,10 +1,4 @@
-/**
- * Regression: "Auth redirect loop".
- * Baada ya signInWithPassword kufanikiwa, Supabase hutuma SIGNED_IN -> App huweka `session`
- * -> useSubscription huanza kupakia. Hapo App ilibadilisha <Auth> na spinner (Auth ika-unmount,
- * ikapoteza hatua ya OTP) kisha ikaionyesha tena Auth mpya yenye fomu ya Login tupu.
- * Mtumiaji alirudishwa kwenye Login huku OTP tayari imetumwa.
- */
+/** Regression tests: password login, subscription loading, and session refresh with optional OTP disabled. */
 import React from 'react';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import App from './App';
@@ -42,21 +36,15 @@ jest.mock('./supabaseClient', () => ({
 jest.mock('./hooks/useSubscription', () => ({ useSubscription: () => mockSubState }));
 jest.mock('./hooks/useKeyboard', () => () => {});
 
-// Auth ya majaribio yenye hali ya ndani (kama hatua ya OTP) na kihesabu cha mounts
+// Simulated password login. OTP is intentionally disabled in KasiTrade.
+// This mock tracks mounts to catch unexpected login remounts.
 jest.mock('./components/Auth', () => {
   const React = require('react'); // eslint-disable-line global-require
   return {
     __esModule: true,
-    default: function MockAuth({ onAuthSuccess }) {
-      const [step, setStep] = React.useState('password');
+    default: function MockAuth() {
       React.useEffect(() => { mockAuthMounts.count += 1; }, []);
-      return (
-        <div>
-          <div>{step === 'otp' ? 'HATUA-YA-OTP' : 'FOMU-YA-LOGIN'}</div>
-          <button onClick={() => setStep('otp')}>pitisha-nenosiri</button>
-          <button onClick={() => onAuthSuccess()}>thibitisha-otp</button>
-        </div>
-      );
+      return <div>FOMU-YA-LOGIN</div>;
     },
   };
 });
@@ -85,58 +73,67 @@ beforeEach(() => {
 });
 
 const goToLogin = async () => {
-  await act(async () => { render(<App />); });
+  let view;
+  await act(async () => { view = render(<App />); });
   fireEvent.click((await screen.findAllByText(/Anza Bure Sasa/i, {}, { timeout: 15000 }))[0]);
   await screen.findByText('FOMU-YA-LOGIN', {}, { timeout: 15000 });
+  return view;
 };
 
-describe('App - login haimrudishi mtumiaji kwenye Login (redirect loop)', () => {
-  it('Auth haitolewi na spinner wakati subscription inapakia baada ya SIGNED_IN', async () => {
+describe('App - login bila OTP na bila redirect loop', () => {
+  it('baada ya SIGNED_IN huonyesha loader wakati subscription inapakia, si fomu ya Login', async () => {
     await goToLogin();
-    fireEvent.click(screen.getByText('pitisha-nenosiri'));
-    expect(screen.getByText('HATUA-YA-OTP')).toBeInTheDocument();
-
-    // signInWithPassword imefanikiwa: Supabase inatuma SIGNED_IN, na subscription inaanza kupakia
-    mockSubState.loading = true;
-    await act(async () => { authCallback('SIGNED_IN', SESSION); });
-
-    // Hatua ya OTP lazima ibaki; Auth isiwe imeunmount wala kuanza upya
-    expect(screen.queryByText('Inapakia KasiTRADE...')).not.toBeInTheDocument();
-    expect(screen.getByText('HATUA-YA-OTP')).toBeInTheDocument();
-    expect(screen.queryByText('FOMU-YA-LOGIN')).not.toBeInTheDocument();
     expect(mockAuthMounts.count).toBe(1);
-  });
-
-  it('baada ya OTP kuthibitishwa mtumiaji huenda kwenye Dashboard', async () => {
-    await goToLogin();
-    fireEvent.click(screen.getByText('pitisha-nenosiri'));
 
     mockSubState.loading = true;
     await act(async () => { authCallback('SIGNED_IN', SESSION); });
 
-    // Subscription imemaliza kupakia na ni halali
-    Object.assign(mockSubState, { loading: false, canAccess: true, subscription: { status: 'active' }, daysRemaining: 20 });
-    await act(async () => { fireEvent.click(screen.getByText('thibitisha-otp')); });
+    expect(await screen.findByText('Inapakia KasiTRADE...')).toBeInTheDocument();
+    expect(screen.queryByText('FOMU-YA-LOGIN')).not.toBeInTheDocument();
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it('baada ya SIGNED_IN na subscription halali huingia Dashboard bila OTP', async () => {
+    const view = await goToLogin();
+    mockSubState.loading = true;
+    await act(async () => { authCallback('SIGNED_IN', SESSION); });
+
+    expect(await screen.findByText('Inapakia KasiTRADE...')).toBeInTheDocument();
+    Object.assign(mockSubState, {
+      loading: false, canAccess: true,
+      subscription: { status: 'active' }, daysRemaining: 20,
+    });
+    await act(async () => { view.rerender(<App />); });
 
     expect(await screen.findAllByText('Dashibodi', {}, { timeout: 15000 })).toHaveLength(2);
     expect(screen.queryByText('FOMU-YA-LOGIN')).not.toBeInTheDocument();
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
   });
 
-  it('refresh ya ukurasa ukiwa na session halali hupakia spinner kisha app (si Login)', async () => {
-    supabase.auth.getSession.mockImplementation(async () => ({ data: { session: SESSION } }));
-    Object.assign(mockSubState, { loading: false, canAccess: true, subscription: { status: 'active' }, daysRemaining: 20 });
+  it('refresh yenye session halali hupakia Dashboard, si Login', async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: SESSION } });
+    Object.assign(mockSubState, {
+      loading: false, canAccess: true,
+      subscription: { status: 'active' }, daysRemaining: 20,
+    });
     await act(async () => { render(<App />); });
 
     expect(await screen.findAllByText('Dashibodi', {}, { timeout: 15000 })).toHaveLength(2);
     expect(screen.queryByText('FOMU-YA-LOGIN')).not.toBeInTheDocument();
   });
 
-  it('refresh ya ukurasa wakati OTP inasubiriwa hurudi Login (usalama haubadiliki)', async () => {
+  it('OTP flags za zamani hazisababishi logout baada ya refresh', async () => {
     localStorage.setItem('app_otpPending', 'true');
-    supabase.auth.getSession.mockImplementation(async () => ({ data: { session: SESSION } }));
+    localStorage.setItem('app_googleOtpPending', 'true');
+    supabase.auth.getSession.mockResolvedValue({ data: { session: SESSION } });
+    Object.assign(mockSubState, {
+      loading: false, canAccess: true,
+      subscription: { status: 'active' }, daysRemaining: 20,
+    });
     await act(async () => { render(<App />); });
 
-    expect(await screen.findByText('FOMU-YA-LOGIN', {}, { timeout: 15000 })).toBeInTheDocument();
-    expect(supabase.auth.signOut).toHaveBeenCalled();
+    expect(await screen.findAllByText('Dashibodi', {}, { timeout: 15000 })).toHaveLength(2);
+    expect(screen.queryByText('FOMU-YA-LOGIN')).not.toBeInTheDocument();
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
   });
 });

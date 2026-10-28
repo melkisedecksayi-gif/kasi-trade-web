@@ -1,6 +1,6 @@
 import logger from '../utils/logger';
 import { supabase } from '../supabaseClient';
-
+import { newCheckoutRequestId } from './posCheckout';
 // SMS zote hupita kwenye Edge Function `send-sms`. API key ya mtoa huduma (MESEJI_API_KEY)
 // ipo kwenye secrets za Supabase pekee — HAIPASWI kuwa kwenye code ya frontend.
 const SEND_SMS_FUNCTION = 'send-sms';
@@ -100,33 +100,42 @@ const invokeSendSms = async (payload) => {
 
     if (error) {
       // FunctionsHttpError: ina Response kwenye error.context (status + ujumbe wa seva)
-      const status = error.context?.status;
+
       let message = error.message;
       try {
         const body = await error.context.json();
         if (body?.error) message = body.error;
       } catch (e) { /* si JSON */ }
-      return { success: false, error: message, retryable: !status || status >= 500 };
-    }
-    if (data?.success === false) {
+          return { success: false, error: message, retryable: false };
+  }
+  if (data?.success !== true) {
       return { success: false, error: data.error || 'SMS failed', retryable: false };
     }
     return { success: true, data: data?.data ?? data };
   } catch (error) {
-    if (error.message === 'Request timeout') {
-      return { success: false, error: 'Request timeout', retryable: true };
+   if (error.message === 'Request timeout') {
+  return { success: false, error: 'Request timeout', retryable: false };
     }
     logger.error('SMSService', 'SMS send error:', error);
-    return { success: false, error: error.message, retryable: true };
+    return { success: false, error: error.message, retryable: false };
   } finally {
     clearTimeout(timer);
   }
 };
 
 // `sender` na `apiKey` zilikuwepo zamani; sasa zinapuuzwa (key ipo kwenye seva pekee).
-export const sendSMS = async ({ to, message }) =>
-  invokeSendSms({ kind: 'custom', to, message });
+export const sendSMS = async ({ to, message, requestKey, shopId, purpose }) => {
+  if (!shopId || !['report', 'stock_alert'].includes(purpose)) {
+    return { success: false, error: 'SMS type/shop haijaruhusiwa', retryable: false };
+  }
+  return invokeSendSms({ kind: 'custom', to, message, purpose,
+    shop_id: shopId, request_key: requestKey || newCheckoutRequestId() });
+};
 
+export const sendReceiptSMS = async ({ to, shopId, saleRequestId }) => {
+  if (!shopId || !saleRequestId) return { success: false, error: 'Sale ID inahitajika', retryable: false };
+  return invokeSendSms({ kind: 'receipt', shop_id: shopId, to, request_key: saleRequestId });
+};
 // Rudia tu kwa makosa ya mtandao/seva (5xx). Makosa ya 4xx (kikomo cha kasi, namba mbaya,
 // huna ruhusa) hayarudiwi — kurudia kungeongeza tu matumizi ya kikomo.
 const withRetry = async (send, maxRetries, delayMs) => {
@@ -146,31 +155,16 @@ export const sendSMSWithRetry = async (params, maxRetries = 3, delayMs = 1000) =
 
 // Ujumbe wa OTP / welcome / password reset hutengenezwa na SERVER (kutoka kwenye code na jina
 // tu), kwa hiyo hizi zinafanya kazi hata kabla mtumiaji hajaingia.
-export const sendWelcomeSMS = async ({ phone, businessName, lang = 'sw' }) => {
-  if (!phone) return { success: false, error: 'No phone number provided' };
-  return withRetry(() => invokeSendSms({ kind: 'welcome', to: phone, businessName, lang }), 3, 1000);
-};
+// OTP and welcome are deliberately disabled while KasiTrade uses password-only login.
+const off = async () => ({ success: false, error: 'SMS hii imezimwa kwa sasa', retryable: false });
+export const sendWelcomeSMS = off;
+export const sendOTPSMS = off;
+export const sendPasswordResetOTPSMS = off;
 
-export const sendOTPSMS = async ({ phone, code, lang = 'sw' }) => {
-  if (!phone) return { success: false, error: 'No phone number provided' };
-  return withRetry(() => invokeSendSms({ kind: 'otp', to: phone, code, lang }), 3, 1000);
-};
-
-export const sendPasswordResetOTPSMS = async ({ phone, code, lang = 'sw' }) => {
-  if (!phone) return { success: false, error: 'No phone number provided' };
-  return withRetry(() => invokeSendSms({ kind: 'password_reset', to: phone, code, lang }), 3, 1000);
-};
-export const sendBulkSMS = async ({ recipients, message }) => {
-  const results = [];
-  for (const recipient of recipients) {
-    const result = await sendSMSWithRetry({ to: recipient, message });
-    results.push({ recipient, ...result });
-    if (recipients.length > 1) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-  }
-  return results;
-};
+// Marketing needs consent and server-side recipient verification before re-enabling.
+export const sendBulkSMS = async ({ recipients = [] }) =>
+  recipients.map(recipient => ({ recipient, success: false,
+    error: 'Bulk/marketing SMS zimezimwa hadi consent itakapowekwa', retryable: false }));
 
 export const generateReceiptSMS = (transaction, shopName, lang = 'sw') => {
   const isSw = lang === 'sw';

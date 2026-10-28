@@ -156,13 +156,14 @@ useEffect(() => {
           : `We sent a verification code (OTP) to your phone ${userPhone.slice(-4).padStart(userPhone.length, '*')}. Enter it below.`);
       } else {
         setOtpHint(lang === 'sw'
-          ? `OTP: *${otp}* (Tumetumia fallback - SMS haikutumwa)`
-          : `OTP: *${otp}* (Fallback mode - SMS not sent)`);
+          ? 'SMS ya OTP haikutumwa. Tafadhali jaribu tena.'
+          : 'OTP SMS was not sent. Please try again.');
         setOtpResendTimer(60);
       }
+
     } catch (err) {
       showToast(lang === 'sw' ? 'Imeshindwa kutuma OTP. Jaribu tena.' : 'Failed to send OTP. Please try again.', 'error');
-      setOtpNeeded(false);
+
     } finally {
       setOtpSending(false);
     }

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import { FancyDonut } from './Charts';
 import getStyles from '../stylePresets';
 import logger from '../utils/logger';
 import { sendLowStockAlertSms } from '../services/stockAlertSms';
+import { newCheckoutRequestId } from '../services/posCheckout';
 
 const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage }) => {
   const [stats, setStats] = useState({ todaySales: 0, todayProfit: 0, productsCount: 0, customersCount: 0, lowStock: 0 });
@@ -11,6 +12,8 @@ const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage }) =
   const [loading, setLoading] = useState(true);
   const [stockSmsSending, setStockSmsSending] = useState(false);
   const [stockSmsMsg, setStockSmsMsg] = useState(null); // { ok, text }
+  const stockSmsRequestKeyRef = useRef(null);
+  const stockSmsPayloadRef = useRef(null);
   const isSw = lang === 'sw';
 
   // SMS ya stock hutumwa TU kwa kubonyeza kitufe (si wakati ukurasa unapopakia).
@@ -18,7 +21,31 @@ const Dashboard = ({ supabase, currentShop, isDarkMode, lang, setActivePage }) =
     if (stockSmsSending) return;
     setStockSmsSending(true);
     setStockSmsMsg(null);
-    const res = await sendLowStockAlertSms({ supabase, currentShop, lang });
+    const res = await sendLowStockAlertSms({
+  supabase,
+  currentShop,
+  lang,
+  resolveRequestKey: ({ to, message }) => {
+    const payload = JSON.stringify({
+      shopId: currentShop?.id,
+      to: to.trim(),
+      message
+    });
+
+    if (
+      !stockSmsRequestKeyRef.current ||
+      stockSmsPayloadRef.current !== payload
+    ) {
+      stockSmsRequestKeyRef.current = newCheckoutRequestId();
+      stockSmsPayloadRef.current = payload;
+    }
+
+    return stockSmsRequestKeyRef.current;
+  }
+});
+if (res.success) {
+  stockSmsRequestKeyRef.current = null;
+}
     const texts = {
       no_low_stock: isSw ? 'Hakuna bidhaa zilizo chini ya kiwango.' : 'No products below the threshold.',
       no_phone: isSw ? 'Weka namba ya simu kwenye Mipangilio ya SMS kwanza.' : 'Set a phone number in SMS Settings first.',

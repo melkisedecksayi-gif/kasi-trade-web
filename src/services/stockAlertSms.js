@@ -15,7 +15,7 @@ const getSmsSettings = () => {
 
 // Inarudisha { success, reason?, count?, error? }
 // reason: 'no_shop' | 'no_low_stock' | 'no_phone' | 'send_failed' | 'error'
-export const sendLowStockAlertSms = async ({ supabase, currentShop, lang = 'sw' }) => {
+export const sendLowStockAlertSms = async ({ supabase, currentShop, lang = 'sw', requestKey, resolveRequestKey }) => {
   if (!currentShop?.id) return { success: false, reason: 'no_shop' };
 
   try {
@@ -48,7 +48,17 @@ export const sendLowStockAlertSms = async ({ supabase, currentShop, lang = 'sw' 
       ? `TAHADHARI STOCK\n\nBidhaa zifuatazo ziko chini ya ${threshold}:\n${productList}\n\n${shopName}`
       : `LOW STOCK ALERT\n\nProducts below ${threshold}:\n${productList}\n\n${shopName}`;
 
-    const result = await sendSMS({ to: phone, message });
+    const resolvedRequestKey =
+  typeof resolveRequestKey === 'function'
+    ? resolveRequestKey({ to: phone, message })
+    : requestKey;
+
+const result = await sendSMS({
+  shopId: currentShop.id, purpose: "stock_alert",
+  to: phone,
+  message,
+  requestKey: resolvedRequestKey
+});
     if (!result.success) {
       return { success: false, reason: 'send_failed', error: result.error };
     }
@@ -59,7 +69,7 @@ export const sendLowStockAlertSms = async ({ supabase, currentShop, lang = 'sw' 
       message,
       type: 'low_stock',
       status: 'sent',
-      provider_response: JSON.stringify(result.data).slice(0, 500),
+      provider_response: JSON.stringify(result.data ?? {}).slice(0, 500),
     });
     return { success: true, count: lowProducts.length };
   } catch (e) {
